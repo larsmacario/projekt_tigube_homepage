@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { sendLeadEmails } from '@/lib/email'
+
+export const runtime = 'nodejs'
 
 interface ContactFormData {
   name: string
@@ -81,7 +84,7 @@ export async function POST(request: NextRequest) {
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     )
 
-    const { error: dbError } = await supabase.from('contacts').insert({
+    const { data: lead, error: dbError } = await supabase.from('contacts').insert({
       contact_type: 'lead',
       nachname: formData.name,
       vorname: formData.vorname ?? null,
@@ -104,7 +107,7 @@ export async function POST(request: NextRequest) {
       user_agent: request.headers.get('user-agent') || null,
       timestamp: formData.timestamp || new Date().toISOString(),
       status: 'new',
-    })
+    }).select('id').single()
 
     if (dbError) {
       console.error('Supabase-Fehler beim Speichern der Kontaktanfrage:', dbError)
@@ -115,12 +118,40 @@ export async function POST(request: NextRequest) {
     }
 
     console.log('Kontaktanfrage erfolgreich in Supabase gespeichert:', {
+      id: lead.id,
       service: formData.service,
       name: formData.name,
       email: formData.email,
     })
 
-    // Erfolg zurückgeben
+    const deliveries = await sendLeadEmails(formData)
+    const { error: deliveryStatusError } = await supabase
+      .from('contacts')
+      .update({
+        email_internal_status: deliveries.internal.status,
+        email_internal_error: deliveries.internal.error,
+        email_confirmation_status: deliveries.confirmation.status,
+        email_confirmation_error: deliveries.confirmation.error,
+      })
+      .eq('id', lead.id)
+
+    if (deliveryStatusError) {
+      console.error('Supabase-Fehler beim Speichern des E-Mail-Status:', deliveryStatusError)
+    }
+
+    if (deliveries.internal.status === 'failed' || deliveries.confirmation.status === 'failed') {
+      console.error('SMTP-Versand für Lead fehlgeschlagen:', {
+        leadId: lead.id,
+        internal: deliveries.internal.error,
+        confirmation: deliveries.confirmation.error,
+      })
+
+      return NextResponse.json(
+        { error: 'Ihre Anfrage wurde gespeichert, aber die E-Mail-Benachrichtigung konnte nicht versendet werden. Bitte kontaktieren Sie uns direkt.' },
+        { status: 502 }
+      )
+    }
+
     return NextResponse.json(
       { 
         success: true, 
@@ -137,4 +168,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     )
   }
-} 
+}

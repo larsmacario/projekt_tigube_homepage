@@ -6,11 +6,12 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
-import { ArrowLeft } from 'lucide-react'
+import { ArrowLeft, Trash2 } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 import Link from 'next/link'
 import type { Contact, ContactNote } from '@/lib/types'
 import { PropertyEditor } from '@/components/admin/property-editor'
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog'
 
 export default function LeadDetailPage() {
   const params = useParams()
@@ -22,6 +23,7 @@ export default function LeadDetailPage() {
   const [notes, setNotes] = useState<ContactNote[]>([])
   const [loading, setLoading] = useState(true)
   const [newNote, setNewNote] = useState('')
+  const [isDeleting, setIsDeleting] = useState(false)
 
   useEffect(() => {
     if (leadId) {
@@ -207,6 +209,36 @@ export default function LeadDetailPage() {
     }
   }
 
+  async function deleteLead() {
+    if (!lead) return
+
+    setIsDeleting(true)
+    try {
+      const response = await fetch('/api/admin/leads', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: lead.id }),
+        credentials: 'include',
+      })
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Fehler beim Löschen des Leads')
+      }
+
+      toast({ title: 'Lead gelöscht' })
+      router.push('/admin/leads')
+      router.refresh()
+    } catch (error: any) {
+      toast({
+        title: 'Fehler',
+        description: error.message || 'Fehler beim Löschen des Leads',
+        variant: 'destructive',
+      })
+      setIsDeleting(false)
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
@@ -334,6 +366,27 @@ export default function LeadDetailPage() {
                 {new Date(lead.created_at).toLocaleString('de-DE')}
               </p>
             </div>
+            <div className="border-t pt-4 space-y-3">
+              <h3 className="font-semibold">E-Mail-Versand</h3>
+              <div>
+                <Label>Interne Benachrichtigung</Label>
+                <p className={lead.email_internal_status === 'sent' ? 'text-green-700' : 'text-amber-700'}>
+                  {lead.email_internal_status === 'sent' ? 'Erfolgreich versendet' : lead.email_internal_status === 'failed' ? 'Versand fehlgeschlagen' : 'Kein Versandstatus vorhanden'}
+                </p>
+                {lead.email_internal_error && (
+                  <p className="mt-1 text-sm text-red-700 whitespace-pre-wrap">{lead.email_internal_error}</p>
+                )}
+              </div>
+              <div>
+                <Label>Eingangsbestätigung an Lead</Label>
+                <p className={lead.email_confirmation_status === 'sent' ? 'text-green-700' : 'text-amber-700'}>
+                  {lead.email_confirmation_status === 'sent' ? 'Erfolgreich versendet' : lead.email_confirmation_status === 'failed' ? 'Versand fehlgeschlagen' : 'Kein Versandstatus vorhanden'}
+                </p>
+                {lead.email_confirmation_error && (
+                  <p className="mt-1 text-sm text-red-700 whitespace-pre-wrap">{lead.email_confirmation_error}</p>
+                )}
+              </div>
+            </div>
           </CardContent>
         </Card>
 
@@ -406,6 +459,28 @@ export default function LeadDetailPage() {
             <Button variant="outline" className="w-full" onClick={markAsLost}>
               Als verloren markieren
             </Button>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="destructive" className="w-full" disabled={isDeleting}>
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Lead löschen
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Lead endgültig löschen?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Der Lead inklusive Notizen und zusätzlicher Eigenschaften wird dauerhaft entfernt. Diese Aktion kann nicht rückgängig gemacht werden.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Abbrechen</AlertDialogCancel>
+                  <AlertDialogAction onClick={deleteLead} disabled={isDeleting}>
+                    {isDeleting ? 'Wird gelöscht…' : 'Endgültig löschen'}
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           </CardContent>
         </Card>
       </div>
@@ -417,4 +492,3 @@ export default function LeadDetailPage() {
     </div>
   )
 }
-

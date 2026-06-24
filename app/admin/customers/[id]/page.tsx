@@ -7,11 +7,12 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
-import { ArrowLeft } from 'lucide-react'
+import { ArrowLeft, Trash2 } from 'lucide-react'
 import Link from 'next/link'
 import type { Customer, Pet, Document, BookingRequest } from '@/lib/types'
 import { PropertyEditor } from '@/components/admin/property-editor'
 import { useToast } from '@/hooks/use-toast'
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog'
 
 interface Note {
   id: string
@@ -35,6 +36,7 @@ export default function CustomerDetailPage() {
   const [newNote, setNewNote] = useState('')
   const [onboardingToken, setOnboardingToken] = useState<{ token: string; url: string } | null>(null)
   const [bookings, setBookings] = useState<BookingRequest[]>([])
+  const [isDeleting, setIsDeleting] = useState(false)
 
   useEffect(() => {
     if (customerId) {
@@ -154,6 +156,34 @@ export default function CustomerDetailPage() {
         description: 'Fehler beim Hinzufügen der Notiz',
         variant: 'destructive',
       })
+    }
+  }
+
+  async function deleteCustomer() {
+    if (!customer) return
+
+    setIsDeleting(true)
+    try {
+      const response = await fetch(`/api/admin/customers/${customer.id}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      })
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Fehler beim Löschen des Kunden')
+      }
+
+      toast({ title: 'Kunde gelöscht' })
+      router.push('/admin/customers')
+      router.refresh()
+    } catch (error: any) {
+      toast({
+        title: 'Fehler',
+        description: error.message || 'Fehler beim Löschen des Kunden',
+        variant: 'destructive',
+      })
+      setIsDeleting(false)
     }
   }
 
@@ -524,7 +554,36 @@ export default function CustomerDetailPage() {
       <div className="mt-6">
         <PropertyEditor entityType="customer" entityId={customerId} />
       </div>
+
+      <Card className="border-destructive/40">
+        <CardHeader>
+          <CardTitle className="text-destructive">Gefahrenbereich</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button variant="destructive" disabled={isDeleting}>
+                <Trash2 className="mr-2 h-4 w-4" />
+                Kunde löschen
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Kunde endgültig löschen?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Der Kunde inklusive Buchungen, Tieren, Dokumenten, Notizen, Onboarding-Links und zusätzlichen Eigenschaften wird dauerhaft entfernt. Diese Aktion kann nicht rückgängig gemacht werden.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Abbrechen</AlertDialogCancel>
+                <AlertDialogAction onClick={deleteCustomer} disabled={isDeleting}>
+                  {isDeleting ? 'Wird gelöscht…' : 'Endgültig löschen'}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </CardContent>
+      </Card>
     </div>
   )
 }
-

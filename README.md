@@ -38,7 +38,7 @@ Diese Website wurde entwickelt, um Vertrauen zu schaffen und Kontaktanfragen fü
 ### Backend & Datenbank
 - **Supabase** - PostgreSQL-Datenbank
 - **Next.js API Routes** - Server-Side API-Endpoints
-- **Resend** - E-Mail-Versand
+- **SMTP / Nodemailer** - E-Mail-Versand für Lead-Anfragen
 
 ## Entwicklung
 
@@ -101,7 +101,14 @@ Erstelle eine `.env.local` Datei im Root-Verzeichnis mit folgenden Variablen:
 |----------|--------------|
 | `NEXT_PUBLIC_SUPABASE_URL` | Supabase Projekt-URL |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase Anonymous Key |
-| `RESEND_API_KEY` | Resend API-Schlüssel für E-Mails |
+| `SUPABASE_SERVICE_ROLE_KEY` | Service-Role-Schlüssel für serverseitige Datenbankzugriffe |
+| `SMTP_HOST` | SMTP-Hostname des Postfach-Anbieters |
+| `SMTP_PORT` | SMTP-Port, üblicherweise `587` (STARTTLS) oder `465` (TLS) |
+| `SMTP_SECURE` | `true` für Port 465, sonst `false` |
+| `SMTP_USER` | SMTP-Benutzername |
+| `SMTP_PASSWORD` | SMTP-Passwort oder App-Passwort |
+| `SMTP_FROM` | Verifizierter Absender, standardmäßig `info@tierischgutbetreut.de` |
+| `SMTP_TO` | Empfänger der internen Lead-Benachrichtigung, standardmäßig `info@tierischgutbetreut.de` |
 
 ### Google Places API (Optional)
 

@@ -51,6 +51,22 @@ function getServerClient(request: NextRequest) {
   return { client, accessToken }
 }
 
+function getAdminClient() {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+
+  if (!serviceRoleKey) {
+    throw new Error('Die Server-Konfiguration für die Datenbankverwaltung fehlt')
+  }
+
+  return createClient(supabaseUrl, serviceRoleKey, {
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false,
+    },
+  })
+}
+
 export async function GET(request: NextRequest) {
   try {
     const { client: supabase, accessToken } = getServerClient(request)
@@ -216,4 +232,82 @@ export async function PUT(request: NextRequest) {
   }
 }
 
+export async function DELETE(request: NextRequest) {
+  try {
+    const { client: supabase, accessToken } = getServerClient(request)
 
+    if (!accessToken) {
+      return NextResponse.json(
+        { error: 'Nicht autorisiert - Keine Session gefunden' },
+        { status: 401 }
+      )
+    }
+
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    if (authError || !user) {
+      return NextResponse.json({ error: 'Nicht autorisiert' }, { status: 401 })
+    }
+
+    const { data: userData, error: userError } = await supabase
+      .from('users')
+      .select('role')
+      .eq('id', user.id)
+      .single()
+
+    if (userError || !userData || userData.role !== 'admin') {
+      return NextResponse.json({ error: 'Nicht autorisiert' }, { status: 403 })
+    }
+
+    const adminSupabase = getAdminClient()
+
+    const { id } = await request.json()
+    if (!id) {
+      return NextResponse.json({ error: 'ID ist erforderlich' }, { status: 400 })
+    }
+
+    const { data: lead, error: leadError } = await adminSupabase
+      .from('contacts')
+      .select('id')
+      .eq('id', id)
+      .eq('contact_type', 'lead')
+      .maybeSingle()
+
+    if (leadError) throw leadError
+    if (!lead) {
+      return NextResponse.json({ error: 'Lead nicht gefunden' }, { status: 404 })
+    }
+
+    const { error: propertiesError } = await adminSupabase
+      .from('property_values')
+      .delete()
+      .eq('entity_type', 'lead')
+      .eq('entity_id', id)
+    if (propertiesError) throw propertiesError
+
+    const { error: notesError } = await adminSupabase
+      .from('notes')
+      .delete()
+      .eq('contact_id', id)
+    if (notesError) throw notesError
+
+    const { data: deletedLead, error: deleteError } = await adminSupabase
+      .from('contacts')
+      .delete()
+      .eq('id', id)
+      .eq('contact_type', 'lead')
+      .select('id')
+      .maybeSingle()
+    if (deleteError) throw deleteError
+    if (!deletedLead) {
+      throw new Error('Lead konnte nicht gelöscht werden')
+    }
+
+    return NextResponse.json({ success: true })
+  } catch (error: any) {
+    console.error('Error deleting lead:', error)
+    return NextResponse.json(
+      { error: error.message || 'Fehler beim Löschen des Leads' },
+      { status: 500 }
+    )
+  }
+}

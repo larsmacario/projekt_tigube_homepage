@@ -52,6 +52,10 @@ export interface Contact {
   intervall_impfung: string | null
   intervall_entwurmung: string | null
   onboarding_completed: boolean
+  email_internal_status: 'sent' | 'failed' | null
+  email_internal_error: string | null
+  email_confirmation_status: 'sent' | 'failed' | null
+  email_confirmation_error: string | null
 }
 
 /** Alias — Kunden sind `contacts` mit contact_type customer */

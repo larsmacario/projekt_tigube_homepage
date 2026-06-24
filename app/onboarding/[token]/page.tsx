@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import type { Contact } from '@/lib/types'
+import { supabase } from '@/lib/supabase'
 
 export default function OnboardingPage() {
   const params = useParams()
@@ -123,12 +124,15 @@ export default function OnboardingPage() {
         throw new Error(data.error || 'Registrierung fehlgeschlagen')
       }
 
-      // Markiere Token als verwendet
-      await fetch(`/api/onboarding/verify`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token, markAsUsed: true }),
+      if (!data.session?.access_token || !data.session?.refresh_token) {
+        throw new Error('Konto erstellt, aber keine Sitzung erhalten. Bitte melde dich an.')
+      }
+
+      const { error: sessionError } = await supabase.auth.setSession({
+        access_token: data.session.access_token,
+        refresh_token: data.session.refresh_token,
       })
+      if (sessionError) throw sessionError
 
       // Redirect direkt zur Profil-Seite, um das Onboarding fortzusetzen
       router.push('/portal/profile?onboarding=true')
@@ -247,5 +251,4 @@ export default function OnboardingPage() {
     </div>
   )
 }
-
 

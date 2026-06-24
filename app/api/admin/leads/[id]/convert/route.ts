@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { randomBytes } from 'crypto'
+import { sendOnboardingEmail } from '@/lib/email'
 
 function getServerClient(request: NextRequest) {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
@@ -130,14 +131,21 @@ export async function POST(
       .eq('entity_type', 'lead')
       .eq('entity_id', leadId)
 
+    await supabase
+      .from('onboarding_tokens')
+      .update({ used: true, used_at: new Date().toISOString() })
+      .eq('customer_id', leadId)
+      .eq('used', false)
+
     const token = randomBytes(32).toString('hex')
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
 
     const { data: onboardingToken, error: tokenError } = await supabase
       .from('onboarding_tokens')
       .insert({
         customer_id: leadId,
         token,
-        expires_at: null,
+        expires_at: expiresAt,
         used: false,
       })
       .select()
@@ -150,6 +158,11 @@ export async function POST(
 
     const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
     const onboardingUrl = `${baseUrl}/onboarding/${token}`
+    const emailDelivery = await sendOnboardingEmail({
+      email: lead.email,
+      name: [lead.vorname, lead.nachname].filter(Boolean).join(' '),
+      onboardingUrl,
+    })
 
     const webhookUrl = process.env.ONBOARDING_WEBHOOK_URL
     if (webhookUrl) {
@@ -194,6 +207,7 @@ export async function POST(
       customer_id: leadId,
       token: onboardingToken,
       onboarding_url: onboardingUrl,
+      email_delivery: emailDelivery,
     })
   } catch (error: any) {
     console.error('Error converting lead:', error)

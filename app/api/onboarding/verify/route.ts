@@ -14,7 +14,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const { token, markAsUsed } = body || {}
+    const { token } = body || {}
 
     if (!token) {
       return NextResponse.json(
@@ -77,6 +77,10 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    if (tokenData.expires_at && new Date(tokenData.expires_at).getTime() <= Date.now()) {
+      return NextResponse.json({ error: 'Dieser Onboarding-Link ist abgelaufen' }, { status: 410 })
+    }
+
     // Hole Customer-Daten direkt (nicht über Relation wegen RLS)
     let customer = null
     if (tokenData.customer_id) {
@@ -122,17 +126,6 @@ export async function POST(request: NextRequest) {
         { error: 'Keine Kundendaten gefunden' },
         { status: 404 }
       )
-    }
-
-    // Markiere Token als verwendet wenn gewünscht
-    if (markAsUsed) {
-      await supabase
-        .from('onboarding_tokens')
-        .update({
-          used: true,
-          used_at: new Date().toISOString(),
-        })
-        .eq('id', tokenData.id)
     }
 
     const responseData = {

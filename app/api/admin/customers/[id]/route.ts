@@ -39,6 +39,22 @@ function getServerClient(request: NextRequest) {
   return { client, accessToken }
 }
 
+function getAdminClient() {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+
+  if (!serviceRoleKey) {
+    throw new Error('Die Server-Konfiguration für die Datenbankverwaltung fehlt')
+  }
+
+  return createClient(supabaseUrl, serviceRoleKey, {
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false,
+    },
+  })
+}
+
 export async function GET(
   request: NextRequest,
   { params }: { params: { id: string } }
@@ -164,3 +180,114 @@ export async function PUT(
   }
 }
 
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const { client: supabase, accessToken } = getServerClient(request)
+
+    if (!accessToken) {
+      return NextResponse.json({ error: 'Nicht autorisiert' }, { status: 401 })
+    }
+
+    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    if (authError || !user) {
+      return NextResponse.json({ error: 'Nicht autorisiert' }, { status: 401 })
+    }
+
+    const { data: userData, error: userError } = await supabase
+      .from('users')
+      .select('role')
+      .eq('id', user.id)
+      .single()
+    if (userError || !userData || userData.role !== 'admin') {
+      return NextResponse.json({ error: 'Nicht autorisiert' }, { status: 403 })
+    }
+
+    const adminSupabase = getAdminClient()
+
+    const customerId = params.id
+    const { data: customer, error: customerError } = await adminSupabase
+      .from('contacts')
+      .select('id')
+      .eq('id', customerId)
+      .eq('contact_type', 'customer')
+      .maybeSingle()
+    if (customerError) throw customerError
+    if (!customer) {
+      return NextResponse.json({ error: 'Kunde nicht gefunden' }, { status: 404 })
+    }
+
+    const { data: documents, error: documentsError } = await adminSupabase
+      .from('documents')
+      .select('file_path')
+      .eq('customer_id', customerId)
+    if (documentsError) throw documentsError
+
+    const documentPaths = (documents || []).map((document) => document.file_path).filter(Boolean)
+    if (documentPaths.length > 0) {
+      const { error: storageError } = await adminSupabase.storage
+        .from('customer-documents')
+        .remove(documentPaths)
+      if (storageError) throw storageError
+    }
+
+    const { error: bookingsError } = await adminSupabase
+      .from('bookings')
+      .delete()
+      .eq('customer_id', customerId)
+    if (bookingsError) throw bookingsError
+
+    const { error: documentsDeleteError } = await adminSupabase
+      .from('documents')
+      .delete()
+      .eq('customer_id', customerId)
+    if (documentsDeleteError) throw documentsDeleteError
+
+    const { error: petsError } = await adminSupabase
+      .from('pets')
+      .delete()
+      .eq('customer_id', customerId)
+    if (petsError) throw petsError
+
+    const { error: tokensError } = await adminSupabase
+      .from('onboarding_tokens')
+      .delete()
+      .eq('customer_id', customerId)
+    if (tokensError) throw tokensError
+
+    const { error: notesError } = await adminSupabase
+      .from('notes')
+      .delete()
+      .eq('contact_id', customerId)
+    if (notesError) throw notesError
+
+    const { error: propertiesError } = await adminSupabase
+      .from('property_values')
+      .delete()
+      .eq('entity_type', 'customer')
+      .eq('entity_id', customerId)
+    if (propertiesError) throw propertiesError
+
+    const { data: deletedCustomer, error: deleteError } = await adminSupabase
+      .from('contacts')
+      .delete()
+      .eq('id', customerId)
+      .eq('contact_type', 'customer')
+      .select('id')
+      .maybeSingle()
+    if (deleteError) throw deleteError
+    if (!deletedCustomer) {
+      throw new Error('Kunde konnte nicht gelöscht werden')
+    }
+
+    return NextResponse.json({ success: true })
+  } catch (error: any) {
+    console.error('Error deleting customer:', error)
+    return NextResponse.json(
+      { error: error.message || 'Fehler beim Löschen des Kunden' },
+      { status: 500 }
+    )
+  }
+}

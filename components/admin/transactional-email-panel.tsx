@@ -58,7 +58,7 @@ export function TransactionalEmailPanel({
       toast({
         title: 'Fehler',
         description:
-          error instanceof Error ? error.message : 'Transaktionaler E-Mail-Verlauf konnte nicht geladen werden',
+          error instanceof Error ? error.message : 'E-Mail-Verlauf konnte nicht geladen werden',
         variant: 'destructive',
       })
     } finally {
@@ -103,21 +103,21 @@ export function TransactionalEmailPanel({
         if (data.email) {
           setEmails((prev) => [...prev, data.email])
         }
-        throw new Error(data.error || 'Transaktionale E-Mail konnte nicht gesendet werden')
+        throw new Error(data.error || 'E-Mail konnte nicht gesendet werden')
       }
 
       setEmails((prev) => [...prev, data.email])
       setSubject('')
       setBody('')
       toast({
-        title: 'Transaktionale E-Mail gesendet',
+        title: 'E-Mail gesendet',
         description: `Nachricht an ${recipientEmail} wurde versendet`,
       })
     } catch (error) {
       toast({
         title: 'Fehler',
         description:
-          error instanceof Error ? error.message : 'Transaktionale E-Mail konnte nicht gesendet werden',
+          error instanceof Error ? error.message : 'E-Mail konnte nicht gesendet werden',
         variant: 'destructive',
       })
     } finally {
@@ -130,11 +130,11 @@ export function TransactionalEmailPanel({
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Mail className="h-5 w-5" />
-          Transaktionale E-Mail an {recipientName}
+          E-Mail an {recipientName}
         </CardTitle>
         <p className="text-sm text-sage-600">{recipientEmail}</p>
         <p className="text-xs text-sage-500">
-          Persönlicher Einzelversand — für Massenversand siehe „Transaktionale E-Mails“ im Menü.
+          Persönlicher Einzelversand — für Massenversand siehe „E-Mails“ im Menü.
         </p>
       </CardHeader>
       <CardContent className="space-y-6">
@@ -145,7 +145,7 @@ export function TransactionalEmailPanel({
               id={`transactional-email-subject-${contactId}`}
               value={subject}
               onChange={(e) => setSubject(e.target.value)}
-              placeholder="Betreff der transaktionalen E-Mail"
+              placeholder="Betreff der E-Mail"
               disabled={sending}
             />
           </div>
@@ -167,20 +167,20 @@ export function TransactionalEmailPanel({
                 Wird gesendet…
               </>
             ) : (
-              'Transaktionale E-Mail senden'
+              'E-Mail senden'
             )}
           </Button>
         </div>
 
         <div className="border-t pt-4 space-y-3">
-          <h3 className="font-semibold text-sage-900">Transaktionaler Verlauf</h3>
+          <h3 className="font-semibold text-sage-900">E-Mail-Verlauf</h3>
           {loading ? (
             <div className="flex items-center justify-center py-6 text-sage-600">
               <Loader2 className="h-5 w-5 animate-spin" />
             </div>
           ) : emails.length === 0 ? (
             <p className="text-sm text-sage-600 py-4 text-center">
-              Noch keine transaktionalen E-Mails gesendet
+              Noch keine E-Mails gesendet
             </p>
           ) : (
             <div className="space-y-3">

@@ -98,7 +98,7 @@ function toHtml(value: string | null | undefined): string {
 
 function serviceLabel(service: string): string {
   const labels: Record<string, string> = {
-    hundepension: 'Hundepension',
+    hundepension: 'Urlaubsbetreuung',
     katzenbetreuung: 'Mobile Katzenbetreuung',
     tagesbetreuung: 'Tagesbetreuung',
     notfallbetreuung: 'Notfallbetreuung',

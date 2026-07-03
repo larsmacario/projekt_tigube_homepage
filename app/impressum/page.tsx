@@ -1,9 +1,4 @@
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
-import { Checkbox } from "@/components/ui/checkbox"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Phone, Mail, MapPin, Building2, Users, FileText, Shield } from "lucide-react"
 import Link from "next/link"
 
@@ -14,76 +9,16 @@ export default function ImpressumPage() {
       <section className="py-16 lg:py-24 bg-sage-600">
         <div className="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <h1 className="text-4xl lg:text-5xl font-raleway font-black text-white mb-6">
-            Impressum & Kontakt
+            Impressum
           </h1>
           <p className="text-xl text-sage-100 max-w-2xl mx-auto">
-            Wir freuen uns über Anfragen, Kritik, Wünsche und Vorschläge
+            Rechtliche Informationen und gesetzliche Angaben unseres Tierbetreuungsservices
           </p>
         </div>
       </section>
 
-      <div className="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        <div className="grid lg:grid-cols-2 gap-16">
-          {/* Kontaktformular */}
-          <div>
-            <Card className="shadow-lg">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-sage-800">
-                  <Mail className="h-5 w-5" />
-                  Kontaktformular
-                </CardTitle>
-                <CardDescription>
-                  Schreiben Sie uns eine Nachricht - wir melden uns schnellstmöglich zurück
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="name">Name, Vorname *</Label>
-                    <Input id="name" placeholder="Ihr vollständiger Name" required />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="email">E-Mail *</Label>
-                    <Input id="email" type="email" placeholder="ihre@email.de" required />
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="phone">Telefon *</Label>
-                  <Input id="phone" type="tel" placeholder="Ihre Telefonnummer" required />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="message">Nachricht *</Label>
-                  <Textarea
-                    id="message"
-                    placeholder="Beschreiben Sie Ihren Betreuungsbedarf oder stellen Sie Ihre Frage..."
-                    className="min-h-[120px]"
-                    required
-                  />
-                </div>
-
-                <div className="flex items-start space-x-2">
-                  <Checkbox id="privacy" required />
-                  <Label htmlFor="privacy" className="text-sm text-gray-600 leading-relaxed">
-                    Ich erkläre mich mit der Verarbeitung der eingegebenen Daten sowie der
-                    Datenschutzerklärung einverstanden. *
-                  </Label>
-                </div>
-
-                <Button className="w-full bg-sage-600 hover:bg-sage-700 text-white">
-                  Nachricht senden
-                </Button>
-
-                <p className="text-sm text-gray-500 text-center">
-                  * Pflichtfelder müssen ausgefüllt werden
-                </p>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Impressum Informationen */}
-          <div className="space-y-8">
+      <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
+        <div className="space-y-8">
             {/* Unternehmensinformationen */}
             <Card className="shadow-lg">
               <CardHeader>
@@ -236,7 +171,6 @@ export default function ImpressumPage() {
                 </div>
               </CardContent>
             </Card>
-          </div>
         </div>
       </div>
     </div>

@@ -21,7 +21,7 @@ export default function AgbPage() {
           {/* Header Info */}
           <div className="border-b border-sage-200 pb-6">
             <div className="space-y-2 text-gray-700">
-              <p className="font-semibold text-sage-900">tierisch gut betreut GmbH</p>
+              <p className="font-semibold text-sage-900">tierisch gut betreut Gesellschaft mit beschränkter Haftung</p>
               <p>Geschäftsführer: Tamara Pfaff & Gabriel Haaga</p>
               <p>Iznangerstr. 32 | 78345 Moos</p>
             </div>
@@ -40,13 +40,13 @@ export default function AgbPage() {
                   <li>der Hund stubenrein ist, nicht inkontinent ist oder in geschlossenen Räumen markiert</li>
                   <li>
                     das Tier über eine gültige Impfung gegen Hepatitis, Parvovirose, Leptospirose, Staupe und 
-                    Zwingerhusten hat. Der Impfpass wird vor jedem Aufenthalt zur Durchsicht an tierisch gut betreut GmbH
+                    Zwingerhusten hat. Der Impfpass wird vor jedem Aufenthalt zur Durchsicht an tierisch gut betreut Gesellschaft mit beschränkter Haftung
                     per Mail zugesandt
                   </li>
                   <li>
                     der Hund Wurm frei (Entwurmung oder negativer Kot-Test) und frei von ansteckenden Krankheiten und 
                     Ungeziefer ist, wobei die letzte Entwurmung/Kotuntersuchung nicht länger als drei Monate zurückliegt. 
-                    Die jeweiligen Nachweise werden vor jedem Aufenthalt per Mail an tierisch gut betreut GmbH geschickt
+                    Die jeweiligen Nachweise werden vor jedem Aufenthalt per Mail an tierisch gut betreut Gesellschaft mit beschränkter Haftung geschickt
                   </li>
                   <li>
                     Mittel zur Floh- und Zeckenprophylaxe vorher verabreicht wurden und noch Schutz besteht
@@ -70,7 +70,7 @@ export default function AgbPage() {
               
               <div>
                 <p className="font-semibold text-sage-800 mb-2">
-                  (2) Je nach Schwere der Erkrankung des Hundes ist tierisch gut betreut GmbH berechtigt, sowohl am
+                  (2) Je nach Schwere der Erkrankung des Hundes ist tierisch gut betreut Gesellschaft mit beschränkter Haftung berechtigt, sowohl am
                   Abgabetag als auch bei nachträglicher Feststellung sofort vom Vertrag zurück zu treten bzw. das Tier 
                   in tierärztlicher Betreuung zu geben. Hier ist auf das Wohl des Tieres von beiden Vertragsparteien zu 
                   achten. Eventuell anfallende Mehrkosten sind vom Tierbesitzer zu tragen.
@@ -86,7 +86,7 @@ export default function AgbPage() {
 
               <div>
                 <p className="font-semibold text-sage-800 mb-2">
-                  (4) tierisch gut betreut GmbH verpflichtet sich, das Tier art- und verhaltensgerecht laut Tierschutzgesetz,
+                  (4) tierisch gut betreut Gesellschaft mit beschränkter Haftung verpflichtet sich, das Tier art- und verhaltensgerecht laut Tierschutzgesetz,
                   sowie dessen Nebenbestimmungen zu betreuen.
                 </p>
               </div>
@@ -100,12 +100,12 @@ export default function AgbPage() {
             </h2>
             <div className="space-y-4 text-gray-700">
               <p>
-                <strong>(1)</strong> tierisch gut betreut GmbH verpflichtet sich, über alle ihr im Rahmen ihrer Tätigkeit für
+                <strong>(1)</strong> tierisch gut betreut Gesellschaft mit beschränkter Haftung verpflichtet sich, über alle ihr im Rahmen ihrer Tätigkeit für
                 den Tierbesitzer auf Grundlage dieses Vertrages bekannt gewordenen Informationen auch nach Ablauf der 
                 Vertragsdauer Stillschweigen zu bewahren. Gleiches gilt umgekehrt.
               </p>
               <p>
-                <strong>(2)</strong> tierisch gut betreut GmbH verpflichtet sich auch, die anvertrauten Tiere nur mit größter
+                <strong>(2)</strong> tierisch gut betreut Gesellschaft mit beschränkter Haftung verpflichtet sich auch, die anvertrauten Tiere nur mit größter
                 Sorgfalt zu behandeln.
               </p>
               <p>
@@ -123,18 +123,18 @@ export default function AgbPage() {
             </h2>
             <div className="space-y-4 text-gray-700">
               <p>
-                <strong>(1)</strong> tierisch gut betreut GmbH bestätigt, dass eine Betriebshaftpflichtversicherung besteht.
+                <strong>(1)</strong> tierisch gut betreut Gesellschaft mit beschränkter Haftung bestätigt, dass eine Betriebshaftpflichtversicherung besteht.
               </p>
               <p>
-                <strong>(2)</strong> tierisch gut betreut GmbH haftet für Sachschäden und Schäden an den in Obhut gegebenen
+                <strong>(2)</strong> tierisch gut betreut Gesellschaft mit beschränkter Haftung haftet für Sachschäden und Schäden an den in Obhut gegebenen
                 Hunden nur soweit, als diese Schäden auf Vorsatz oder grob fahrlässiges Handeln der Betreuungsperson oder 
                 deren Erfüllungsgehilfen zurückzuführen sind.
               </p>
               <p>
-                <strong>(3)</strong> tierisch gut betreut GmbH haftet nicht für durch die Tiere verursachte Schäden oder
+                <strong>(3)</strong> tierisch gut betreut Gesellschaft mit beschränkter Haftung haftet nicht für durch die Tiere verursachte Schäden oder
                 Kosten. Sie ist von sämtlichen mit dem Betreuungstier in Verbindung stehenden Ansprüchen Dritter seitens 
                 des Tierbesitzers freizustellen. Trotz größter Sorgfalt kann das Risiko eines Entlaufens oder Erkrankung 
-                nicht gänzlich ausgeschlossen werden. Eine Haftung seitens tierisch gut betreut GmbH besteht jedoch nicht.
+                nicht gänzlich ausgeschlossen werden. Eine Haftung seitens tierisch gut betreut Gesellschaft mit beschränkter Haftung besteht jedoch nicht.
               </p>
               <p>
                 <strong>(4)</strong> Für Schäden, welche ein Hund verursacht, die nicht oder nicht ausreichend durch die 
@@ -157,12 +157,12 @@ export default function AgbPage() {
               </p>
               <p>
                 <strong>(2)</strong> Der Tierbesitzer hat das Recht, sich während der Betreuungszeit bei der 
-                Betreuungsperson nach dem Wohl des Tieres zu erkundigen. tierisch gut betreut GmbH verpflichtet sich
+                Betreuungsperson nach dem Wohl des Tieres zu erkundigen. tierisch gut betreut Gesellschaft mit beschränkter Haftung verpflichtet sich
                 wahrheitsgemäße Aussagen hierüber zu machen.
               </p>
               <p>
-                <strong>(3)</strong> Der Tierbesitzer hat eine Vertrauensperson zu benennen, welche tierisch gut betreut 
-                UG kontaktieren kann falls eine Situation eintritt, welche schnelles Handeln erfordert und der Tierbesitzer 
+                <strong>(3)</strong> Der Tierbesitzer hat eine Vertrauensperson zu benennen, welche tierisch gut betreut Gesellschaft mit beschränkter Haftung 
+                kontaktieren kann falls eine Situation eintritt, welche schnelles Handeln erfordert und der Tierbesitzer 
                 nicht erreichbar ist.
               </p>
             </div>
@@ -177,7 +177,7 @@ export default function AgbPage() {
               <p>
                 <strong>(1)</strong> Der Tierhalter erklärt sich damit einverstanden, dass in Notfällen und bei akuten 
                 Erkrankungen oder Verletzungen die erforderliche Behandlung bei einem Tierarzt erfolgt, der von tierisch 
-                gut betreut GmbH bestimmt wird. Für diesen Fall ist tierisch gut betreut GmbH ausdrücklich ermächtigt, im
+                gut betreut Gesellschaft mit beschränkter Haftung bestimmt wird. Für diesen Fall ist tierisch gut betreut Gesellschaft mit beschränkter Haftung ausdrücklich ermächtigt, im
                 Namen und auf Rechnung des Kunden eine Tierarztpraxis/-klinik mit der tierärztlichen Versorgung und 
                 Behandlung des Tieres zu beauftragen. Die Kosten übernimmt der Tierhalter.
               </p>
@@ -228,13 +228,13 @@ export default function AgbPage() {
                 Der Tierbesitzer ist damit einverstanden,
               </p>
               <p>
-                <strong>(1)</strong> dass tierisch gut betreut GmbH personenbezogene Daten speichern und verarbeiten darf.
+                <strong>(1)</strong> dass tierisch gut betreut Gesellschaft mit beschränkter Haftung personenbezogene Daten speichern und verarbeiten darf.
                 Die Daten dürfen nicht an dritte Personen weitergegeben werden, und sind auf Aufforderung unverzüglich 
                 zu löschen.
               </p>
               <p>
                 <strong>(2)</strong> dass Fotos und Videos von dem betreuten Tier/den betreuten Tieren in die Homepage, 
-                etc. von tierisch gut betreut GmbH eingestellt werden dürfen. Der Tierbesitzer bleibt hierbei anonym und es
+                etc. von tierisch gut betreut Gesellschaft mit beschränkter Haftung eingestellt werden dürfen. Der Tierbesitzer bleibt hierbei anonym und es
                 wird ausschließlich der Name des Tieres, Tierart, Rasse sowie Datum/Zeitraum veröffentlicht.
               </p>
               <p className="text-sm text-gray-600 mt-4">
@@ -275,7 +275,7 @@ export default function AgbPage() {
 
           {/* Copyright */}
           <div className="pt-4 border-t text-center text-sm text-gray-500">
-            <p>© tierisch gut betreut GmbH 2022</p>
+            <p>© tierisch gut betreut Gesellschaft mit beschränkter Haftung 2022</p>
           </div>
         </div>
       </div>

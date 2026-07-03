@@ -63,7 +63,7 @@ export function BookingCalendar({
   const getServiceLabel = (serviceType: string) => {
     switch (serviceType) {
       case 'hundepension':
-        return 'Hundepension'
+        return 'Urlaubsbetreuung'
       case 'katzenbetreuung':
         return 'Katzenbetreuung'
       case 'tagesbetreuung':

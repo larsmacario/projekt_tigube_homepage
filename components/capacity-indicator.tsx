@@ -29,7 +29,7 @@ export function CapacityIndicator({
     if (!serviceType) return 'Gesamt'
     switch (serviceType) {
       case 'hundepension':
-        return 'Hundepension'
+        return 'Urlaubsbetreuung'
       case 'katzenbetreuung':
         return 'Katzenbetreuung'
       case 'tagesbetreuung':

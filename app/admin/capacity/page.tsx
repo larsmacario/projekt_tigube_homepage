@@ -189,7 +189,7 @@ export default function CapacityPage() {
     if (!serviceType) return 'Gesamt'
     switch (serviceType) {
       case 'hundepension':
-        return 'Hundepension'
+        return 'Urlaubsbetreuung'
       case 'katzenbetreuung':
         return 'Katzenbetreuung'
       case 'tagesbetreuung':
@@ -240,7 +240,7 @@ export default function CapacityPage() {
               />
             </div>
             <div>
-              <Label>Hundepension</Label>
+              <Label>Urlaubsbetreuung</Label>
               <Input
                 type="number"
                 value={hundepensionCapacity}
@@ -388,7 +388,7 @@ export default function CapacityPage() {
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="all">Gesamt</SelectItem>
-                        <SelectItem value="hundepension">Hundepension</SelectItem>
+                        <SelectItem value="hundepension">Urlaubsbetreuung</SelectItem>
                         <SelectItem value="katzenbetreuung">Katzenbetreuung</SelectItem>
                         <SelectItem value="tagesbetreuung">Tagesbetreuung</SelectItem>
                       </SelectContent>

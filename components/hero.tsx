@@ -2,8 +2,32 @@ import { Button } from "@/components/ui/button"
 import { Star, Heart, Shield } from "lucide-react"
 import Image from "next/image"
 import Link from "next/link"
+import { urlFor } from "@/lib/sanity"
 
-export function Hero() {
+interface HeroProps {
+  data?: {
+    heroTitle?: string
+    heroSubtitle?: string
+    heroMainImage?: any
+    heroSecondaryImage?: any
+    heroTrustIndicators?: string[]
+  } | null
+}
+
+export function Hero({ data }: HeroProps) {
+  // Fallbacks
+  const title = data?.heroTitle || "Tierbetreuung mit Herz und Verstand"
+  const subtitle = data?.heroSubtitle || "Wir betreuen Ihre Lieblinge mit der Hingabe und Sorgfalt, die sie verdienen. Professionell, liebevoll und mit jahrelanger Erfahrung - damit Sie beruhigt sein können."
+  const mainImageSrc = data?.heroMainImage ? urlFor(data.heroMainImage).url() : "/images/pexels-helenalopes-2253275.jpg"
+  const secImageSrc = data?.heroSecondaryImage ? urlFor(data.heroSecondaryImage).url() : "/images/pexels-kirsten-buhne-682055-1521304.jpg"
+  const trustIndicators = data?.heroTrustIndicators || [
+    "Versichert & zertifiziert",
+    "Über 400 zufriedene Kunden",
+    "5/5 Sterne Bewertung"
+  ]
+
+  const trustIcons = [Shield, Heart, Star]
+
   return (
     <section className="bg-gradient-to-br from-sage-50 to-sage-100 py-16 lg:py-24">
       <div className="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8">
@@ -12,15 +36,12 @@ export function Hero() {
           <div className="space-y-8">
             <div className="space-y-4">
               <h1 className="font-raleway text-4xl lg:text-5xl xl:text-6xl font-bold text-sage-900 leading-tight">
-                Tierbetreuung mit <span className="text-sage-600">Herz und Verstand</span>
+                {title}
               </h1>
               <p className="text-lg text-gray-600 leading-relaxed">
-                Wir betreuen Ihre Lieblinge mit der Hingabe und Sorgfalt, die sie verdienen. 
-                Professionell, liebevoll und mit jahrelanger Erfahrung - damit Sie beruhigt sein können.
+                {subtitle}
               </p>
             </div>
-
-
 
             {/* CTA Buttons */}
             <div className="flex flex-col sm:flex-row gap-4">
@@ -42,7 +63,7 @@ export function Hero() {
             {/* Main Image */}
             <div className="relative rounded-2xl overflow-hidden shadow-2xl max-w-md mx-auto border-4 border-white">
               <Image
-                src="/images/pexels-helenalopes-2253275.jpg"
+                src={mainImageSrc}
                 alt="Frau mit Hund im Garten - liebevolle Tierbetreuung"
                 width={400}
                 height={320}
@@ -61,7 +82,7 @@ export function Hero() {
             {/* Overlapping Second Image */}
             <div className="absolute -bottom-4 -right-4 w-64 h-48 rounded-xl overflow-hidden shadow-xl border-4 border-white">
               <Image
-                src="/images/pexels-kirsten-buhne-682055-1521304.jpg"
+                src={secImageSrc}
                 alt="Glückliche Katze - professionelle Katzenbetreuung"
                 width={256}
                 height={192}
@@ -71,18 +92,15 @@ export function Hero() {
 
             {/* Trust Indicators under Images */}
             <div className="flex flex-col gap-3 mt-8 text-sm text-sage-700">
-              <div className="flex items-center gap-2">
-                <Shield className="h-5 w-5 text-sage-600" />
-                <span>Versichert & zertifiziert</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Heart className="h-5 w-5 text-sage-600" />
-                <span>Über 400 zufriedene Kunden</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Star className="h-5 w-5 text-sage-600 fill-current" />
-                <span>5/5 Sterne Bewertung</span>
-              </div>
+              {trustIndicators.map((indicator, index) => {
+                const Icon = trustIcons[index % trustIcons.length]
+                return (
+                  <div key={index} className="flex items-center gap-2">
+                    <Icon className="h-5 w-5 text-sage-600" />
+                    <span>{indicator}</span>
+                  </div>
+                )
+              })}
             </div>
           </div>
         </div>
@@ -90,3 +108,4 @@ export function Hero() {
     </section>
   )
 }
+

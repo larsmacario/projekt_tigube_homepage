@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
@@ -10,8 +10,69 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
-import { CalendarIcon } from "lucide-react"
+import { CalendarIcon, AlertTriangle } from "lucide-react"
 import { cn } from "@/lib/utils"
+
+interface VacationDate {
+  id?: string
+  period: string
+  label: string
+}
+
+interface NewsBarSettings {
+  title: string
+  subtitle: string
+  dialog_title: string
+  dialog_description: string
+  hint_text: string
+  is_active: boolean
+}
+
+function parseVacationPeriod(periodStr: string): { start: Date; end: Date } | null {
+  try {
+    const cleanStr = periodStr.trim()
+    const parts = cleanStr.split(/\s*(?:bis|-)\s*/i)
+    if (parts.length !== 2) return null
+
+    const startPart = parts[0].trim()
+    const endPart = parts[1].trim()
+
+    const dateRegex = /(\d{1,2})\.(\d{1,2})\.?(\d{2,4})?/
+    const startMatch = startPart.match(dateRegex)
+    const endMatch = endPart.match(dateRegex)
+
+    if (!startMatch || !endMatch) return null
+
+    const endDay = parseInt(endMatch[1], 10)
+    const endMonth = parseInt(endMatch[2], 10) - 1
+    let endYear = endMatch[3] ? parseInt(endMatch[3], 10) : new Date().getFullYear()
+    if (endMatch[3] && endMatch[3].length === 2) endYear += 2000
+
+    const startDay = parseInt(startMatch[1], 10)
+    const startMonth = parseInt(startMatch[2], 10) - 1
+    let startYear = startMatch[3] ? parseInt(startMatch[3], 10) : endYear
+    if (startMatch[3] && startMatch[3].length === 2) startYear += 2000
+
+    const startDate = new Date(startYear, startMonth, startDay, 0, 0, 0)
+    const endDate = new Date(endYear, endMonth, endDay, 23, 59, 59)
+
+    if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) return null
+    return { start: startDate, end: endDate }
+  } catch (e) {
+    return null
+  }
+}
+
+const parseLocalDate = (dateString: string): Date | null => {
+  if (!dateString) return null
+  const parts = dateString.split("-")
+  if (parts.length !== 3) {
+    const d = new Date(dateString)
+    return isNaN(d.getTime()) ? null : d
+  }
+  const date = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10))
+  return isNaN(date.getTime()) ? null : date
+}
 
 export type ContactFormProps = {
   /** Vorauswahl z. B. auf /hundepension oder /katzenbetreuung */
@@ -56,6 +117,79 @@ export function ContactForm({
     service: defaultService,
   }))
 
+  const [vacationDates, setVacationDates] = useState<VacationDate[]>([])
+
+  useEffect(() => {
+    async function loadVacationData() {
+      try {
+        const response = await fetch('/api/newsbar')
+        const data = await response.json()
+        if (data.settings && data.vacationDates) {
+          setVacationDates(data.vacationDates)
+        }
+      } catch (error) {
+        console.error('Error loading vacation dates for contact form:', error)
+      }
+    }
+    loadVacationData()
+  }, [])
+
+  const [availabilityDays, setAvailabilityDays] = useState<string[]>([])
+  const [availabilityTimes, setAvailabilityTimes] = useState<string[]>([])
+  const [customAvailability, setCustomAvailability] = useState("")
+  const [showCustomAvailability, setShowCustomAvailability] = useState(false)
+
+  useEffect(() => {
+    if (showCustomAvailability) {
+      setFormData(prev => ({ ...prev, availability: customAvailability }))
+    } else {
+      const parts = []
+      if (availabilityDays.length > 0) {
+        parts.push(availabilityDays.join(" & "))
+      }
+      if (availabilityTimes.length > 0) {
+        parts.push(availabilityTimes.join(", "))
+      }
+      const formatted = parts.join(" - ")
+      setFormData(prev => ({ ...prev, availability: formatted }))
+    }
+  }, [availabilityDays, availabilityTimes, showCustomAvailability, customAvailability])
+
+  // Prüfen, ob das heutige Datum in einem Ferienzeitraum liegt
+  const today = new Date()
+  let currentVacationPeriod: VacationDate | null = null
+  for (const date of vacationDates) {
+    const parsed = parseVacationPeriod(date.period)
+    if (parsed && today >= parsed.start && today <= parsed.end) {
+      currentVacationPeriod = date
+      break
+    }
+  }
+
+  // Prüfen, ob der vom Nutzer gewählte Zeitraum mit den Ferien kollidiert
+  let overlappingVacationPeriod: VacationDate | null = null
+  if (
+    formData.service === "hundepension" &&
+    formData.konkreterUrlaub === "ja" &&
+    formData.urlaubVon &&
+    formData.urlaubBis
+  ) {
+    const vonDate = parseLocalDate(formData.urlaubVon)
+    const bisDate = parseLocalDate(formData.urlaubBis)
+
+    if (vonDate && bisDate) {
+      for (const date of vacationDates) {
+        const parsed = parseVacationPeriod(date.period)
+        if (parsed) {
+          if (vonDate <= parsed.end && bisDate >= parsed.start) {
+            overlappingVacationPeriod = date
+            break
+          }
+        }
+      }
+    }
+  }
+
   const parseDateFromInput = (dateString: string): Date | undefined => {
     if (!dateString) return undefined
     const date = new Date(dateString)
@@ -78,6 +212,15 @@ export function ContactForm({
     e.preventDefault()
     setIsSubmitting(true)
     setSubmitStatus({ type: null, message: "" })
+
+    if (!formData.availability.trim()) {
+      setSubmitStatus({
+        type: "error",
+        message: "Bitte wählen Sie mindestens ein Zeitfenster für die Erreichbarkeit aus oder geben Sie eigene Zeiten an.",
+      })
+      setIsSubmitting(false)
+      return
+    }
 
     if (formData.service === "hundepension" && formData.konkreterUrlaub === "ja") {
       if (!formData.urlaubVon || !formData.urlaubBis) {
@@ -177,6 +320,36 @@ export function ContactForm({
       onSubmit={handleSubmit}
       className={cn(m ? "space-y-4" : "space-y-6")}
     >
+      {/* Betriebsferien-Hinweis */}
+      {(currentVacationPeriod || overlappingVacationPeriod) && (
+        <div className={cn(
+          "rounded-lg border p-4 flex gap-3 text-sm leading-relaxed text-left",
+          overlappingVacationPeriod 
+            ? "bg-red-50 border-red-200 text-red-800" 
+            : "bg-amber-50 border-amber-200 text-amber-800",
+          m && "p-3 text-xs"
+        )}>
+          <AlertTriangle className={cn("h-5 w-5 shrink-0 mt-0.5", overlappingVacationPeriod ? "text-red-600" : "text-amber-600")} />
+          <div>
+            {overlappingVacationPeriod ? (
+              <>
+                <p className="font-semibold mb-1">Kollision mit Betriebsferien</p>
+                <p>
+                  Ihr gewünschter Betreuungszeitraum ({parseLocalDate(formData.urlaubVon)?.toLocaleDateString('de-DE')} bis {parseLocalDate(formData.urlaubBis)?.toLocaleDateString('de-DE')}) überschneidet sich mit unseren Betriebsferien <strong>({overlappingVacationPeriod.period})</strong>. In diesem Zeitraum findet leider keine Tierbetreuung statt.
+                </p>
+              </>
+            ) : (
+              <>
+                <p className="font-semibold mb-1">Aktuell Betriebsferien</p>
+                <p>
+                  Bitte beachten Sie, dass wir uns derzeit (vom <strong>{currentVacationPeriod!.period}</strong>) in den Betriebsferien befinden. Sie können Ihre Anfrage gerne absenden, wir werden diese jedoch erst nach unserer Rückkehr beantworten.
+                </p>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
       <div className={grid2}>
         <div>
           <label className={labelCls}>Name *</label>
@@ -239,10 +412,9 @@ export function ContactForm({
           className={selectCls}
         >
           <option value="">Bitte wählen</option>
-          <option value="hundepension">Hundepension</option>
-          <option value="katzenbetreuung">Mobile Katzenbetreuung</option>
           <option value="tagesbetreuung">Tagesbetreuung</option>
-          <option value="notfall">Notfallbetreuung</option>
+          <option value="hundepension">Urlaubsbetreuung</option>
+          <option value="katzenbetreuung">Mobile Katzenbetreuung</option>
         </select>
       </div>
 
@@ -259,7 +431,7 @@ export function ContactForm({
               m ? "text-sm sm:text-base mb-1" : "text-lg mb-4"
             )}
           >
-            Zusätzliche Informationen für die Hundepension
+            Zusätzliche Informationen für die Urlaubsbetreuung
           </h3>
 
           <div className={grid2}>
@@ -512,16 +684,65 @@ export function ContactForm({
       )}
 
       {formData.service !== "hundepension" && (
-        <div>
-          <label className={labelCls}>Ihr Tier</label>
-          <Input
-            placeholder="z.B. Hund, Katze, Name, Rasse"
+        <div className="space-y-2">
+          <label className={labelCls}>Ihr Tier *</label>
+          <RadioGroup
             value={formData.pet}
-            onChange={(e) =>
-              setFormData({ ...formData, pet: e.target.value })
+            onValueChange={(value) =>
+              setFormData({ ...formData, pet: value })
             }
-            className={inputCls}
-          />
+            className={cn("flex", m ? "gap-5 flex-wrap" : "gap-6")}
+            required
+          >
+            <div className="flex items-center space-x-2">
+              <RadioGroupItem
+                value="Hund"
+                id={`${idPrefix}pet-hund`}
+                className="border-sage-300"
+              />
+              <Label
+                htmlFor={`${idPrefix}pet-hund`}
+                className={cn(
+                  "text-gray-700 cursor-pointer",
+                  m ? "text-xs" : "text-sm"
+                )}
+              >
+                Hund
+              </Label>
+            </div>
+            <div className="flex items-center space-x-2">
+              <RadioGroupItem
+                value="Katze"
+                id={`${idPrefix}pet-katze`}
+                className="border-sage-300"
+              />
+              <Label
+                htmlFor={`${idPrefix}pet-katze`}
+                className={cn(
+                  "text-gray-700 cursor-pointer",
+                  m ? "text-xs" : "text-sm"
+                )}
+              >
+                Katze
+              </Label>
+            </div>
+            <div className="flex items-center space-x-2">
+              <RadioGroupItem
+                value="Sonstiges"
+                id={`${idPrefix}pet-sonstiges`}
+                className="border-sage-300"
+              />
+              <Label
+                htmlFor={`${idPrefix}pet-sonstiges`}
+                className={cn(
+                  "text-gray-700 cursor-pointer",
+                  m ? "text-xs" : "text-sm"
+                )}
+              >
+                Sonstiges
+              </Label>
+            </div>
+          </RadioGroup>
         </div>
       )}
 
@@ -543,16 +764,108 @@ export function ContactForm({
       </div>
 
       <div>
-        <label className={labelCls}>Beste Erreichbarkeits-Zeitfenster *</label>
-        <Input
-          required
-          placeholder="z.B. Montag-Freitag 18-20 Uhr, Wochenende ganztags"
-          value={formData.availability}
-          onChange={(e) =>
-            setFormData({ ...formData, availability: e.target.value })
-          }
-          className={inputCls}
-        />
+        <label className={labelCls}>Beste Erreichbarkeit *</label>
+        <div className="space-y-3">
+          {/* Tage Auswahl */}
+          <div className="space-y-1.5">
+            <span className="text-xs text-sage-600 block text-left">Tage:</span>
+            <div className="flex flex-wrap gap-2">
+              {["Werktags (Mo-Fr)", "Wochenende"].map((day) => {
+                const isSelected = availabilityDays.includes(day)
+                return (
+                  <button
+                    key={day}
+                    type="button"
+                    onClick={() => {
+                      if (isSelected) {
+                        setAvailabilityDays(availabilityDays.filter(d => d !== day))
+                      } else {
+                        setAvailabilityDays([...availabilityDays, day])
+                      }
+                      setShowCustomAvailability(false)
+                    }}
+                    className={cn(
+                      "px-3 py-1.5 rounded-full text-xs font-medium border transition-all duration-200 cursor-pointer",
+                      isSelected
+                        ? "bg-sage-600 border-sage-600 text-white shadow-sm"
+                        : "bg-white border-sage-200 text-sage-800 hover:border-sage-300"
+                    )}
+                  >
+                    {day}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+
+          {/* Zeiten Auswahl */}
+          <div className="space-y-1.5">
+            <span className="text-xs text-sage-600 block text-left">Uhrzeit:</span>
+            <div className="flex flex-wrap gap-2">
+              {[
+                { label: "Vormittags (8-12 Uhr)", val: "Vormittags (8-12 Uhr)" },
+                { label: "Nachmittags (12-17 Uhr)", val: "Nachmittags (12-17 Uhr)" },
+                { label: "Abends (17-20 Uhr)", val: "Abends (17-20 Uhr)" }
+              ].map((time) => {
+                const isSelected = availabilityTimes.includes(time.val)
+                return (
+                  <button
+                    key={time.val}
+                    type="button"
+                    onClick={() => {
+                      if (isSelected) {
+                        setAvailabilityTimes(availabilityTimes.filter(t => t !== time.val))
+                      } else {
+                        setAvailabilityTimes([...availabilityTimes, time.val])
+                      }
+                      setShowCustomAvailability(false)
+                    }}
+                    className={cn(
+                      "px-3 py-1.5 rounded-full text-xs font-medium border transition-all duration-200 cursor-pointer",
+                      isSelected
+                        ? "bg-sage-600 border-sage-600 text-white shadow-sm"
+                        : "bg-white border-sage-200 text-sage-800 hover:border-sage-300"
+                    )}
+                  >
+                    {time.label}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+
+          {/* Trennlinie oder Alternative */}
+          <div className="flex items-center gap-2 pt-1">
+            <button
+              type="button"
+              onClick={() => {
+                setShowCustomAvailability(!showCustomAvailability)
+                if (!showCustomAvailability) {
+                  setAvailabilityDays([])
+                  setAvailabilityTimes([])
+                }
+              }}
+              className={cn(
+                "text-xs font-medium underline hover:no-underline transition-all cursor-pointer",
+                showCustomAvailability ? "text-red-600" : "text-sage-600"
+              )}
+            >
+              {showCustomAvailability ? "Zurück zur Schnellauswahl" : "Eigene Zeiten eingeben..."}
+            </button>
+          </div>
+
+          {showCustomAvailability && (
+            <div className="pt-1">
+              <Input
+                required={showCustomAvailability}
+                placeholder="z.B. Nur dienstags ab 19 Uhr, sonst flexibel"
+                value={customAvailability}
+                onChange={(e) => setCustomAvailability(e.target.value)}
+                className={inputCls}
+              />
+            </div>
+          )}
+        </div>
       </div>
 
       <div className={cn("flex items-start gap-2", m && "gap-2.5")}>

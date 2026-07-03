@@ -518,7 +518,7 @@ export default function CustomerDetailPage() {
                                   {booking.pet?.name || 'Unbekannt'}
                                 </p>
                                 <Badge variant="outline" className="text-xs">
-                                  {booking.service_type === 'hundepension' ? 'Hundepension' :
+                                  {booking.service_type === 'hundepension' ? 'Urlaubsbetreuung' :
                                    booking.service_type === 'katzenbetreuung' ? 'Katzenbetreuung' :
                                    booking.service_type === 'tagesbetreuung' ? 'Tagesbetreuung' :
                                    booking.service_type}

@@ -6,13 +6,15 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
-import { ArrowLeft, Trash2 } from 'lucide-react'
+import { ArrowLeft, Trash2, GitMerge } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 import Link from 'next/link'
 import type { Contact, ContactNote } from '@/lib/types'
 import { PropertyEditor } from '@/components/admin/property-editor'
 import { TransactionalEmailPanel } from '@/components/admin/transactional-email-panel'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
 
 export default function LeadDetailPage() {
   const params = useParams()
@@ -25,6 +27,11 @@ export default function LeadDetailPage() {
   const [loading, setLoading] = useState(true)
   const [newNote, setNewNote] = useState('')
   const [isDeleting, setIsDeleting] = useState(false)
+  const [allLeads, setAllLeads] = useState<Contact[]>([])
+  const [searchQuery, setSearchQuery] = useState('')
+  const [selectedSourceLeadId, setSelectedSourceLeadId] = useState<string | null>(null)
+  const [isMergeDialogOpen, setIsMergeDialogOpen] = useState(false)
+  const [isMerging, setIsMerging] = useState(false)
 
   useEffect(() => {
     if (leadId) {
@@ -41,6 +48,7 @@ export default function LeadDetailPage() {
       const data = await response.json()
 
       if (data.leads) {
+        setAllLeads(data.leads)
         const foundLead = data.leads.find((l: Contact) => String(l.id) === String(leadId))
         if (foundLead) {
           setLead(foundLead)
@@ -240,6 +248,52 @@ export default function LeadDetailPage() {
     }
   }
 
+  async function handleMerge() {
+    if (!selectedSourceLeadId || !lead) return
+
+    setIsMerging(true)
+    try {
+      const response = await fetch(`/api/admin/leads/${lead.id}/merge`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sourceLeadId: selectedSourceLeadId }),
+        credentials: 'include',
+      })
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Fehler beim Zusammenführen der Leads')
+      }
+
+      toast({
+        title: 'Erfolg',
+        description: 'Leads wurden erfolgreich zusammengeführt',
+      })
+      setIsMergeDialogOpen(false)
+      setSelectedSourceLeadId(null)
+      setSearchQuery('')
+      loadLead()
+      loadNotes()
+    } catch (error: any) {
+      toast({
+        title: 'Fehler',
+        description: error.message || 'Fehler beim Zusammenführen der Leads',
+        variant: 'destructive',
+      })
+    } finally {
+      setIsMerging(false)
+    }
+  }
+
+  const filteredLeads = allLeads
+    .filter((l) => String(l.id) !== String(leadId))
+    .filter((l) => {
+      const name = `${l.vorname || ''} ${l.nachname || ''}`.toLowerCase()
+      const email = (l.email || '').toLowerCase()
+      const query = searchQuery.toLowerCase()
+      return name.includes(query) || email.includes(query)
+    })
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
@@ -316,10 +370,10 @@ export default function LeadDetailPage() {
               <p className="text-sage-900 whitespace-pre-wrap">{lead.availability}</p>
             </div>
 
-            {/* Zusätzliche Felder für Hundepension */}
+            {/* Zusätzliche Felder für Urlaubsbetreuung */}
             {lead.service === 'hundepension' && (
               <div className="border-t pt-4 space-y-2">
-                <h3 className="font-semibold">Hundepension-Details</h3>
+                <h3 className="font-semibold">Urlaubsbetreuung-Details</h3>
                 {lead.anzahl_tiere && (
                   <div>
                     <Label>Anzahl Tiere</Label>
@@ -460,6 +514,75 @@ export default function LeadDetailPage() {
             >
               Zum Kunden konvertieren
             </Button>
+            
+            <Dialog open={isMergeDialogOpen} onOpenChange={setIsMergeDialogOpen}>
+              <DialogTrigger asChild>
+                <Button variant="outline" className="w-full">
+                  <GitMerge className="mr-2 h-4 w-4" />
+                  Lead zusammenführen
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-md">
+                <DialogHeader>
+                  <DialogTitle>Leads zusammenführen</DialogTitle>
+                  <DialogDescription>
+                    Wähle einen Lead aus, der in diesen Lead (<strong>{lead.vorname} {lead.nachname}</strong>) integriert werden soll. Der ausgewählte Lead wird danach unwiderruflich gelöscht.
+                  </DialogDescription>
+                </DialogHeader>
+                
+                <div className="space-y-4 my-4">
+                  <Input
+                    placeholder="Nach Name oder E-Mail suchen..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                  />
+                  
+                  <div className="border rounded-md divide-y max-h-[200px] overflow-y-auto">
+                    {filteredLeads.length === 0 ? (
+                      <p className="text-sm text-sage-600 text-center py-4">Keine passenden Leads gefunden</p>
+                    ) : (
+                      filteredLeads.map((l) => (
+                        <div
+                          key={l.id}
+                          onClick={() => setSelectedSourceLeadId(l.id)}
+                          className={`p-3 text-sm cursor-pointer transition-colors flex justify-between items-center ${
+                            selectedSourceLeadId === l.id
+                              ? 'bg-sage-100 text-sage-900 font-medium'
+                              : 'hover:bg-sage-50 text-sage-800'
+                          }`}
+                        >
+                          <div>
+                            <p>{l.vorname} {l.nachname}</p>
+                            <p className="text-xs text-sage-500">{l.email || 'Keine E-Mail'} • {l.telefonnummer || 'Keine Telefonnummer'}</p>
+                          </div>
+                          {selectedSourceLeadId === l.id && (
+                            <span className="text-sage-600 text-xs font-semibold">Ausgewählt</span>
+                          )}
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+                
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => {
+                    setIsMergeDialogOpen(false)
+                    setSelectedSourceLeadId(null)
+                    setSearchQuery('')
+                  }}>
+                    Abbrechen
+                  </Button>
+                  <Button
+                    onClick={handleMerge}
+                    disabled={!selectedSourceLeadId || isMerging}
+                    className="bg-sage-600 hover:bg-sage-700"
+                  >
+                    {isMerging ? 'Wird zusammengeführt...' : 'Zusammenführen & Löschen'}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+
             <Button variant="outline" className="w-full" onClick={markAsLost}>
               Als verloren markieren
             </Button>

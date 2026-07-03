@@ -154,7 +154,7 @@ export default function BookingsPage() {
   const getServiceLabel = (serviceType: string) => {
     switch (serviceType) {
       case 'hundepension':
-        return 'Hundepension'
+        return 'Urlaubsbetreuung'
       case 'katzenbetreuung':
         return 'Katzenbetreuung'
       case 'tagesbetreuung':
@@ -236,7 +236,7 @@ export default function BookingsPage() {
                     <SelectValue placeholder="Service auswählen" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="hundepension">Hundepension</SelectItem>
+                    <SelectItem value="hundepension">Urlaubsbetreuung</SelectItem>
                     <SelectItem value="katzenbetreuung">Katzenbetreuung</SelectItem>
                     <SelectItem value="tagesbetreuung">Tagesbetreuung</SelectItem>
                   </SelectContent>

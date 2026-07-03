@@ -1,47 +1,39 @@
-"use client"
-
-import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Phone, Mail, MapPin, MessageCircle, Clock } from "lucide-react"
 import { ContactForm } from "@/components/contact-form"
 
-export function Contact() {
-  const [mounted, setMounted] = useState(false)
+interface ContactProps {
+  data?: {
+    contactTitle?: string
+    contactSubtitle?: string
+    contactPhone?: string
+    contactEmail?: string
+    contactLocation?: string
+    contactAvailability?: string
+    contactWhatsAppUrl?: string
+  } | null
+}
 
-  useEffect(() => {
-    setMounted(true)
-  }, [])
-
-  if (!mounted) {
-    return (
-      <section id="kontakt" className="py-16 lg:py-24 bg-sage-50">
-        <div className="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-16">
-            <h2 className="font-raleway text-3xl lg:text-4xl font-bold text-sage-900 mb-4">
-              Kontakt aufnehmen
-            </h2>
-            <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-              Haben Sie Fragen oder möchten Sie einen Termin vereinbaren? Wir freuen uns auf Ihre Nachricht!
-            </p>
-          </div>
-          <div className="animate-pulse">
-            <div className="h-96 bg-gray-200 rounded-lg"></div>
-          </div>
-        </div>
-      </section>
-    )
-  }
+export function Contact({ data }: ContactProps) {
+  // Fallbacks
+  const title = data?.contactTitle || "Kontakt aufnehmen"
+  const subtitle = data?.contactSubtitle || "Haben Sie Fragen oder möchten Sie einen Termin vereinbaren? Wir freuen uns auf Ihre Nachricht!"
+  const phone = data?.contactPhone || "07732-988 50 91"
+  const email = data?.contactEmail || "info@tierischgutbetreut.de"
+  const location = data?.contactLocation || "78345 Moos"
+  const availability = data?.contactAvailability || "Mo-So: 8:00-20:00 Uhr"
+  const whatsappUrl = data?.contactWhatsAppUrl || "https://wa.me/491754685977"
 
   return (
     <section id="kontakt" className="py-16 lg:py-24 bg-sage-50">
       <div className="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center mb-16">
           <h2 className="font-raleway text-3xl lg:text-4xl font-bold text-sage-900 mb-4">
-            Kontakt aufnehmen
+            {title}
           </h2>
           <p className="text-lg text-gray-600 max-w-2xl mx-auto">
-            Haben Sie Fragen oder möchten Sie einen Termin vereinbaren? Wir freuen uns auf Ihre Nachricht!
+            {subtitle}
           </p>
         </div>
 
@@ -58,7 +50,7 @@ export function Contact() {
                   <Phone className="h-5 w-5 text-sage-600" />
                   <div>
                     <div className="font-medium text-sage-900">Telefon</div>
-                    <div className="text-gray-600">07732-988 50 91</div>
+                    <div className="text-gray-600">{phone}</div>
                   </div>
                 </div>
 
@@ -66,7 +58,7 @@ export function Contact() {
                   <Mail className="h-5 w-5 text-sage-600" />
                   <div>
                     <div className="font-medium text-sage-900">E-Mail</div>
-                    <div className="text-gray-600">info@tierischgutbetreut.de</div>
+                    <div className="text-gray-600">{email}</div>
                   </div>
                 </div>
 
@@ -74,7 +66,7 @@ export function Contact() {
                   <MapPin className="h-5 w-5 text-sage-600" />
                   <div>
                     <div className="font-medium text-sage-900">Standort</div>
-                    <div className="text-gray-600">78345 Moos</div>
+                    <div className="text-gray-600">{location}</div>
                   </div>
                 </div>
 
@@ -82,7 +74,7 @@ export function Contact() {
                   <Clock className="h-5 w-5 text-sage-600" />
                   <div>
                     <div className="font-medium text-sage-900">Erreichbarkeit</div>
-                    <div className="text-gray-600">Mo-So: 8:00-20:00 Uhr</div>
+                    <div className="text-gray-600">{availability}</div>
                   </div>
                 </div>
               </CardContent>
@@ -95,7 +87,7 @@ export function Contact() {
                 <p className="text-sage-100 mb-4">
                   Für schnelle Fragen erreichen Sie uns auch über WhatsApp.
                 </p>
-                <a href="https://wa.me/491754685977" target="_blank" rel="noopener noreferrer">
+                <a href={whatsappUrl} target="_blank" rel="noopener noreferrer">
                   <Button
                     variant="outline"
                     className="bg-transparent border-white text-white hover:bg-white hover:text-sage-600"
@@ -115,3 +107,4 @@ export function Contact() {
     </section>
   )
 }
+

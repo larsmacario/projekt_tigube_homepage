@@ -88,7 +88,7 @@ export default function DatenschutzPage() {
                 Die verantwortliche Stelle für die Datenverarbeitung auf dieser Website ist:
               </p>
               <div className="bg-sage-50 p-4 rounded-lg space-y-2">
-                <p className="font-semibold text-sage-900">tierisch gut betreut GmbH</p>
+                <p className="font-semibold text-sage-900">tierisch gut betreut Gesellschaft mit beschränkter Haftung</p>
                 <div className="flex items-center gap-2">
                   <MapPin className="h-4 w-4 text-sage-600" />
                   <span>Iznangerstr. 32, 78345 Moos</span>

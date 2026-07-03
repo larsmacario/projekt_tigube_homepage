@@ -91,6 +91,12 @@ export default function AdminLayout({
                   >
                     E-Mails
                   </Link>
+                  <Link
+                    href="/admin/cms"
+                    className="px-3 py-2 rounded-md text-sm font-medium text-sage-700 hover:bg-sage-100"
+                  >
+                    CMS
+                  </Link>
                 </div>
               </div>
               <div className="flex items-center space-x-4">

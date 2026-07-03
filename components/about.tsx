@@ -1,7 +1,6 @@
 import { Card, CardContent } from "@/components/ui/card"
 import { Award, Heart, Users } from "lucide-react"
 import Image from "next/image"
-import { urlFor } from "@/lib/sanity"
 
 interface AboutProps {
   data?: {
@@ -40,7 +39,7 @@ export function About({ data }: AboutProps) {
     "Aktuell beglückt mich unser Boxermädchen Luna mit ihrer Anwesenheit. Tiefes Verständnis für individuelle Bedürfnisse des einzelnen Tieres eignete ich mir in fachspezifischen Kursen und Ausbildungen, aber vor allem in der Praxis an.",
     "Als stellvertretende Leitung auf einem Schweizer Hunde-Gnadenhof konnte ich unglaublich viel Erfahrung mit verhaltensoriginellen Hunden sammeln. Für mich gibt es keine schwierigen Felle sondern nur große Herausforderungen! Und ich liebe Herausforderungen."
   ]
-  const tamaraImg = data?.tamaraImage ? urlFor(data.tamaraImage).url() : "/images/tigube_Tamara_Pfaff.jpg"
+  const tamaraImg = typeof data?.tamaraImage === 'string' ? data.tamaraImage : "/images/tigube_Tamara_Pfaff.jpg"
 
   // Gabriel
   const gabrielName = data?.gabrielName || "Gabriel Haaga"
@@ -49,12 +48,12 @@ export function About({ data }: AboutProps) {
     "Das war verrückterweise der Beginn meiner großen Liebe zu Hunden. Mit Lunchen habe ich den ersten eigenen Hund und will natürlich mein Bestes geben im Umgang und in der Erziehung.",
     "Aus diesem Grund habe ich mit Mara zusammen eine Ausbildung zum Hundetrainer und Problemhunde-Therapeuten gemacht. Das Wissen kommt hier nicht nur bei uns zu Hause zum Einsatz, sondern vor allem im Umgang mit besonderen Hunden in unserer Pension."
   ]
-  const gabrielImg = data?.gabrielImage ? urlFor(data.gabrielImage).url() : "/images/tigube_Gabriel_Haaga.jpg"
+  const gabrielImg = typeof data?.gabrielImage === 'string' ? data.gabrielImage : "/images/tigube_Gabriel_Haaga.jpg"
 
   // Luna
   const lunaTitle = data?.lunaTitle || "Unsere pelzigen Kollegen"
   const lunaSubtitle = data?.lunaSubtitle || "Luna ist nicht nur unser Familienmitglied, sondern auch unsere beste Lehrmeisterin. Sie zeigt uns täglich, was es heißt, bedingungslos zu lieben, im Moment zu leben und dass ein Leckerli alle Probleme der Welt lösen kann. Außerdem ist sie unsere strengste Qualitätsprüferin - wer bei ihr punktet, hat definitiv das Zeug zum Tierflüsterer! 🐕"
-  const lunaImg = data?.lunaImage ? urlFor(data.lunaImage).url() : "/images/Boxer_Hund_Luna.jpg"
+  const lunaImg = typeof data?.lunaImage === 'string' ? data.lunaImage : "/images/Boxer_Hund_Luna.jpg"
   const lunaDesc = data?.lunaDescription || "Boxermädchen mit Herz und Seele. Spezialistin für Herzensangelegenheiten und Chefin der Qualitätskontrolle bei Streicheleinheiten."
 
   // CTA

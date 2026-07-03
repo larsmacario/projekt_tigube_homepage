@@ -2,14 +2,8 @@ import type React from "react"
 import type { Metadata } from "next"
 import { Raleway } from "next/font/google"
 import "./globals.css"
-import { NewsBar } from "@/components/news-bar"
-import { Navigation } from "@/components/navigation"
-import { Footer } from "@/components/footer"
 import { Toaster } from "@/components/ui/toaster"
 import { ConditionalLayout } from "@/components/conditional-layout"
-import { SanityLive } from "@/lib/live"
-import { VisualEditing } from "next-sanity"
-import { draftMode } from "next/headers"
 
 
 const raleway = Raleway({
@@ -37,8 +31,6 @@ export default async function RootLayout({
 }: {
   children: React.ReactNode
 }) {
-  const { isEnabled: isDraftModeEnabled } = await draftMode()
-
   return (
     <html lang="de" suppressHydrationWarning>
       <body className={`${raleway.variable} font-sans antialiased`}>
@@ -46,8 +38,6 @@ export default async function RootLayout({
           {children}
         </ConditionalLayout>
         <Toaster />
-        <SanityLive />
-        {isDraftModeEnabled && <VisualEditing />}
       </body>
     </html>
   )

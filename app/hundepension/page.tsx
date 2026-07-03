@@ -6,24 +6,18 @@ import {
   Home, 
   Heart, 
   Clock, 
-  Camera, 
   Shield, 
-  Stethoscope, 
   TreePine, 
-  Users, 
   Check, 
   Star,
-  MapPin,
-  Phone,
-  Calendar,
-  Euro,
-  AlertCircle,
   Info,
+  AlertCircle,
   MessageCircle
 } from "lucide-react"
 import Image from "next/image"
+import { getCMSContent } from "@/lib/cms"
 
-const reasons = [
+const defaultReasons = [
   "Du arbeiten gehst und Dein Hund nicht allein zu Hause bleiben soll bzw. kann",
   "Du einen Plan B für Deine aktuelle Betreuung suchst", 
   "Du in Urlaub / in Kur gehst oder ins Krankenhaus kommst",
@@ -31,7 +25,7 @@ const reasons = [
   "Dein Hund Zeit mit Hundefreunden verbringen soll"
 ]
 
-const qualifications = [
+const defaultQualifications = [
   {
     title: "Hundetrainer & Problemhunde-Therapeut",
     description: "Unsere Ausbildungen befähigen uns auch für den Umgang mit verhaltens-originellen Hunden."
@@ -46,19 +40,19 @@ const qualifications = [
   }
 ]
 
-const activities = [
+const defaultActivities = [
   "Kleine sportliche Einheiten",
   "Wasserspiele im Sommer", 
   "Artgerechte körperliche und geistige Auslastung",
   "Erholungs- und Ruhephasen"
 ]
 
-const priceList = [
+const defaultPriceList = [
   {
     service: "Kennenlernen",
     price: "49€",
     duration: "60 Minuten",
-    note: "Eine Betreuung ohne Erstgespräch ist nicht möglich. Ein Probetag für die Tagesbetreuung ist sinnvoll, ein bis zwei Übernachtungen vor einem Urlaubsaufenthalt sind ein Muss."
+    note: "Eine Betreuung ohne Erstgespräch ist nicht möglich. Ein Probetag für die Tagesbetreuung is sinnvoll, ein bis zwei Übernachtungen vor einem Urlaubsaufenthalt sind ein Muss."
   },
   {
     service: "Hündin/Rüde, verträglich",
@@ -77,34 +71,72 @@ const priceList = [
   }
 ]
 
-const additionalServices = [
-  { service: "Übernachtung", price: "10€ je Nacht" },
-  { service: "Läufige Hündin/inkontinenter Hund/Hunde bis 6 Monate", price: "zzgl. 8€ je angefangenem Tag" },
-  { service: "Medikamentengabe/Nahrungsergänzung", price: "1,50€ je Gabe" },
-  { service: "Fütterung BARF/gekocht, tiefgefroren (mitgebracht)", price: "zzgl. 1,50€ je Fütterung" },
-  { service: "Zwischenreinigung der Box aufgrund Markierens, Durchfall, etc.", price: "25€" },
-  { service: "Sonn- und Feiertagspauschale", price: "zzgl. 50% auf den vereinbarten Tagespreis" },
-  { service: "An- und Abreise an Sonn- und Feiertagen", price: "zzgl. 19€" }
+const defaultAdditionalServices = [
+  { service: "Übernachtung", price: "10€", unit: "je Nacht" },
+  { service: "Läufige Hündin/inkontinenter Hund/Hunde bis 6 Monate", price: "8€", unit: "je angefangenem Tag" },
+  { service: "Medikamentengabe/Nahrungsergänzung", price: "1,50€", unit: "je Gabe" },
+  { service: "Fütterung BARF/gekocht, tiefgefroren (mitgebracht)", price: "1,50€", unit: "je Fütterung" },
+  { service: "Zwischenreinigung der Box aufgrund Markierens, Durchfall, etc.", price: "25€", unit: "pauschal" },
+  { service: "Sonn- und Feiertagspauschale", price: "50%", unit: "Zuschlag auf Tagespreis" },
+  { service: "An- und Abreise an Sonn- und Feiertagen", price: "19€", unit: "pauschal" }
 ]
 
-const cancellationPolicy = [
+const defaultCancellationPolicy = [
   { period: "15 Tage und mehr vor Check-In", refund: "100% Rückerstattung" },
   { period: "14 - 7 Tage vor Check-In", refund: "50% Rückerstattung" },
   { period: "6 Tage und weniger vor Check-In", refund: "keine Rückerstattung" }
 ]
 
-const pickupTimes = [
-  { 
-    days: "Montag - Freitag",
-    times: "7-8h / 12-14h (nur mit festem Termin) / 17-18h"
-  },
-  {
-    days: "Samstag - Sonn-/Feiertag", 
-    times: "9-10h / 17-18h"
-  }
+const defaultPickupTimes = [
+  { days: "Montag - Freitag", times: "7-8h / 12-14h (nur mit festem Termin) / 17-18h" },
+  { days: "Samstag - Sonn-/Feiertag", times: "9-10h / 17-18h" }
 ]
 
-export default function HundepensionPage() {
+export default async function HundepensionPage() {
+  const data = await getCMSContent('hundepension')
+
+  const badge = data?.badge || "Hundepension"
+  const heroSubtitle = data?.heroSubtitle || "Tages- und Urlaubsbetreuung für Deinen Hund"
+  const heroIntroText = data?.heroIntroText || "Du suchst Unterstützung in der Betreuung, weil:"
+  const heroChecklist = data?.heroChecklist || defaultReasons
+  const heroPriceBadge = data?.heroPriceBadge || "ab 31€/Tag"
+  const heroImageSrc = data?.heroImageSrc || "/images/pexels-thijsvdw-998251.jpg"
+
+  const qTitle = data?.qualificationsTitle || "Unsere Qualifikationen"
+  const qSubtitle = data?.qualificationsSubtitle || "Langjährige Erfahrung mit den unterschiedlichsten Rassen und Charakteren"
+  const qList = data?.qualificationsList || defaultQualifications
+
+  const actTitle = data?.activitiesTitle || "Bei uns darf Dein Hund ein Hund sein"
+  const actSubtitle = data?.activitiesSubtitle || "Eine zusätzliche Ausbildung zum Sporthunde-Trainer garantiert die artgerechte, körperliche Auslastung über den Tag verteilt - dem Alter und Fitnessgrad Deines Hundes angepasst."
+  const actList = data?.activitiesList || defaultActivities
+  const actSummary = data?.activitiesSummary || "Artgerechte körperliche und geistige Auslastung gepaart mit Erholungs- und Ruhephasen sorgen dafür, dass Du einen zufriedenen, ausgeglichenen Hund wieder bei uns abholst."
+
+  const pTitle = data?.priceListTitle || "Unsere Preise"
+  const pSubtitle = data?.priceListSubtitle || "Transparente Preisgestaltung für alle Leistungen"
+  const pList = data?.priceList || defaultPriceList
+
+  const addTitle = data?.additionalServicesTitle || "Zusätzliche Leistungen"
+  const addList = data?.additionalServices || defaultAdditionalServices
+
+  const cancelTitle = data?.cancellationPolicyTitle || "Stornierungsbedingungen"
+  const cancelList = data?.cancellationPolicy || defaultCancellationPolicy
+
+  const pickTitle = data?.pickupTimesTitle || "Bring- und Holzeiten"
+  const pickList = data?.pickupTimesList || defaultPickupTimes
+
+  const warnTitle = data?.warningBoxTitle || "Achtung"
+  const warnNotes = data?.warningBoxNotes || [
+    "Individuelle Bring- und Holzeiten außerhalb der angegebenen Zeiten zzgl. 8€/Termin",
+    "Urlaubsgäste, die unter der Woche vor 7h und am Wochenende/Feiertagen vor 8h gebracht werden sollten, müssen am Tag davor anreisen (abends nur für Stammgäste möglich)",
+    "Hunde, die abends nicht bis spätestens 20h geholt werden können, bleiben kostenpflichtig über Nacht bei uns"
+  ]
+  const warnSummary = data?.warningBoxSummary || "Wir bitten um Pünktlichkeit beim Bringen und Holen, da wir ein sehr strenges Programm haben - Hundebetreuung ist viel mehr als Gassi gehen, spielen und schmusen."
+
+  const ctaTitle = data?.contactCtaTitle || "Wenn das für Dich interessant klingt..."
+  const ctaSubtitle = data?.contactCtaSubtitle || "...dann lass uns wissen, wie wir Dich in der Betreuung unterstützen können."
+  const ctaWhatsApp = data?.contactCtaWhatsAppUrl || "https://wa.me/491754685977"
+  const ctaInfo = data?.contactCtaInfo || "Kontakt: +49 175 4685977 (WhatsApp/Anruf) • info@tierischgutbetreut.de"
+
   return (
     <main className="pt-16">
       {/* Hero Section */}
@@ -112,24 +144,23 @@ export default function HundepensionPage() {
         <div className="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid lg:grid-cols-2 gap-12 items-center">
             <div>
-              <Badge className="bg-sage-600 text-white mb-4">Hundepension</Badge>
+              <Badge className="bg-sage-600 text-white mb-4">{badge}</Badge>
               <h1 className="font-raleway text-4xl lg:text-5xl font-bold text-sage-900 mb-6">
-                Tages- und Urlaubsbetreuung für Deinen Hund
+                {heroSubtitle}
               </h1>
               <p className="text-lg text-gray-600 mb-8 leading-relaxed">
-                Du suchst Unterstützung in der Betreuung, weil:
+                {heroIntroText}
               </p>
-              <ul className="space-y-3 mb-8">
-                {reasons.map((reason, index) => (
-                  <li key={index} className="flex items-start gap-3">
-                    <Check className="h-5 w-5 text-sage-600 mt-1 flex-shrink-0" />
-                    <span className="text-gray-600 lg:whitespace-nowrap">{reason}</span>
-                  </li>
-                ))}
-              </ul>
-              <p className="text-lg text-sage-700 font-medium mb-8 mt-6">
-                Für alle diese Felle sind wir da
-              </p>
+              {heroChecklist && heroChecklist.length > 0 && (
+                <ul className="space-y-3 mb-8">
+                  {heroChecklist.map((reason: string, index: number) => (
+                    <li key={index} className="flex items-start gap-3">
+                      <Check className="h-5 w-5 text-sage-600 mt-1 flex-shrink-0" />
+                      <span className="text-gray-600">{reason}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
               <div className="flex flex-col sm:flex-row gap-4">
                 <BookingModal animalType="dog">
                   <Button className="bg-sage-600 hover:bg-sage-700 text-white" size="lg">
@@ -141,7 +172,7 @@ export default function HundepensionPage() {
             <div className="relative flex justify-center">
               <div className="relative">
                 <Image
-                  src="/images/pexels-thijsvdw-998251.jpg"
+                  src={heroImageSrc}
                   alt="Glückliche Hunde in der Hundepension"
                   width={675}
                   height={450}
@@ -149,7 +180,7 @@ export default function HundepensionPage() {
                   priority
                 />
                 <div className="absolute top-4 right-4 bg-sage-600 text-white px-4 py-2 rounded-full font-semibold text-sm shadow-lg">
-                  ab 31€/Tag
+                  {heroPriceBadge}
                 </div>
               </div>
             </div>
@@ -162,15 +193,15 @@ export default function HundepensionPage() {
         <div className="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
             <h2 className="font-raleway text-3xl lg:text-4xl font-bold text-sage-900 mb-4">
-              Unsere Qualifikationen
+              {qTitle}
             </h2>
             <p className="text-lg text-gray-600 max-w-4xl mx-auto">
-              Langjährige Erfahrung mit den unterschiedlichsten Rassen und Charakteren
+              {qSubtitle}
             </p>
           </div>
 
           <div className="grid md:grid-cols-3 gap-8">
-            {qualifications.map((qual, index) => (
+            {qList.map((qual: any, index: number) => (
               <Card key={index} className="border-sage-200 hover:shadow-lg transition-shadow">
                 <CardHeader>
                   <div className="w-12 h-12 bg-sage-100 rounded-full flex items-center justify-center mb-4">
@@ -192,33 +223,37 @@ export default function HundepensionPage() {
         <div className="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
             <h2 className="font-raleway text-3xl lg:text-4xl font-bold text-sage-900 mb-4">
-              Bei uns darf Dein Hund ein Hund sein
+              {actTitle}
             </h2>
             <p className="text-lg text-gray-600 max-w-4xl mx-auto">
-              Eine zusätzliche Ausbildung zum Sporthunde-Trainer garantiert die artgerechte, körperliche Auslastung über den Tag verteilt - dem Alter und Fitnessgrad Deines Hundes angepasst.
+              {actSubtitle}
             </p>
           </div>
 
-          <div className="grid md:grid-cols-2 gap-6 max-w-4xl mx-auto">
-            {activities.map((activity, index) => (
-              <Card key={index} className="border-sage-200">
-                <CardContent className="py-4">
-                  <div className="flex items-center justify-center gap-3 text-center whitespace-nowrap">
-                    <TreePine className="h-5 w-5 text-sage-600 flex-shrink-0" />
-                    <span className="font-semibold text-sage-900">{activity}</span>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-
-          <div className="mt-16 text-center">
-            <div className="bg-sage-600 text-white p-8 rounded-2xl max-w-4xl mx-auto">
-              <p className="text-lg font-medium">
-                Artgerechte körperliche und geistige Auslastung gepaart mit Erholungs- und Ruhephasen sorgen dafür, dass Du einen zufriedenen, ausgeglichenen Hund wieder bei uns abholst.
-              </p>
+          {actList && actList.length > 0 && (
+            <div className="grid md:grid-cols-2 gap-6 max-w-4xl mx-auto">
+              {actList.map((activity: string, index: number) => (
+                <Card key={index} className="border-sage-200">
+                  <CardContent className="py-4">
+                    <div className="flex items-center justify-center gap-3 text-center">
+                      <TreePine className="h-5 w-5 text-sage-600 flex-shrink-0" />
+                      <span className="font-semibold text-sage-900">{activity}</span>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
             </div>
-          </div>
+          )}
+
+          {actSummary && (
+            <div className="mt-16 text-center">
+              <div className="bg-sage-600 text-white p-8 rounded-2xl max-w-4xl mx-auto">
+                <p className="text-lg font-medium">
+                  {actSummary}
+                </p>
+              </div>
+            </div>
+          )}
         </div>
       </section>
 
@@ -227,16 +262,16 @@ export default function HundepensionPage() {
         <div className="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
             <h2 className="font-raleway text-3xl lg:text-4xl font-bold text-sage-900 mb-4">
-              Unsere Preise
+              {pTitle}
             </h2>
             <p className="text-lg text-gray-600">
-              Transparente Preisgestaltung für alle Leistungen
+              {pSubtitle}
             </p>
           </div>
 
           {/* Main Prices */}
           <div className="grid md:grid-cols-2 gap-8 mb-12">
-            {priceList.map((item, index) => (
+            {pList.map((item: any, index: number) => (
               <Card key={index} className="border-sage-200">
                 <CardHeader>
                   <div className="flex justify-between items-start">
@@ -262,33 +297,27 @@ export default function HundepensionPage() {
           {/* Additional Services */}
           <div className="mb-12">
             <h3 className="font-raleway text-2xl font-bold text-sage-900 mb-6 text-center">
-              Zusätzliche Leistungen
+              {addTitle}
             </h3>
             <div className="grid md:grid-cols-2 gap-4">
-              {additionalServices.map((service, index) => (
+              {addList.map((service: any, index: number) => (
                 <div key={index} className="flex justify-between items-center p-4 bg-sage-50 rounded-lg">
                   <span className="text-gray-700">{service.service}</span>
-                  <span className="font-semibold text-sage-900">{service.price}</span>
+                  <span className="font-semibold text-sage-900">
+                    {service.price} {service.unit ? `${service.unit}` : ""}
+                  </span>
                 </div>
               ))}
             </div>
           </div>
 
-          {/* Special Offers */}
-          <div className="bg-sage-100 p-6 rounded-lg mb-12">
-            <h4 className="font-semibold text-sage-900 mb-4">Rabatte & Sonderkonditionen</h4>
-            <ul className="space-y-2 text-gray-700">
-              <li>• Langzeit-Betreuung ab einem Zeitraum von 4 Wochen auf Anfrage</li>
-            </ul>
-          </div>
-
           {/* Cancellation Policy */}
           <div className="mb-12">
             <h3 className="font-raleway text-2xl font-bold text-sage-900 mb-6 text-center">
-              Stornierungsbedingungen
+              {cancelTitle}
             </h3>
             <div className="grid md:grid-cols-3 gap-4">
-              {cancellationPolicy.map((policy, index) => (
+              {cancelList.map((policy: any, index: number) => (
                 <Card key={index} className="border-sage-200">
                   <CardContent className="pt-6 text-center">
                     <div className="text-lg font-semibold text-sage-900 mb-2">
@@ -308,7 +337,7 @@ export default function HundepensionPage() {
         <div className="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
             <h2 className="font-raleway text-3xl lg:text-4xl font-bold text-sage-900 mb-4">
-              Wichtige Hinweise
+              {warnTitle}
             </h2>
           </div>
 
@@ -317,14 +346,13 @@ export default function HundepensionPage() {
               <CardHeader>
                 <CardTitle className="text-orange-900 flex items-center gap-2">
                   <AlertCircle className="h-5 w-5" />
-                  Achtung
+                  {warnTitle}
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-3 text-orange-800">
-                <p>• Individuelle Bring- und Holzeiten außerhalb der angegebenen Zeiten zzgl. 8€/Termin</p>
-                <p>• Urlaubsgäste, die unter der Woche vor 7h und am Wochenende/Feiertagen vor 8h gebracht werden sollten, müssen am Tag davor anreisen (abends nur für Stammgäste möglich)</p>
-                <p>• Hunde, die abends nicht bis spätestens 20h geholt werden können, bleiben kostenpflichtig über Nacht bei uns</p>
-                <p className="text-sm italic">- ausgenommen Tagesgäste von Montag-Freitag mit individueller Vereinbarung -</p>
+                {warnNotes.map((note: string, index: number) => (
+                  <p key={index}>• {note}</p>
+                ))}
               </CardContent>
             </Card>
 
@@ -332,11 +360,11 @@ export default function HundepensionPage() {
               <CardHeader>
                 <CardTitle className="text-sage-900 flex items-center gap-2">
                   <Clock className="h-5 w-5" />
-                  Bring- und Holzeiten
+                  {pickTitle}
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                {pickupTimes.map((time, index) => (
+                {pickList.map((time: any, index: number) => (
                   <div key={index} className="border-l-4 border-sage-600 pl-4">
                     <div className="font-semibold text-sage-900">{time.days}</div>
                     <div className="text-gray-600">{time.times}</div>
@@ -346,11 +374,13 @@ export default function HundepensionPage() {
             </Card>
           </div>
 
-          <div className="bg-sage-600 text-white p-6 rounded-lg text-center">
-            <p className="text-lg font-medium mb-4">
-              Wir bitten um Pünktlichkeit beim Bringen und Holen, da wir ein sehr strenges Programm haben - Hundebetreuung ist viel mehr als Gassi gehen, spielen und schmusen.
-            </p>
-          </div>
+          {warnSummary && (
+            <div className="bg-sage-600 text-white p-6 rounded-lg text-center">
+              <p className="text-lg font-medium">
+                {warnSummary}
+              </p>
+            </div>
+          )}
         </div>
       </section>
 
@@ -358,10 +388,10 @@ export default function HundepensionPage() {
       <section className="py-16 lg:py-24 bg-sage-600 text-white">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <h2 className="font-raleway text-3xl lg:text-4xl font-bold mb-6">
-            Wenn das für Dich interessant klingt...
+            {ctaTitle}
           </h2>
           <p className="text-lg text-sage-100 mb-8">
-            ...dann lass uns wissen, wie wir Dich in der Betreuung unterstützen können.
+            {ctaSubtitle}
           </p>
           <div className="flex justify-center">
             <Button 
@@ -370,7 +400,7 @@ export default function HundepensionPage() {
               asChild
             >
               <a 
-                href="https://wa.me/491754685977" 
+                href={ctaWhatsApp} 
                 target="_blank" 
                 rel="noopener noreferrer"
               >
@@ -381,11 +411,11 @@ export default function HundepensionPage() {
           </div>
           <div className="mt-8 pt-8 border-t border-sage-500">
             <p className="text-sage-100">
-              <strong>Kontakt:</strong> +49 175 4685977 (WhatsApp/Anruf) • info@tierischgutbetreut.de
+              {ctaInfo}
             </p>
           </div>
         </div>
       </section>
     </main>
   )
-} 
+}

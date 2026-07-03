@@ -2,7 +2,6 @@ import { Button } from "@/components/ui/button"
 import { Star, Heart, Shield } from "lucide-react"
 import Image from "next/image"
 import Link from "next/link"
-import { urlFor } from "@/lib/sanity"
 
 interface HeroProps {
   data?: {
@@ -18,8 +17,8 @@ export function Hero({ data }: HeroProps) {
   // Fallbacks
   const title = data?.heroTitle || "Tierbetreuung mit Herz und Verstand"
   const subtitle = data?.heroSubtitle || "Wir betreuen Ihre Lieblinge mit der Hingabe und Sorgfalt, die sie verdienen. Professionell, liebevoll und mit jahrelanger Erfahrung - damit Sie beruhigt sein können."
-  const mainImageSrc = data?.heroMainImage ? urlFor(data.heroMainImage).url() : "/images/pexels-helenalopes-2253275.jpg"
-  const secImageSrc = data?.heroSecondaryImage ? urlFor(data.heroSecondaryImage).url() : "/images/pexels-kirsten-buhne-682055-1521304.jpg"
+  const mainImageSrc = typeof data?.heroMainImage === 'string' ? data.heroMainImage : "/images/pexels-helenalopes-2253275.jpg"
+  const secImageSrc = typeof data?.heroSecondaryImage === 'string' ? data.heroSecondaryImage : "/images/pexels-kirsten-buhne-682055-1521304.jpg"
   const trustIndicators = data?.heroTrustIndicators || [
     "Versichert & zertifiziert",
     "Über 400 zufriedene Kunden",

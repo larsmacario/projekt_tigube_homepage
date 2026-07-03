@@ -7,6 +7,8 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
+import { Input } from '@/components/ui/input'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { ArrowLeft, Trash2 } from 'lucide-react'
 import Link from 'next/link'
 import type { Customer, Pet, Document, BookingRequest } from '@/lib/types'
@@ -39,13 +41,138 @@ export default function CustomerDetailPage() {
   const [bookings, setBookings] = useState<BookingRequest[]>([])
   const [isDeleting, setIsDeleting] = useState(false)
 
+  const [groups, setGroups] = useState<any[]>([])
+  const [defaultPrices, setDefaultPrices] = useState<any[]>([])
+  const [categories, setCategories] = useState<any[]>([])
+  const [customerPrices, setCustomerPrices] = useState<Record<string, number>>({})
+  const [savingPrices, setSavingPrices] = useState(false)
+
   useEffect(() => {
     if (customerId) {
       loadCustomer()
       loadNotes()
       loadBookings()
+      loadGroupsAndPrices()
     }
   }, [customerId])
+
+  async function loadGroupsAndPrices() {
+    try {
+      const [groupsRes, defaultPricesRes, customerPricesRes] = await Promise.all([
+        fetch('/api/admin/customer-groups'),
+        fetch('/api/admin/prices'),
+        fetch(`/api/admin/customer-prices?customer_id=${customerId}`)
+      ])
+      
+      const groupsData = await groupsRes.json()
+      setGroups(groupsData.groups || [])
+      
+      const defaultPricesData = await defaultPricesRes.json()
+      setDefaultPrices(defaultPricesData.prices || [])
+      setCategories(defaultPricesData.categories || [])
+
+      const customerPricesData = await customerPricesRes.json()
+      const overridesMap: Record<string, number> = {}
+      if (customerPricesData.overrides) {
+        customerPricesData.overrides.forEach((o: any) => {
+          overridesMap[o.price_id] = o.price
+        })
+      }
+      setCustomerPrices(overridesMap)
+    } catch (error) {
+      console.error('Error loading groups or prices:', error)
+    }
+  }
+
+  async function handleGroupChange(value: string) {
+    const groupId = value === 'none' ? null : value
+    try {
+      const response = await fetch(`/api/admin/customers/${customerId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ customer_group_id: groupId }),
+        credentials: 'include',
+      })
+
+      if (response.ok) {
+        setCustomer(prev => prev ? { ...prev, customer_group_id: groupId } : null)
+        toast({
+          title: 'Erfolg',
+          description: 'Kundengruppe erfolgreich aktualisiert',
+        })
+      } else {
+        const error = await response.json()
+        toast({
+          title: 'Fehler',
+          description: error.error || 'Fehler beim Aktualisieren der Kundengruppe',
+          variant: 'destructive',
+        })
+      }
+    } catch (error) {
+      console.error('Error updating customer group:', error)
+      toast({
+        title: 'Fehler',
+        description: 'Fehler beim Aktualisieren der Kundengruppe',
+        variant: 'destructive',
+      })
+    }
+  }
+
+  async function handleSavePrices() {
+    setSavingPrices(true)
+    try {
+      const overrides = Object.entries(customerPrices)
+        .filter(([_, price]) => price !== undefined && price !== null && !isNaN(price))
+        .map(([price_id, price]) => ({
+          price_id,
+          price,
+        }))
+
+      const response = await fetch('/api/admin/customer-prices', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          customer_id: customerId,
+          overrides,
+        }),
+      })
+
+      if (response.ok) {
+        toast({
+          title: 'Erfolg',
+          description: 'Individuelle Preise erfolgreich gespeichert',
+        })
+      } else {
+        const error = await response.json()
+        toast({
+          title: 'Fehler',
+          description: error.error || 'Fehler beim Speichern',
+          variant: 'destructive',
+        })
+      }
+    } catch (error) {
+      console.error('Error saving customer prices:', error)
+      toast({
+        title: 'Fehler',
+        description: 'Fehler beim Speichern der Preise',
+        variant: 'destructive',
+      })
+    } finally {
+      setSavingPrices(false)
+    }
+  }
+
+  function updateCustomerPrice(priceId: string, val: string) {
+    setCustomerPrices(prev => {
+      const updated = { ...prev }
+      if (val === '') {
+        delete updated[priceId]
+      } else {
+        updated[priceId] = parseFloat(val)
+      }
+      return updated
+    })
+  }
 
   async function loadCustomer() {
     try {
@@ -252,6 +379,25 @@ export default function CustomerDetailPage() {
                 <p className="font-medium">{customer.kundennummer || '-'}</p>
               </div>
               <div>
+                <p className="text-sm text-sage-500">Kundengruppe</p>
+                <Select
+                  value={customer.customer_group_id || 'none'}
+                  onValueChange={handleGroupChange}
+                >
+                  <SelectTrigger className="mt-1 h-9 bg-white">
+                    <SelectValue placeholder="Keine Gruppe" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Keine Gruppe</SelectItem>
+                    {groups.map((group) => (
+                      <SelectItem key={group.id} value={group.id}>
+                        {group.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
                 <p className="text-sm text-sage-500">E-Mail</p>
                 <p className="font-medium">{customer.email}</p>
               </div>
@@ -366,6 +512,47 @@ export default function CustomerDetailPage() {
             <div className="border-t pt-4 text-xs text-sage-500">
               <p>Erstellt: {new Date(customer.created_at).toLocaleString('de-DE')}</p>
               <p>Aktualisiert: {new Date(customer.updated_at).toLocaleString('de-DE')}</p>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Individuelle Preise */}
+        <Card className="lg:col-span-2">
+          <CardHeader className="flex flex-row items-center justify-between">
+            <CardTitle>Individuelle Preise</CardTitle>
+            <Button
+              size="sm"
+              onClick={handleSavePrices}
+              disabled={savingPrices}
+              className="bg-sage-600 hover:bg-sage-700"
+            >
+              {savingPrices ? 'Wird gespeichert...' : 'Preise speichern'}
+            </Button>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-sm text-sage-600">
+              Überschreibe hier den Standard- oder Gruppenpreis für diesen Kunden. Leere Felder bedeuten, dass der Standard- bzw. Gruppenpreis gilt.
+            </p>
+            <div className="space-y-4">
+              {defaultPrices.filter(p => p.price_type !== 'text').map((price) => (
+                <div key={price.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-3 border border-sage-100 rounded-lg">
+                  <div>
+                    <p className="font-semibold text-sage-900">{price.name}</p>
+                    <p className="text-xs text-sage-500">Kategorie: {categories.find(c => c.id === price.category_id)?.name || 'Allgemein'} (Standard: {price.price}€ {price.unit})</p>
+                  </div>
+                  <div className="flex items-center gap-2 max-w-[200px]">
+                    <Input
+                      type="number"
+                      step="0.01"
+                      placeholder="Standard"
+                      value={customerPrices[price.id] !== undefined ? customerPrices[price.id] : ''}
+                      onChange={(e) => updateCustomerPrice(price.id, e.target.value)}
+                      className="h-9 bg-white"
+                    />
+                    <span className="text-sage-700">€</span>
+                  </div>
+                </div>
+              ))}
             </div>
           </CardContent>
         </Card>

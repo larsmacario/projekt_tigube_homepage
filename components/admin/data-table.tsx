@@ -167,6 +167,9 @@ export function DataTable({
           </span>
         )
       default:
+        if (column.optionsMap && value) {
+          return <span>{column.optionsMap[value] || value}</span>
+        }
         return <span>{value || <span className="text-sage-400">-</span>}</span>
     }
   }
@@ -258,11 +261,19 @@ export function DataTable({
               <SelectValue placeholder="Wählen" />
             </SelectTrigger>
             <SelectContent>
-              {column.options?.map((option) => (
-                <SelectItem key={option} value={option}>
-                  {option}
-                </SelectItem>
-              ))}
+              {column.optionsMap ? (
+                Object.entries(column.optionsMap).map(([optVal, optLabel]) => (
+                  <SelectItem key={optVal} value={optVal}>
+                    {optLabel}
+                  </SelectItem>
+                ))
+              ) : (
+                column.options?.map((option) => (
+                  <SelectItem key={option} value={option}>
+                    {option}
+                  </SelectItem>
+                ))
+              )}
             </SelectContent>
           </Select>
         )

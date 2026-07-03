@@ -43,6 +43,7 @@ export interface Contact {
   assigned_to: string | null
   user_id: string | null
   kundennummer: string | null
+  customer_group_id: string | null
   telefon_2: string | null
   notfall_kontakt_name: string | null
   notfallnummer: string | null
@@ -346,4 +347,30 @@ export interface ContactEmail {
     email: string
   } | null
   created_at: string
+}
+
+export interface CustomerGroup {
+  id: string
+  name: string
+  description: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface GroupPrice {
+  id: string
+  group_id: string
+  price_id: string
+  price: number
+  created_at: string
+  updated_at: string
+}
+
+export interface CustomerPrice {
+  id: string
+  customer_id: string
+  price_id: string
+  price: number
+  created_at: string
+  updated_at: string
 }

@@ -24,6 +24,15 @@ export default function CustomersPage() {
   async function loadData() {
     setLoading(true)
     try {
+      // Lade Kundengruppen
+      const groupsResponse = await fetch('/api/admin/customer-groups')
+      const groupsData = await groupsResponse.json()
+      const groups = groupsData.groups || []
+      const groupsMap: Record<string, string> = {}
+      groups.forEach((g: any) => {
+        groupsMap[g.id] = g.name
+      })
+
       // Lade Property Definitions
       const defResponse = await fetch('/api/admin/properties?applies_to=customer')
       const defData = await defResponse.json()
@@ -35,7 +44,7 @@ export default function CustomersPage() {
       setCustomers(data.customers || [])
 
       // Aktualisiere Spalten
-      setColumns(getCustomerColumns(defData.definitions || []))
+      setColumns(getCustomerColumns(defData.definitions || [], groupsMap))
     } catch (error) {
       console.error('Error loading data:', error)
       toast({

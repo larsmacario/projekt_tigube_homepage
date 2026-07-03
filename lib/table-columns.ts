@@ -11,6 +11,7 @@ export interface TableColumn {
   isProperty?: boolean // true wenn dynamische Eigenschaft
   propertyDefinitionId?: string
   options?: string[] // Für select-Felder
+  optionsMap?: Record<string, string> // Für Mappings von IDs auf Labels
 }
 
 export function getLeadColumns(propertyDefinitions: PropertyDefinition[] = []): TableColumn[] {
@@ -117,7 +118,10 @@ export function getLeadColumns(propertyDefinitions: PropertyDefinition[] = []): 
   return [...standardColumns, ...propertyColumns]
 }
 
-export function getCustomerColumns(propertyDefinitions: PropertyDefinition[] = []): TableColumn[] {
+export function getCustomerColumns(
+  propertyDefinitions: PropertyDefinition[] = [],
+  groupOptionsMap: Record<string, string> = {}
+): TableColumn[] {
   const standardColumns: TableColumn[] = [
     {
       id: 'id',
@@ -127,6 +131,16 @@ export function getCustomerColumns(propertyDefinitions: PropertyDefinition[] = [
       sortable: false,
       filterable: false,
       width: 92,
+    },
+    {
+      id: 'customer_group_id',
+      label: 'Kundengruppe',
+      fieldType: 'select',
+      fieldName: 'customer_group_id',
+      sortable: true,
+      filterable: true,
+      width: 180,
+      optionsMap: groupOptionsMap,
     },
     {
       id: 'nachname',

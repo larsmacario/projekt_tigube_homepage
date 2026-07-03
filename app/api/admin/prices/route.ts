@@ -80,17 +80,28 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    const { data, error } = await supabase
-      .from('prices')
-      .select('*')
-      .order('category', { ascending: true })
-      .order('sort_order', { ascending: true })
+    const [pricesRes, categoriesRes] = await Promise.all([
+      supabase
+        .from('prices')
+        .select('*')
+        .order('sort_order', { ascending: true }),
+      supabase
+        .from('price_categories')
+        .select('*')
+        .order('sort_order', { ascending: true })
+    ])
 
-    if (error) {
-      throw error
+    if (pricesRes.error) {
+      throw pricesRes.error
+    }
+    if (categoriesRes.error) {
+      throw categoriesRes.error
     }
 
-    return NextResponse.json({ prices: data || [] })
+    return NextResponse.json({
+      prices: pricesRes.data || [],
+      categories: categoriesRes.data || []
+    })
   } catch (error: any) {
     console.error('Error fetching prices:', error)
     return NextResponse.json(
@@ -134,6 +145,7 @@ export async function PUT(request: NextRequest) {
             unit: price.unit,
             note: price.note,
             sort_order: price.sort_order,
+            category_id: price.category_id,
           })
           .eq('id', price.id)
       )
@@ -153,4 +165,55 @@ export async function PUT(request: NextRequest) {
     )
   }
 }
+
+export async function POST(request: NextRequest) {
+  try {
+    const { client: supabase, accessToken } = getServerClient(request)
+    
+    const auth = await checkAdminAuth(supabase, accessToken)
+    if (!auth.authorized) {
+      return NextResponse.json(
+        { error: auth.error },
+        { status: 401 }
+      )
+    }
+
+    const { name, description, price, price_type, unit, note, sort_order, category_id } = await request.json()
+
+    if (!name || !category_id || !price_type) {
+      return NextResponse.json(
+        { error: 'Name, Kategorie und Preistyp sind erforderlich' },
+        { status: 400 }
+      )
+    }
+
+    const { data: newPrice, error } = await supabase
+      .from('prices')
+      .insert({
+        name,
+        description,
+        price: price_type === 'text' ? null : (price ? parseFloat(price) : null),
+        price_type,
+        unit: price_type === 'text' ? null : unit,
+        note,
+        sort_order: sort_order || 0,
+        category_id
+      })
+      .select()
+      .single()
+
+    if (error) {
+      throw error
+    }
+
+    return NextResponse.json({ price: newPrice })
+  } catch (error: any) {
+    console.error('Error creating price:', error)
+    return NextResponse.json(
+      { error: error.message || 'Fehler beim Erstellen des Preises' },
+      { status: 500 }
+    )
+  }
+}
+
 

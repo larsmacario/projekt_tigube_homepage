@@ -1,6 +1,7 @@
 # Aktueller Stand
 
 ## Letzte Änderungen
+- Admin-Verwaltung und Einladungsfunktion: Vollständige Admin-Verwaltung unter `/admin/admins` und Registrierungsseite unter `/admin/accept-invitation/[token]` implementiert. Admins können neue Teammitglieder per E-Mail einladen (E-Mail, Vorname, Nachname erforderlich). Es wurden neue API-Routen für Einladungsverwaltung (`/api/admin/invites`, `/api/admin/invites/[id]`, `/api/admin/invites/verify`, `/api/admin/invites/accept`) und für Admin-Benutzer (`/api/admin/users`, `/api/admin/users/[id]`) zur Auflistung, Bearbeitung und Löschung erstellt. Die Tabelle `public.users` und das TypeScript-Interface `User` wurden um die Spalten/Eigenschaften `vorname` und `nachname` erweitert.
 - Kunden einladen: Funktion „Kunde einladen“ im Admin-Dashboard (Kundenliste) implementiert. Neue API-Route (`/api/admin/customers/invite`) zur Prüfung existierender Kontakte (Konvertiert Leads automatisch zu Kunden bei E-Mail-Übereinstimmung), Erstellung von Onboarding-Tokens und Versand der Onboarding-E-Mail via SMTP und Webhook. Frontend um ein Modal-Dialogfeld (Vorname, Nachname, E-Mail) erweitert.
 - Die beiden Checklisten-Karten im Dashboard des Kundenportals (`app/portal/page.tsx`) wurden in einem zweispaltigen Grid-Layout nebeneinander platziert.
 - Im Lead-Bereich (Lead-Detailseite, Admin-Dashboard, Onboarding-Willkommensseite und Spaltenlayout in den Listen-Tabellen) wurde die Namensreihenfolge ebenfalls auf „Vorname Nachname“ bzw. Vorname-Spalte vor Nachname-Spalte angepasst.
@@ -24,14 +25,13 @@
 - Textanpassung: Firmierung im Vertragstext der UI und im generierten PDF auf „tierisch gut betreut Gesellschaft mit beschränkter Haftung“ aktualisiert.
 
 ## Fokus
-- Feature-Abnahme der Kundeneinladung und manuelle Tests.
+- Verifizierung der Admin-Verwaltung und Testen des Registrierungs-Flows für Admins.
 
 ## Nächste Schritte
-- Testen der Einladungsfunktion mit echten E-Mail-Adressen und Überprüfung des Onboarding-Links im E-Mail-Postfach.
-- Testen der Klapp-Funktion und der neuen Position für individuelle Preise.
-- Testen der Sidebar-Ausrichtung auf Desktop.
-- Manuelle Ausführung des SQL-Statements für `letzte_stuhlprobe` in der remote Supabase-Datenbank.
-- Testen des vollständigen Onboarding-Flows (inklusive Zwischenspeichern und Fortsetzen).
+- Ausführen der SQL-Migration (`supabase/migrations/20260708080000_create_admin_invitations.sql`) in der remote Supabase-Datenbank.
+- Testen der Einladungsfunktion für Admins im Admin-Dashboard unter dem neuen Menüpunkt „Admins“.
+- Testen des vollständigen Registrierungsflows für Admins über den generierten Einladungslink.
+- Testen der Bearbeitungs- und Löschfunktion für Admins sowie der Stornierung offener Einladungen.
 
 ## Offene Punkte
-- Manuelle DB-Migration ausführen.
+- Ausführen der SQL-Migrationen (für `letzte_stuhlprobe` und `admin_invitations`) in der remote Supabase-Datenbank.

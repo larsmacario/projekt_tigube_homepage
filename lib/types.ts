@@ -4,9 +4,12 @@ export interface User {
   id: string
   email: string
   role: 'admin' | 'customer'
+  vorname?: string | null
+  nachname?: string | null
   created_at: string
   updated_at: string
 }
+
 
 /** Vereinheitlichte Kontaktzeile (Tabelle `contacts`): Leads, Kunden, verloren */
 export type ContactType = 'lead' | 'customer' | 'lost'

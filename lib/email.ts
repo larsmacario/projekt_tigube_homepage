@@ -52,6 +52,30 @@ export async function sendOnboardingEmail(data: { email: string; name: string; o
   }
 }
 
+export async function sendAdminInvitationEmail(data: { email: string; name: string; invitationUrl: string }): Promise<EmailDelivery> {
+  try {
+    const config = getSmtpConfig()
+    const transporter = nodemailer.createTransport({
+      host: config.host,
+      port: config.port,
+      secure: config.secure,
+      auth: { user: config.user, pass: config.password },
+    })
+
+    await transporter.sendMail({
+      from: config.from,
+      to: data.email,
+      subject: 'Einladung zur Adminverwaltung von tierisch gut betreut',
+      text: `Hallo ${data.name},\n\ndu wurdest als Administrator für tierisch gut betreut eingeladen. Über diesen Link kannst du dein Admin-Konto einrichten:\n${data.invitationUrl}\n\nHerzliche Grüße\nTamara und Gabriel`,
+      html: `<p>Hallo ${escapeHtml(data.name)},</p><p>du wurdest als Administrator für tierisch gut betreut eingeladen. Über diesen Link kannst du dein Admin-Konto einrichten:</p><p><a href="${escapeHtml(data.invitationUrl)}">Admin-Konto einrichten</a></p><p>Herzliche Grüße<br>Tamara und Gabriel</p>`,
+    })
+    return { status: 'sent', error: null }
+  } catch (error) {
+    return { status: 'failed', error: error instanceof Error ? error.message : 'Interner SMTP-Fehler' }
+  }
+}
+
+
 export async function sendContractEmail(data: { 
   email: string; 
   name: string; 

@@ -266,7 +266,7 @@ export default function PortalPage() {
                 {documents.some(d => d.document_type === 'vertrag') ? '✓' : '5'}
               </span>
               <span className={documents.some(d => d.document_type === 'vertrag') ? 'text-sage-600 line-through' : 'text-sage-900'}>
-                Vertrag hochladen
+                Pflegevertrag unterzeichnen
               </span>
             </li>
           </ul>

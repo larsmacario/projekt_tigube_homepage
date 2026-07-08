@@ -9,7 +9,11 @@
 - Onboarding-Link bleibt im Admin-Bereich sichtbar, bis das Onboarding vollständig abgeschlossen ist. Bereits registrierte Kunden werden auf der Onboarding-Landingpage direkt zur Anmeldung weitergeleitet.
 - Fehlerbehebung: Fehlendes `useRef` importiert und fehlende `isProfileComplete` im Dashboard-JSX wieder deklariert, um Client-Side Exceptions zu beheben.
 - Fehlerbehebung: Dynamische Generierung der `baseUrl` in API-Routen anhand der Request-Header implementiert (Onboarding-Link zeigt nun live auf die korrekte Domain).
-- Fehlerbehebung: Robuste Touch- und Maus-Event-Verarbeitung auf dem Unterschriften-Canvas implementiert und Initialisierung nach Abschluss des Seiten-Ladevorgangs korrigiert.
+- Fehlerbehebung: Robuste Touch- und Maus-Event-Verarbeitung auf dem Unterschriften-Canvas sowie automatische Re-Initialisierung bei Ausrichtungswechseln (Landscape/Portrait) ohne Koordinaten-Versatz.
+- Fehlerbehebung: Scroll-Verhalten auf der mobilen Unterschriften-Seite blockiert und UI extrem kompakt gestaltet, um Tastenbedienbarkeit im Landscape-Modus sicherzustellen.
+- Fehlerbehebung: Desktop-Unterschriften-Initialisierung mittels Polling-Mechanismus robust gemacht, damit die Event-Listener beim ersten Aufruf von Schritt 3 sofort funktionieren.
+- Fehlerbehebung: Cookies `sb-access-token` und `sb-refresh-token` beim Registrierungs-Endpunkt gesetzt und beim Logout-Endpunkt/Client-Handler gelöscht. Dies behebt die Desynchronisation zwischen Client (LocalStorage) und Next.js Server-APIs (Cookies) und verhindert "Nicht autorisiert" (401) nach der Onboarding-Registrierung.
+- Textanpassung: Firmierung im Vertragstext der UI und im generierten PDF auf „tierisch gut betreut Gesellschaft mit beschränkter Haftung“ aktualisiert.
 
 ## Fokus
 - Feature-Abnahme und manuelle Tests.

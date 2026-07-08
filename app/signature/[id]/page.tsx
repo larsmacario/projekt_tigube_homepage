@@ -141,7 +141,7 @@ export default function SignatureMobilePage() {
       canvas.removeEventListener('touchmove', draw)
       canvas.removeEventListener('touchend', stopDrawing)
     }
-  }, [status])
+  }, [status, loading])
 
 
   const clearCanvas = () => {

@@ -13,7 +13,6 @@ export default function SignatureMobilePage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [status, setStatus] = useState<'pending' | 'success'>('pending')
-  const [isDrawing, setIsDrawing] = useState(false)
 
   useEffect(() => {
     if (sessionId) {
@@ -58,22 +57,14 @@ export default function SignatureMobilePage() {
     ctx.lineCap = 'round'
     ctx.strokeStyle = '#0f172a' // slate-900
 
-    // Drawing Handlers
-    const startDrawing = (e: MouseEvent | TouchEvent) => {
-      setIsDrawing(true)
-      draw(e)
-    }
-
-    const stopDrawing = () => {
-      setIsDrawing(false)
-      ctx.beginPath()
-    }
+    let drawing = false
 
     const getCoordinates = (e: MouseEvent | TouchEvent) => {
       const canvasRect = canvas.getBoundingClientRect()
       
       let clientX, clientY
       if ('touches' in e) {
+        if (!e.touches || e.touches.length === 0) return null
         clientX = e.touches[0].clientX
         clientY = e.touches[0].clientY
       } else {
@@ -87,19 +78,39 @@ export default function SignatureMobilePage() {
       }
     }
 
-    const draw = (e: MouseEvent | TouchEvent) => {
-      if (!isDrawing) return
+    // Drawing Handlers
+    const startDrawing = (e: MouseEvent | TouchEvent) => {
+      drawing = true
+      const coords = getCoordinates(e)
+      if (coords) {
+        ctx.beginPath()
+        ctx.moveTo(coords.x, coords.y)
+      }
       
-      // Prevent scrolling when drawing on touch screens
+      if (e.cancelable) {
+        e.preventDefault()
+      }
+    }
+
+    const stopDrawing = () => {
+      drawing = false
+      ctx.beginPath()
+    }
+
+    const draw = (e: MouseEvent | TouchEvent) => {
+      if (!drawing) return
+      
       if (e.cancelable) {
         e.preventDefault()
       }
 
-      const { x, y } = getCoordinates(e)
-      ctx.lineTo(x, y)
-      ctx.stroke()
-      ctx.beginPath()
-      ctx.moveTo(x, y)
+      const coords = getCoordinates(e)
+      if (coords) {
+        ctx.lineTo(coords.x, coords.y)
+        ctx.stroke()
+        ctx.beginPath()
+        ctx.moveTo(coords.x, coords.y)
+      }
     }
 
     // Attach Event Listeners
@@ -122,7 +133,8 @@ export default function SignatureMobilePage() {
       canvas.removeEventListener('touchmove', draw)
       canvas.removeEventListener('touchend', stopDrawing)
     }
-  }, [status, isDrawing])
+  }, [status])
+
 
   const clearCanvas = () => {
     const canvas = canvasRef.current

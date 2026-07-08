@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { ArrowLeft, Trash2 } from 'lucide-react'
+import { ArrowLeft, Trash2, ChevronDown, ChevronRight } from 'lucide-react'
 import Link from 'next/link'
 import type { Customer, Pet, Document, BookingRequest } from '@/lib/types'
 import { PropertyEditor } from '@/components/admin/property-editor'
@@ -46,6 +46,7 @@ export default function CustomerDetailPage() {
   const [categories, setCategories] = useState<any[]>([])
   const [customerPrices, setCustomerPrices] = useState<Record<string, number>>({})
   const [savingPrices, setSavingPrices] = useState(false)
+  const [pricesExpanded, setPricesExpanded] = useState(false)
 
   useEffect(() => {
     if (customerId) {
@@ -367,9 +368,10 @@ export default function CustomerDetailPage() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Persönliche Daten */}
-        <Card className="lg:col-span-2">
-          <CardHeader>
+        <div className="lg:col-span-2 space-y-6">
+          {/* Persönliche Daten */}
+          <Card>
+            <CardHeader>
             <CardTitle>Persönliche Daten</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -530,49 +532,60 @@ export default function CustomerDetailPage() {
           </CardContent>
         </Card>
 
-        {/* Individuelle Preise */}
-        <Card className="lg:col-span-2">
-          <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle>Individuelle Preise</CardTitle>
-            <Button
-              size="sm"
-              onClick={handleSavePrices}
-              disabled={savingPrices}
-              className="bg-sage-600 hover:bg-sage-700"
-            >
-              {savingPrices ? 'Wird gespeichert...' : 'Preise speichern'}
-            </Button>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <p className="text-sm text-sage-600">
-              Überschreibe hier den Standard- oder Gruppenpreis für diesen Kunden. Leere Felder bedeuten, dass der Standard- bzw. Gruppenpreis gilt.
-            </p>
-            <div className="space-y-4">
-              {defaultPrices.filter(p => p.price_type !== 'text').map((price) => (
-                <div key={price.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-3 border border-sage-100 rounded-lg">
-                  <div>
-                    <p className="font-semibold text-sage-900">{price.name}</p>
-                    <p className="text-xs text-sage-500">Kategorie: {categories.find(c => c.id === price.category_id)?.name || 'Allgemein'} (Standard: {price.price}€ {price.unit})</p>
-                  </div>
-                  <div className="flex items-center gap-2 max-w-[200px]">
-                    <Input
-                      type="number"
-                      step="0.01"
-                      placeholder="Standard"
-                      value={customerPrices[price.id] !== undefined ? customerPrices[price.id] : ''}
-                      onChange={(e) => updateCustomerPrice(price.id, e.target.value)}
-                      className="h-9 bg-white"
-                    />
-                    <span className="text-sage-700">€</span>
-                  </div>
-                </div>
-              ))}
+          {/* Individuelle Preise */}
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between cursor-pointer select-none" onClick={() => setPricesExpanded(!pricesExpanded)}>
+            <div className="flex items-center gap-2">
+              {pricesExpanded ? <ChevronDown className="h-5 w-5 text-sage-500" /> : <ChevronRight className="h-5 w-5 text-sage-500" />}
+              <CardTitle>Individuelle Preise</CardTitle>
             </div>
-          </CardContent>
+            {pricesExpanded && (
+              <Button
+                size="sm"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  handleSavePrices()
+                }}
+                disabled={savingPrices}
+                className="bg-sage-600 hover:bg-sage-700"
+              >
+                {savingPrices ? 'Wird gespeichert...' : 'Preise speichern'}
+              </Button>
+            )}
+          </CardHeader>
+          {pricesExpanded && (
+            <CardContent className="space-y-4">
+              <p className="text-sm text-sage-600">
+                Überschreibe hier den Standard- oder Gruppenpreis für diesen Kunden. Leere Felder bedeuten, dass der Standard- bzw. Gruppenpreis gilt.
+              </p>
+              <div className="space-y-4">
+                {defaultPrices.filter(p => p.price_type !== 'text').map((price) => (
+                  <div key={price.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-3 border border-sage-100 rounded-lg">
+                    <div>
+                      <p className="font-semibold text-sage-900">{price.name}</p>
+                      <p className="text-xs text-sage-500">Kategorie: {categories.find(c => c.id === price.category_id)?.name || 'Allgemein'} (Standard: {price.price}€ {price.unit})</p>
+                    </div>
+                    <div className="flex items-center gap-2 max-w-[200px]">
+                      <Input
+                        type="number"
+                        step="0.01"
+                        placeholder="Standard"
+                        value={customerPrices[price.id] !== undefined ? customerPrices[price.id] : ''}
+                        onChange={(e) => updateCustomerPrice(price.id, e.target.value)}
+                        className="h-9 bg-white"
+                      />
+                      <span className="text-sage-700">€</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          )}
         </Card>
+      </div>
 
-        {/* Notizen & Tiere & Dokumente */}
-        <div className="space-y-6">
+      {/* Notizen & Tiere & Dokumente */}
+      <div className="space-y-6">
           <TransactionalEmailPanel
             contactId={customerId}
             recipientEmail={customer.email}

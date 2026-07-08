@@ -113,7 +113,9 @@ export async function GET(
         .single()
 
       if (tokenData) {
-        const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
+        const host = request.headers.get('host') || 'localhost:3000'
+        const protocol = request.headers.get('x-forwarded-proto') || 'http'
+        const baseUrl = `${protocol}://${host}`
         onboardingToken = {
           token: tokenData.token,
           url: `${baseUrl}/onboarding/${tokenData.token}`,

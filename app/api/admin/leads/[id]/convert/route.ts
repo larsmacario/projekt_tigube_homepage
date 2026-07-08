@@ -156,7 +156,9 @@ export async function POST(
       throw tokenError
     }
 
-    const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || 'http://localhost:3000'
+    const host = request.headers.get('host') || 'localhost:3000'
+    const protocol = request.headers.get('x-forwarded-proto') || 'http'
+    const baseUrl = `${protocol}://${host}`
     const onboardingUrl = `${baseUrl}/onboarding/${token}`
     const emailDelivery = await sendOnboardingEmail({
       email: lead.email,

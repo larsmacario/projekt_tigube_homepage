@@ -352,23 +352,23 @@ export function ContactForm({
 
       <div className={grid2}>
         <div>
-          <label className={labelCls}>Name *</label>
-          <Input
-            required
-            value={formData.name}
-            onChange={(e) =>
-              setFormData({ ...formData, name: e.target.value })
-            }
-            className={inputCls}
-          />
-        </div>
-        <div>
           <label className={labelCls}>Vorname *</label>
           <Input
             required
             value={formData.vorname}
             onChange={(e) =>
               setFormData({ ...formData, vorname: e.target.value })
+            }
+            className={inputCls}
+          />
+        </div>
+        <div>
+          <label className={labelCls}>Name *</label>
+          <Input
+            required
+            value={formData.name}
+            onChange={(e) =>
+              setFormData({ ...formData, name: e.target.value })
             }
             className={inputCls}
           />

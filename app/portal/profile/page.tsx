@@ -10,7 +10,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useToast } from '@/hooks/use-toast'
 import { Plus, Trash2 } from 'lucide-react'
-import type { Customer, Pet } from '@/lib/types'
+import type { Customer, Pet, Document } from '@/lib/types'
 
 function ProfileContent() {
   const searchParams = useSearchParams()
@@ -18,8 +18,8 @@ function ProfileContent() {
   const isOnboarding = searchParams.get('onboarding') === 'true'
   const stepParam = searchParams.get('step')
   
-  // Schritt 1 = Persönliche Daten, Schritt 2 = Tier/e + Tierinformationen
-  const [step, setStep] = useState<1 | 2>(stepParam === '2' ? 2 : 1)
+  // Schritt 1 = Persönliche Daten, Schritt 2 = Tier/e + Tierinformationen, Schritt 3 = Pflegevertrag
+  const [step, setStep] = useState<1 | 2 | 3>(stepParam === '3' ? 3 : stepParam === '2' ? 2 : 1)
   
   // Debug: Log onboarding status
   useEffect(() => {
@@ -27,6 +27,7 @@ function ProfileContent() {
   }, [isOnboarding, stepParam, step])
   
   const [customer, setCustomer] = useState<Customer | null>(null)
+  const [documents, setDocuments] = useState<Document[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const { toast } = useToast()
@@ -55,7 +56,16 @@ function ProfileContent() {
     besonderheiten: '',
     intervall_impfung: '',
     intervall_entwurmung: '',
+    letzte_stuhlprobe: '',
   })
+
+  // Schritt 3: Pflegevertrag und Signatur
+  const [signatureImage, setSignatureImage] = useState<string | null>(null)
+  const [mobileSessionId, setMobileSessionId] = useState<string | null>(null)
+  const [isPolling, setIsPolling] = useState(false)
+  const [fotoVideoConsent, setFotoVideoConsent] = useState(false)
+  const [dataConsent, setDataConsent] = useState(false)
+  const desktopCanvasRef = useRef<HTMLCanvasElement>(null)
   const [showPetForm, setShowPetForm] = useState(false)
   const [editingPetId, setEditingPetId] = useState<string | null>(null)
   const [uploadingDocuments, setUploadingDocuments] = useState(false)
@@ -131,6 +141,13 @@ function ProfileContent() {
         // Setze Customer auf null, damit die Form trotzdem angezeigt wird
         setCustomer(null)
       }
+
+      // Dokumente laden
+      const docsResponse = await fetch('/api/portal/documents')
+      if (docsResponse.ok) {
+        const docsData = await docsResponse.json()
+        setDocuments(docsData.documents || [])
+      }
     } catch (error: any) {
       console.error('Error loading profile:', error)
       toast({
@@ -149,8 +166,314 @@ function ProfileContent() {
       const response = await fetch('/api/portal/pets')
       const data = await response.json()
       setPets(data.pets || [])
+
+      const docsResponse = await fetch('/api/portal/documents')
+      if (docsResponse.ok) {
+        const docsData = await docsResponse.json()
+        setDocuments(docsData.documents || [])
+      }
     } catch (error) {
       console.error('Error loading pets:', error)
+    }
+  }
+
+  // Polling für mobile Unterschrift
+  useEffect(() => {
+    let intervalId: any
+    if (mobileSessionId && isPolling) {
+      intervalId = setInterval(async () => {
+        try {
+          const response = await fetch(`/api/portal/signatures/session?id=${mobileSessionId}`)
+          const data = await response.json()
+          if (response.ok && data.session.status === 'completed' && data.session.signature_data) {
+            setSignatureImage(data.session.signature_data)
+            setIsPolling(false)
+            setMobileSessionId(null)
+            toast({
+              title: 'Erfolg',
+              description: 'Unterschrift erfolgreich vom Smartphone empfangen!',
+            })
+          }
+        } catch (error) {
+          console.error('Error polling signature session:', error)
+        }
+      }, 2000)
+    }
+    return () => {
+      if (intervalId) clearInterval(intervalId)
+    }
+  }, [mobileSessionId, isPolling])
+
+  // Setup Desktop Canvas Event Listeners
+  useEffect(() => {
+    const canvas = desktopCanvasRef.current
+    if (!canvas || step !== 3 || signatureImage) return
+
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+
+    canvas.width = canvas.offsetWidth || 400
+    canvas.height = 150
+    ctx.lineWidth = 2
+    ctx.lineCap = 'round'
+    ctx.strokeStyle = '#0f172a'
+
+    let drawing = false
+    const startDrawing = (e: MouseEvent) => {
+      drawing = true
+      draw(e)
+    }
+    const stopDrawing = () => {
+      drawing = false
+      ctx.beginPath()
+    }
+    const draw = (e: MouseEvent) => {
+      if (!drawing) return
+      const rect = canvas.getBoundingClientRect()
+      ctx.lineTo(e.clientX - rect.left, e.clientY - rect.top)
+      ctx.stroke()
+      ctx.beginPath()
+      ctx.moveTo(e.clientX - rect.left, e.clientY - rect.top)
+    }
+
+    canvas.addEventListener('mousedown', startDrawing)
+    canvas.addEventListener('mousemove', draw)
+    canvas.addEventListener('mouseup', stopDrawing)
+    canvas.addEventListener('mouseleave', stopDrawing)
+
+    return () => {
+      canvas.removeEventListener('mousedown', startDrawing)
+      canvas.removeEventListener('mousemove', draw)
+      canvas.removeEventListener('mouseup', stopDrawing)
+      canvas.removeEventListener('mouseleave', stopDrawing)
+    }
+  }, [step, signatureImage])
+
+  const startMobileSignature = async () => {
+    if (!customer?.id) return
+    try {
+      setSaving(true)
+      const response = await fetch('/api/portal/signatures/session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ customer_id: customer.id })
+      })
+      const data = await response.json()
+      if (response.ok && data.session?.id) {
+        setMobileSessionId(data.session.id)
+        setIsPolling(true)
+        toast({
+          title: 'QR-Code generiert',
+          description: 'Bitte scanne den QR-Code mit deinem Smartphone.',
+        })
+      } else {
+        throw new Error(data.error || 'Fehler beim Erstellen der Session')
+      }
+    } catch (error: any) {
+      toast({
+        title: 'Fehler',
+        description: error.message || 'Verbindung fehlgeschlagen',
+        variant: 'destructive',
+      })
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const acceptDesktopSignature = () => {
+    const canvas = desktopCanvasRef.current
+    if (!canvas) return
+    const dataUrl = canvas.toDataURL('image/png')
+    setSignatureImage(dataUrl)
+    toast({
+      title: 'Erfolg',
+      description: 'Unterschrift übernommen',
+    })
+  }
+
+  const clearDesktopSignature = () => {
+    const canvas = desktopCanvasRef.current
+    if (!canvas) return
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+    ctx.clearRect(0, 0, canvas.width, canvas.height)
+  }
+
+  async function handleFinishOnboarding() {
+    if (!dataConsent) {
+      toast({
+        title: 'Fehler',
+        description: 'Bitte stimme der Datenschutzerklärung zu, um fortzufahren.',
+        variant: 'destructive',
+      })
+      return
+    }
+    if (!signatureImage) {
+      toast({
+        title: 'Fehler',
+        description: 'Bitte unterzeichne den Pflegevertrag.',
+        variant: 'destructive',
+      })
+      return
+    }
+
+    setSaving(true)
+    try {
+      // 1. PDF generieren
+      const { jsPDF } = await import('jspdf')
+      const doc = new jsPDF()
+
+      // Header
+      doc.setFont('Helvetica', 'bold')
+      doc.setFontSize(22)
+      doc.text('PFLEGEVERTRAG', 20, 20)
+      doc.setFontSize(14)
+      doc.text('für den Hundeurlaub in der Pension', 20, 28)
+      doc.setFont('Helvetica', 'normal')
+      doc.setFontSize(10)
+      doc.text('tierisch gut betreut UG, Tamara Pfaff & Gabriel Haaga, Iznangerstr. 32, 78345 Moos', 20, 35)
+      doc.line(20, 38, 190, 38)
+
+      // Auftraggeber
+      doc.setFont('Helvetica', 'bold')
+      doc.setFontSize(12)
+      doc.text('Auftraggeber:', 20, 48)
+      doc.setFont('Helvetica', 'normal')
+      doc.text(`Name: ${personalData.vorname || ''} ${personalData.nachname || ''}`, 20, 55)
+      doc.text(`Anschrift: ${personalData.strasse || ''} ${personalData.hausnummer || ''}, ${personalData.plz || ''} ${personalData.ort || ''}`, 20, 62)
+      doc.text(`Telefon: ${personalData.telefonnummer || ''}`, 20, 69)
+      doc.text(`E-Mail: ${personalData.email || ''}`, 20, 76)
+
+      // Hunde
+      doc.setFont('Helvetica', 'bold')
+      doc.text('Betreute Hunde:', 20, 88)
+      doc.setFont('Helvetica', 'normal')
+      
+      let yOffset = 95
+      pets.forEach((pet, index) => {
+        if (yOffset > 250) {
+          doc.addPage()
+          yOffset = 20
+        }
+        doc.setFont('Helvetica', 'bold')
+        doc.text(`Hund ${index + 1}: ${pet.name}`, 25, yOffset)
+        doc.setFont('Helvetica', 'normal')
+        yOffset += 6
+        doc.text(`Rasse: ${pet.rasse || '-'} | Geb.-Datum: ${pet.geburtsdatum ? new Date(pet.geburtsdatum).toLocaleDateString('de-DE') : '-'} | Geschlecht: ${pet.geschlecht || '-'}`, 25, yOffset)
+        yOffset += 6
+        doc.text(`Chip-Nr: ${pet.chip_nummer || '-'} | Kastriert: ${pet.kastriert ? 'Ja' : 'Nein'} | Ableinbar: ${pet.ableinbar || '-'}`, 25, yOffset)
+        yOffset += 6
+        doc.text(`Fütterung: ${pet.fütterungszeiten || '-'} | Menge: ${pet.futtermenge || '-'}`, 25, yOffset)
+        yOffset += 6
+        doc.text(`Besonderheiten/Medikamente: ${pet.besonderheiten || pet.medikamente || 'Keine'}`, 25, yOffset)
+        yOffset += 10
+      })
+
+      // Vertragsbedingungen
+      doc.addPage()
+      doc.setFont('Helvetica', 'bold')
+      doc.setFontSize(14)
+      doc.text('Zusicherungen und Pflichten beider Parteien', 20, 20)
+      doc.setFont('Helvetica', 'normal')
+      doc.setFontSize(9)
+      
+      const lines = [
+        '1. Der Tierbesitzer sichert zu, dass der Hund sein Eigentum ist, stubenrein ist und über eine gültige Impfung verfügt.',
+        '   Der Impfpass sowie der Wurmtest wurden im Kundenportal digital hochgeladen.',
+        '2. Die letzte Stuhlprobe wurde am ' + (pets[0]?.letzte_stuhlprobe ? new Date(pets[0].letzte_stuhlprobe).toLocaleDateString('de-DE') : '-') + ' durchgeführt.',
+        '3. Der Tierbesitzer haftet für Sachschäden und Schäden an den in Obhut gegebenen Hunden.',
+        '4. In Notfällen ist tierisch gut betreut UG ausdrücklich bevollmächtigt, eine Tierklinik zu beauftragen. Die Kosten trägt der Halter.',
+        '5. Einwilligung zur Veröffentlichung von Fotos/Videos: ' + (fotoVideoConsent ? 'JA, erteilt.' : 'NEIN, widersprochen.'),
+        '6. Die Datenschutzerklärung wurde gelesen und akzeptiert.'
+      ]
+      
+      let textY = 30
+      lines.forEach(line => {
+        doc.text(line, 20, textY)
+        textY += 8
+      })
+
+      // Unterschrift
+      doc.setFont('Helvetica', 'bold')
+      doc.text('Unterschrift des Tierbesitzers (digital geleistet):', 20, 180)
+      doc.addImage(signatureImage, 'PNG', 20, 185, 60, 25)
+      
+      doc.setFont('Helvetica', 'normal')
+      doc.text(`Datum: ${new Date().toLocaleDateString('de-DE')}`, 20, 220)
+
+      // 2. In File konvertieren
+      const pdfBlob = doc.output('blob')
+      const pdfFile = new File([pdfBlob], 'Pflegevertrag.pdf', { type: 'application/pdf' })
+
+      // 3. In Storage hochladen & Dokumenteintrag erstellen
+      const uploadFormData = new FormData()
+      uploadFormData.append('file', pdfFile)
+      uploadFormData.append('document_type', 'vertrag')
+
+      const uploadResponse = await fetch('/api/portal/documents', {
+        method: 'POST',
+        body: uploadFormData
+      })
+
+      if (!uploadResponse.ok) {
+        const uploadErr = await uploadResponse.json()
+        throw new Error(uploadErr.error || 'Fehler beim Hochladen des Vertrags-PDFs')
+      }
+
+      // 4. E-Mail versenden
+      const pdfBase64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onloadend = () => {
+          const base64String = (reader.result as string).split(',')[1]
+          resolve(base64String)
+        }
+        reader.onerror = reject
+        reader.readAsDataURL(pdfFile)
+      })
+
+      const mailResponse = await fetch('/api/portal/contracts/send-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          pdfBase64,
+          fileName: 'Pflegevertrag.pdf'
+        })
+      })
+
+      if (!mailResponse.ok) {
+        console.error('Fehler beim E-Mail-Versand, fahren aber fort')
+      }
+
+      // 5. Profil und Onboarding als abgeschlossen markieren
+      const profileResponse = await fetch('/api/portal/profile', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          onboarding_completed: true,
+          contract_signed: true,
+          contract_signed_at: new Date().toISOString()
+        })
+      })
+
+      if (profileResponse.ok) {
+        toast({
+          title: 'Onboarding abgeschlossen!',
+          description: 'Der Pflegevertrag wurde erfolgreich unterzeichnet.',
+        })
+        router.push('/portal')
+      } else {
+        const errorData = await profileResponse.json()
+        throw new Error(errorData.error || 'Fehler beim Aktualisieren des Onboarding-Status')
+      }
+
+    } catch (error: any) {
+      toast({
+        title: 'Fehler',
+        description: error.message || 'Fehler beim Abschließen des Onboardings',
+        variant: 'destructive',
+      })
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -194,6 +517,55 @@ function ProfileContent() {
   }
 
   async function handleSavePet() {
+    if (!petFormData.name) {
+      toast({
+        title: 'Fehler',
+        description: 'Name des Tieres ist erforderlich',
+        variant: 'destructive',
+      })
+      return
+    }
+
+    const hasExistingImpfpass = editingPetId && documents.some(d => d.pet_id === editingPetId && d.document_type === 'impfpass')
+    const hasExistingWurmtest = editingPetId && documents.some(d => d.pet_id === editingPetId && d.document_type === 'wurmtest')
+
+    if (!impfpassFile && !hasExistingImpfpass) {
+      toast({
+        title: 'Fehler',
+        description: 'Der Impfpass (Bild oder PDF) ist ein Pflichtfeld.',
+        variant: 'destructive',
+      })
+      return
+    }
+
+    if (!wurmtestFile && !hasExistingWurmtest) {
+      toast({
+        title: 'Fehler',
+        description: 'Der Wurmtest (Bild oder PDF) ist ein Pflichtfeld.',
+        variant: 'destructive',
+      })
+      return
+    }
+
+    if (!petFormData.letzte_stuhlprobe) {
+      toast({
+        title: 'Fehler',
+        description: 'Das Datum der letzten Stuhlprobe ist erforderlich.',
+        variant: 'destructive',
+      })
+      return
+    }
+
+    const today = new Date().toISOString().split('T')[0]
+    if (petFormData.letzte_stuhlprobe > today) {
+      toast({
+        title: 'Fehler',
+        description: 'Das Datum der letzten Stuhlprobe darf nicht in der Zukunft liegen.',
+        variant: 'destructive',
+      })
+      return
+    }
+
     try {
       setUploadingDocuments(true)
       
@@ -282,6 +654,7 @@ function ProfileContent() {
         besonderheiten: '',
         intervall_impfung: '',
         intervall_entwurmung: '',
+        letzte_stuhlprobe: '',
       })
       setImpfpassFile(null)
       setWurmtestFile(null)
@@ -316,6 +689,7 @@ function ProfileContent() {
         besonderheiten: pet.besonderheiten || '',
         intervall_impfung: pet.intervall_impfung || '',
         intervall_entwurmung: pet.intervall_entwurmung || '',
+        letzte_stuhlprobe: pet.letzte_stuhlprobe || '',
       })
     } else {
       setEditingPetId(null)
@@ -329,6 +703,7 @@ function ProfileContent() {
         besonderheiten: '',
         intervall_impfung: '',
         intervall_entwurmung: '',
+        letzte_stuhlprobe: '',
       })
     }
     // Dateien zurücksetzen beim Öffnen des Formulars
@@ -365,6 +740,19 @@ function ProfileContent() {
         variant: 'destructive',
       })
     }
+  }
+
+  async function handleSaveStep2Next() {
+    if (pets.length === 0) {
+      toast({
+        title: 'Fehler',
+        description: 'Bitte füge mindestens ein Tier hinzu.',
+        variant: 'destructive',
+      })
+      return
+    }
+    setStep(3)
+    router.push('/portal/profile?onboarding=true&step=3')
   }
 
   async function handleSaveStep2() {
@@ -454,13 +842,16 @@ function ProfileContent() {
     )
   }
 
+  const hasExistingImpfpass = editingPetId && documents.some(d => d.pet_id === editingPetId && d.document_type === 'impfpass')
+  const hasExistingWurmtest = editingPetId && documents.some(d => d.pet_id === editingPetId && d.document_type === 'wurmtest')
+
   return (
     <div className="space-y-6">
       {/* Schritt-Indikator */}
       {isOnboarding && (
         <Card className="bg-white border-sage-200">
           <CardContent className="pt-6">
-            <div className="flex items-center justify-center gap-4 md:gap-8">
+            <div className="flex items-center justify-center gap-2 md:gap-8">
               {/* Schritt 1 */}
               <div className="flex flex-col items-center gap-2">
                 <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold transition-all ${
@@ -473,16 +864,16 @@ function ProfileContent() {
                   {step > 1 ? '✓' : '1'}
                 </div>
                 <div className="text-center">
-                  <p className={`text-sm font-semibold ${step >= 1 ? 'text-sage-900' : 'text-gray-400'}`}>
+                  <p className={`text-xs md:text-sm font-semibold ${step >= 1 ? 'text-sage-900' : 'text-gray-400'}`}>
                     Persönliche Daten
                   </p>
                   {step === 1 && (
-                    <p className="text-xs text-sage-600 mt-1">Aktueller Schritt</p>
+                    <p className="text-[10px] md:text-xs text-sage-600 mt-1">Aktueller Schritt</p>
                   )}
                 </div>
               </div>
               
-              {/* Verbindungslinie */}
+              {/* Verbindungslinie 1 */}
               <div className={`flex-1 h-1 transition-all ${
                 step >= 2 ? 'bg-green-600' : 'bg-gray-200'
               }`} />
@@ -499,11 +890,35 @@ function ProfileContent() {
                   {step > 2 ? '✓' : '2'}
                 </div>
                 <div className="text-center">
-                  <p className={`text-sm font-semibold ${step >= 2 ? 'text-sage-900' : 'text-gray-400'}`}>
-                    Tier/e & Informationen
+                  <p className={`text-xs md:text-sm font-semibold ${step >= 2 ? 'text-sage-900' : 'text-gray-400'}`}>
+                    Tier/e & Infos
                   </p>
                   {step === 2 && (
-                    <p className="text-xs text-sage-600 mt-1">Aktueller Schritt</p>
+                    <p className="text-[10px] md:text-xs text-sage-600 mt-1">Aktueller Schritt</p>
+                  )}
+                </div>
+              </div>
+
+              {/* Verbindungslinie 2 */}
+              <div className={`flex-1 h-1 transition-all ${
+                step >= 3 ? 'bg-green-600' : 'bg-gray-200'
+              }`} />
+              
+              {/* Schritt 3 */}
+              <div className="flex flex-col items-center gap-2">
+                <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold transition-all ${
+                  step === 3 
+                    ? 'bg-sage-600 text-white ring-4 ring-sage-200' 
+                    : 'bg-gray-200 text-gray-500'
+                }`}>
+                  3
+                </div>
+                <div className="text-center">
+                  <p className={`text-xs md:text-sm font-semibold ${step >= 3 ? 'text-sage-900' : 'text-gray-400'}`}>
+                    Pflegevertrag
+                  </p>
+                  {step === 3 && (
+                    <p className="text-[10px] md:text-xs text-sage-600 mt-1">Aktueller Schritt</p>
                   )}
                 </div>
               </div>
@@ -515,14 +930,16 @@ function ProfileContent() {
       <div>
         <h1 className="text-3xl font-bold text-sage-900">
           {isOnboarding 
-            ? (step === 1 ? 'Schritt 1: Persönliche Daten' : 'Schritt 2: Tier/e & Informationen')
+            ? (step === 1 ? 'Schritt 1: Persönliche Daten' : step === 2 ? 'Schritt 2: Tier/e & Informationen' : 'Schritt 3: Pflegevertrag unterzeichnen')
             : 'Mein Profil'}
         </h1>
         <p className="mt-2 text-sage-600">
           {isOnboarding 
             ? (step === 1 
                 ? 'Bitte fülle deine persönlichen Daten aus.'
-                : 'Lege deine Tier/e an und ergänze die Tierinformationen.')
+                : step === 2
+                ? 'Lege deine Tier/e an und ergänze die Tierinformationen.'
+                : 'Lies den Pflegevertrag sorgfältig durch und unterzeichne ihn digital.')
             : 'Verwalte deine persönlichen Daten'}
         </p>
       </div>
@@ -619,15 +1036,25 @@ function ProfileContent() {
               <Label htmlFor="datenschutz">Ich stimme der Datenschutzerklärung zu *</Label>
             </div>
 
-            <div className="flex gap-4">
+            <div className="flex flex-col sm:flex-row gap-4 w-full">
               {isOnboarding ? (
-                <Button
-                  onClick={handleSaveStep1}
-                  disabled={saving || !personalData.datenschutz || !personalData.nachname || !personalData.vorname || !personalData.email || !personalData.telefonnummer}
-                  className="flex-1 bg-sage-600 hover:bg-sage-700 text-lg py-6"
-                >
-                  {saving ? 'Wird gespeichert...' : 'Weiter zu Schritt 2 →'}
-                </Button>
+                <>
+                  <Button
+                    onClick={handleSaveStep1}
+                    disabled={saving || !personalData.datenschutz || !personalData.nachname || !personalData.vorname || !personalData.email || !personalData.telefonnummer}
+                    className="flex-1 bg-sage-600 hover:bg-sage-700 text-lg py-6"
+                  >
+                    {saving ? 'Wird gespeichert...' : 'Weiter zu Schritt 2 →'}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => router.push('/portal')}
+                    className="border-sage-300 text-sage-700 hover:bg-sage-50 text-lg py-6"
+                  >
+                    Später fortfahren
+                  </Button>
+                </>
               ) : (
                 <Button
                   onClick={handleSave}
@@ -803,10 +1230,12 @@ function ProfileContent() {
 
                   {/* Dokumente-Upload */}
                   <div className="border-t pt-4 space-y-4">
-                    <h3 className="font-semibold text-sage-900">Dokumente</h3>
+                    <h3 className="font-semibold text-sage-900">Dokumente & Vorsorge</h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
-                        <Label htmlFor="pet-impfpass">Impfpass (Bild)</Label>
+                        <Label htmlFor="pet-impfpass">
+                          Impfpass (Bild oder PDF) {hasExistingImpfpass ? '(bereits hochgeladen)' : '*'}
+                        </Label>
                         <Input
                           id="pet-impfpass"
                           type="file"
@@ -823,7 +1252,9 @@ function ProfileContent() {
                         )}
                       </div>
                       <div>
-                        <Label htmlFor="pet-wurmtest">Wurmtest (Bild)</Label>
+                        <Label htmlFor="pet-wurmtest">
+                          Wurmtest (Bild oder PDF) {hasExistingWurmtest ? '(bereits hochgeladen)' : '*'}
+                        </Label>
                         <Input
                           id="pet-wurmtest"
                           type="file"
@@ -838,6 +1269,17 @@ function ProfileContent() {
                             Ausgewählt: {wurmtestFile.name}
                           </p>
                         )}
+                      </div>
+                      <div className="md:col-span-2">
+                        <Label htmlFor="pet-stuhlprobe">Datum der letzten Stuhlprobe *</Label>
+                        <Input
+                          id="pet-stuhlprobe"
+                          type="date"
+                          value={petFormData.letzte_stuhlprobe}
+                          max={new Date().toISOString().split('T')[0]}
+                          onChange={(e) => setPetFormData({ ...petFormData, letzte_stuhlprobe: e.target.value })}
+                          required
+                        />
                       </div>
                     </div>
                   </div>
@@ -915,8 +1357,16 @@ function ProfileContent() {
                           </Button>
                         </div>
                       </div>
-                      {(pet.futtermenge || pet.medikamente || pet.besonderheiten || pet.intervall_impfung || pet.intervall_entwurmung) && (
+                      {(pet.futtermenge || pet.medikamente || pet.besonderheiten || pet.intervall_impfung || pet.intervall_entwurmung || pet.letzte_stuhlprobe) && (
                         <div className="mt-3 pt-3 border-t border-sage-200 space-y-2">
+                          {pet.letzte_stuhlprobe && (
+                            <div>
+                              <p className="text-xs font-semibold text-sage-600">Letzte Stuhlprobe:</p>
+                              <p className="text-sm text-sage-700">
+                                {new Date(pet.letzte_stuhlprobe).toLocaleDateString('de-DE')}
+                              </p>
+                            </div>
+                          )}
                           {pet.futtermenge && (
                             <div>
                               <p className="text-xs font-semibold text-sage-600">Futtermenge:</p>
@@ -976,16 +1426,205 @@ function ProfileContent() {
                     ← Zurück zu Schritt 1
                   </Button>
                   <Button
-                    onClick={handleSaveStep2}
-                    disabled={saving || pets.length === 0}
+                    onClick={handleSaveStep2Next}
+                    disabled={pets.length === 0}
                     className="flex-1 bg-sage-600 hover:bg-sage-700 text-lg py-6"
                   >
-                    {saving ? 'Wird gespeichert...' : '✓ Onboarding abschließen & zum Portal'}
+                    Weiter zu Schritt 3 →
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => router.push('/portal')}
+                    className="border-sage-300 text-sage-700 hover:bg-sage-50"
+                  >
+                    Später fortfahren
                   </Button>
                 </div>
               </CardContent>
             </Card>
           )}
+        </div>
+      )}
+
+      {/* Schritt 3: Pflegevertrag */}
+      {step === 3 && (
+        <div className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>PFLEGEVERTRAG für den Hundeurlaub in der Pension</CardTitle>
+              <CardDescription>
+                Bitte lies den Vertrag aufmerksam durch. Du kannst direkt hier unterschreiben oder den QR-Code nutzen, um bequem auf deinem Smartphone zu signieren.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {/* Vertragstext Box */}
+              <div className="border rounded-lg p-4 h-64 overflow-y-scroll bg-sage-50 text-sm text-sage-800 space-y-4">
+                <h3 className="font-bold text-base border-b pb-2">Zusicherungen und Pflichten beider Parteien</h3>
+                <p>
+                  <strong>(1) Der Tierbesitzer sichert zu, dass:</strong>
+                  <br />
+                  - der Hund sein Eigentum ist und er über diesen frei verfügen kann.
+                  <br />
+                  - der Hund stubenrein ist, nicht inkontinent ist oder in geschlossenen Räumen markiert.
+                  <br />
+                  - das Tier über eine gültige Impfung gegen Hepatitis, Parvovirose, Leptospirose, Staupe und Zwingerhusten verfügt. Der Impfpass wird vor jedem Aufenthalt zur Durchsicht an tierisch gut betreut UG per Mail zugesandt oder hochgeladen.
+                  <br />
+                  - der Hund wurmfrei ist (Entwurmung oder negativer Kot-Test nicht älter als drei Monate).
+                </p>
+                <p>
+                  <strong>(2) Erkrankungen & Tierarzt:</strong>
+                  <br />
+                  Je nach Schwere der Erkrankung ist tierisch gut betreut UG berechtigt, vom Vertrag zurückzutreten oder das Tier in tierärztliche Betreuung zu geben. Die anfallenden Kosten werden vom Tierbesitzer getragen.
+                </p>
+                <p>
+                  <strong>(3) Haftung:</strong>
+                  <br />
+                  tierisch gut betreut UG haftet für Sachschäden und Schäden an den Hunden nur bei Vorsatz oder grober Fahrlässigkeit. Für Schäden, die der Hund verursacht, haftet allein der Tierbesitzer.
+                </p>
+                <p>
+                  <strong>(4) Notfall-Vollmacht:</strong>
+                  <br />
+                  Der Tierhalter erklärt sich einverstanden, dass in Notfällen die erforderliche Behandlung bei einem Tierarzt oder in einer Tierklinik erfolgt. Die Kosten übernimmt der Tierhalter.
+                </p>
+              </div>
+
+              {/* Einverständniserklärungen */}
+              <div className="space-y-4 pt-4 border-t">
+                <div className="flex items-start gap-2">
+                  <input
+                    type="checkbox"
+                    id="dataConsent"
+                    checked={dataConsent}
+                    onChange={(e) => setDataConsent(e.target.checked)}
+                    className="mt-1 h-4 w-4 rounded border-gray-300 text-sage-600 focus:ring-sage-500"
+                  />
+                  <label htmlFor="dataConsent" className="text-sm text-sage-700">
+                    <strong>Datenschutzerklärung (Pflicht):</strong> Ich stimme der Erhebung, Speicherung und elektronischen Verarbeitung meiner Daten sowie der Daten meines Tieres zum Zweck der Betreuung und Vertragsabwicklung zu.
+                  </label>
+                </div>
+
+                <div className="flex items-start gap-2">
+                  <input
+                    type="checkbox"
+                    id="fotoConsent"
+                    checked={fotoVideoConsent}
+                    onChange={(e) => setFotoVideoConsent(e.target.checked)}
+                    className="mt-1 h-4 w-4 rounded border-gray-300 text-sage-600 focus:ring-sage-500"
+                  />
+                  <label htmlFor="fotoConsent" className="text-sm text-sage-700">
+                    <strong>Foto- & Videofreigabe (Freiwillig):</strong> Ich willige ein, dass Fotos und Videos von meinem Tier auf der Homepage oder sozialen Medien von tierisch gut betreut UG veröffentlicht werden dürfen.
+                  </label>
+                </div>
+              </div>
+
+              {/* Unterschriften Bereich */}
+              <div className="pt-6 border-t space-y-4">
+                <h4 className="font-bold text-sm text-sage-900">Vertrag unterschreiben</h4>
+                
+                {signatureImage ? (
+                  <div className="space-y-2">
+                    <p className="text-sm text-emerald-600 font-semibold">✓ Unterschrift erfasst:</p>
+                    <div className="border rounded bg-white p-2 w-64 h-24 flex items-center justify-center">
+                      <img src={signatureImage} alt="Digitale Unterschrift" className="max-h-full max-w-full" />
+                    </div>
+                    <Button
+                      variant="ghost"
+                      onClick={() => setSignatureImage(null)}
+                      className="text-xs text-red-600 hover:text-red-700 p-0 h-auto"
+                    >
+                      Unterschrift zurücksetzen
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {/* Desktop Unterschrift */}
+                    <div className="space-y-2">
+                      <p className="text-xs font-semibold text-sage-600">Option A: Direkt am Bildschirm unterschreiben</p>
+                      <div className="border border-dashed rounded-lg bg-white overflow-hidden">
+                        <canvas
+                          ref={desktopCanvasRef}
+                          className="w-full h-[150px] cursor-crosshair bg-white"
+                        />
+                      </div>
+                      <div className="flex gap-2">
+                        <Button variant="outline" size="sm" onClick={clearDesktopSignature} className="text-xs">
+                          Löschen
+                        </Button>
+                        <Button size="sm" onClick={acceptDesktopSignature} className="bg-sage-600 text-xs text-white">
+                          Unterschrift übernehmen
+                        </Button>
+                      </div>
+                    </div>
+
+                    {/* QR Code / Smartphone Unterschrift */}
+                    <div className="border-l pl-0 md:pl-6 space-y-2 flex flex-col justify-between">
+                      <div>
+                        <p className="text-xs font-semibold text-sage-600">Option B: Bequem am Smartphone unterschreiben</p>
+                        <p className="text-xs text-sage-500 mt-1">
+                          Scanne den QR-Code mit der Smartphone-Kamera, um mit dem Finger zu unterschreiben.
+                        </p>
+                      </div>
+
+                      {mobileSessionId ? (
+                        <div className="flex flex-col items-center p-2 bg-white border rounded-lg w-48 mx-auto mt-2">
+                          <img
+                            src={`https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(
+                              (typeof window !== 'undefined' ? window.location.origin : '') + '/signature/' + mobileSessionId
+                            )}`}
+                            alt="Signatur QR Code"
+                            className="w-36 h-36"
+                          />
+                          <p className="text-[10px] text-sage-500 mt-1 animate-pulse text-center">
+                            Warte auf Unterschrift...
+                          </p>
+                        </div>
+                      ) : (
+                        <Button
+                          onClick={startMobileSignature}
+                          disabled={saving}
+                          className="w-full bg-sage-500 hover:bg-sage-600 text-white mt-2"
+                        >
+                          QR-Code anzeigen
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Steuerungsknöpfe */}
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex gap-4">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setStep(2)
+                    router.push('/portal/profile?onboarding=true&step=2')
+                  }}
+                  className="border-sage-300 text-sage-700 hover:bg-sage-50"
+                >
+                  ← Zurück zu Schritt 2
+                </Button>
+                <Button
+                  onClick={handleFinishOnboarding}
+                  disabled={saving || !dataConsent || !signatureImage}
+                  className="flex-1 bg-sage-600 hover:bg-sage-700 text-lg py-6 text-white"
+                >
+                  {saving ? 'Vertrag wird übermittelt...' : '✓ Vertrag unterzeichnen & Onboarding abschließen'}
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => router.push('/portal')}
+                  className="border-sage-300 text-sage-700 hover:bg-sage-50"
+                >
+                  Später fortfahren
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
         </div>
       )}
     </div>

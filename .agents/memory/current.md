@@ -1,23 +1,20 @@
 # Aktueller Stand
 
 ## Letzte Änderungen
-- Datenbankmigration `20260703180000_price_categories.sql` durchgeführt (dynamische Preiskategorien, Migration vorhandener Preise und Hinzufügen von Katzenbetreuungspreisen).
-- API-Routen für Preiskategorien (`/api/admin/price-categories` und dynamic routes) erstellt sowie `/api/prices` und `/api/admin/prices` auf dynamische Kategorien umgestellt.
-- POST-Endpoint zur Preiserstellung in `/api/admin/prices` sowie DELETE-Endpoint in `/api/admin/prices/[id]` implementiert.
-- Admin-Preisseite `/admin/prices` erweitert um:
-  - Tab zur Kategorienverwaltung
-  - Inline-Zuweisung von Kategorien per Dropdown bei Preisen
-  - Formular zum Hinzufügen neuer Preise direkt innerhalb einer Kategorie
-  - Lösch-Funktion für jeden einzelnen Preis per Papierkorb-Icon
-- Kundenportal-Preisseite `/portal/prices` überarbeitet: Die Preise werden komplett dynamisch gruppiert und per Tabs nach "Hundepension" und "Katzenbetreuung" gefiltert.
-- Next.js Produktions-Build erfolgreich verifiziert.
+- Spalte `letzte_stuhlprobe` (Typ: `DATE`) im DB-Schema (Migration vorbereitet unter `/supabase/migrations`) und im TypeScript-Interface `Pet` in `lib/types.ts` hinzugefügt.
+- Onboarding-Formular (`app/portal/profile/page.tsx`) und Tierverwaltung (`app/portal/pets/page.tsx`) um das Feld `letzte_stuhlprobe` und Pflichtfeld-Validierung für Dokumenten-Uploads (Impfpass, Wurmtest) und Stuhlproben-Datum erweitert.
+- Zwischenspeichern des Onboardings durch den Button "Später fortfahren" ermöglicht (Kunde wird zum Dashboard zurückgeleitet).
+- Dashboard-Banner so angepasst, dass es auf `customer.onboarding_completed` prüft und den Kunden direkt zum passenden unvollständigen Schritt weiterleitet.
+- Datum der letzten Stuhlprobe wird nun in der Admin-Kundenkartei (`app/admin/customers/[id]/page.tsx`) angezeigt.
+- Onboarding-Link bleibt im Admin-Bereich sichtbar, bis das Onboarding vollständig abgeschlossen ist. Bereits registrierte Kunden werden auf der Onboarding-Landingpage direkt zur Anmeldung weitergeleitet.
+- Next.js Produktions-Build verifiziert.
 
 ## Fokus
-- Feature-Abnahme und Support.
+- Feature-Abnahme und manuelle Tests.
 
 ## Nächste Schritte
-- Feedback des Kunden einholen.
-- Manuelle Tests im Admin- und Kundenbereich durchführen.
+- Manuelle Ausführung des SQL-Statements für `letzte_stuhlprobe` in der remote Supabase-Datenbank.
+- Testen des vollständigen Onboarding-Flows (inklusive Zwischenspeichern und Fortsetzen).
 
 ## Offene Punkte
-- Keine.
+- Manuelle DB-Migration ausführen.

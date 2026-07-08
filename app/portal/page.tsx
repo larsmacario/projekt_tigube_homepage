@@ -54,7 +54,14 @@ export default function PortalPage() {
     )
   }
 
-  const isProfileComplete = customer && customer.nachname && customer.vorname && customer.datenschutz
+  const showOnboardingBanner = customer && !customer.onboarding_completed
+  const isStep1Complete = customer && customer.nachname && customer.vorname && customer.datenschutz && customer.telefonnummer
+  const hasPets = pets.length > 0
+  const onboardingLink = !isStep1Complete
+    ? '/portal/profile?onboarding=true&step=1'
+    : !hasPets
+    ? '/portal/profile?onboarding=true&step=2'
+    : '/portal/profile?onboarding=true&step=3'
 
   return (
     <div className="space-y-8">
@@ -66,18 +73,18 @@ export default function PortalPage() {
       </div>
 
       {/* Onboarding-Hinweis */}
-      {!isProfileComplete && (
+      {showOnboardingBanner && (
         <Card className="border-amber-300 bg-amber-50">
           <CardHeader>
-            <CardTitle className="text-amber-800">Profil vervollständigen</CardTitle>
+            <CardTitle className="text-amber-800">Onboarding fortsetzen</CardTitle>
             <CardDescription className="text-amber-700">
-              Bitte vervollständige dein Profil, um alle Funktionen nutzen zu können.
+              Bitte schließe dein Kundenprofil und die Tiererfassung vollständig ab.
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <Link href="/portal/profile?onboarding=true">
+            <Link href={onboardingLink}>
               <Button className="bg-amber-600 hover:bg-amber-700">
-                Profil vervollständigen
+                Onboarding fortsetzen
               </Button>
             </Link>
           </CardContent>

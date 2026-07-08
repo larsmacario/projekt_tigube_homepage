@@ -462,7 +462,7 @@ export default function CustomerDetailPage() {
             </div>
 
             <div className="border-t pt-4">
-              <div className="flex items-center justify-between">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
                   <p className="text-sm text-sage-500">Onboarding Status</p>
                   <Badge
@@ -471,6 +471,20 @@ export default function CustomerDetailPage() {
                   >
                     {customer.onboarding_completed ? 'Vollständig' : 'In Bearbeitung'}
                   </Badge>
+                </div>
+                <div>
+                  <p className="text-sm text-sage-500">Pflegevertrag</p>
+                  <Badge
+                    variant={customer.contract_signed ? 'default' : 'destructive'}
+                    className="mt-1"
+                  >
+                    {customer.contract_signed ? 'Unterzeichnet' : 'Nicht unterzeichnet'}
+                  </Badge>
+                  {customer.contract_signed_at && (
+                    <p className="text-[10px] text-sage-500 mt-0.5">
+                      {new Date(customer.contract_signed_at).toLocaleDateString('de-DE')}
+                    </p>
+                  )}
                 </div>
                 <div>
                   <p className="text-sm text-sage-500">Datenschutz</p>
@@ -629,6 +643,12 @@ export default function CustomerDetailPage() {
                           <div>
                             <span className="text-sage-500">Letzte Impfung (Zusatz):</span>{' '}
                             {new Date(pet.letzte_impfung_zusatz).toLocaleDateString('de-DE')}
+                          </div>
+                        )}
+                        {pet.letzte_stuhlprobe && (
+                          <div>
+                            <span className="text-sage-500">Letzte Stuhlprobe:</span>{' '}
+                            {new Date(pet.letzte_stuhlprobe).toLocaleDateString('de-DE')}
                           </div>
                         )}
                       </div>

@@ -52,6 +52,41 @@ export async function sendOnboardingEmail(data: { email: string; name: string; o
   }
 }
 
+export async function sendContractEmail(data: { 
+  email: string; 
+  name: string; 
+  pdfBuffer: Buffer; 
+  fileName: string;
+}): Promise<EmailDelivery> {
+  try {
+    const config = getSmtpConfig()
+    const transporter = nodemailer.createTransport({
+      host: config.host,
+      port: config.port,
+      secure: config.secure,
+      auth: { user: config.user, pass: config.password },
+    })
+
+    await transporter.sendMail({
+      from: config.from,
+      to: [data.email, config.to], // An den Kunden und an das Admin-Team
+      subject: 'Dein unterzeichneter Pflegevertrag - tierisch gut betreut',
+      text: `Hallo ${data.name},\n\nvielen Dank für das Ausfüllen deiner Daten und die Unterzeichnung des Pflegevertrags.\n\nIm Anhang findest du deinen unterzeichneten Pflegevertrag als PDF-Dokument für deine Unterlagen.\n\nHerzliche Grüße\nTamara und Gabriel\ntierisch gut betreut`,
+      html: `<p>Hallo ${escapeHtml(data.name)},</p><p>vielen Dank für das Ausfüllen deiner Daten und die Unterzeichnung des Pflegevertrags.</p><p>Im Anhang findest du deinen unterzeichneten Pflegevertrag als PDF-Dokument für deine Unterlagen.</p><p>Herzliche Grüße<br>Tamara und Gabriel<br><strong>tierisch gut betreut</strong></p>`,
+      attachments: [
+        {
+          filename: data.fileName,
+          content: data.pdfBuffer,
+          contentType: 'application/pdf',
+        }
+      ]
+    })
+    return { status: 'sent', error: null }
+  } catch (error) {
+    return { status: 'failed', error: error instanceof Error ? error.message : 'Interner SMTP-Fehler' }
+  }
+}
+
 type SmtpConfig = {
   host: string
   port: number

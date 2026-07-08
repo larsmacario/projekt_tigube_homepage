@@ -58,6 +58,8 @@ export interface Contact {
   email_confirmation_status: 'sent' | 'failed' | null
   email_confirmation_error: string | null
   newsletter_unsubscribed_at: string | null
+  contract_signed?: boolean
+  contract_signed_at?: string | null
 }
 
 /** Alias — Kunden sind `contacts` mit contact_type customer */
@@ -76,6 +78,7 @@ export interface Pet {
   besonderheiten: string | null
   intervall_impfung: string | null
   intervall_entwurmung: string | null
+  letzte_stuhlprobe: string | null
   created_at: string
   updated_at: string
 }

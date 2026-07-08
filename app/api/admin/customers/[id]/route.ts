@@ -101,14 +101,13 @@ export async function GET(
       )
     }
 
-    // Hole Onboarding-Token, falls vorhanden und nicht verwendet
+    // Hole Onboarding-Token, falls vorhanden und Onboarding unvollständig
     let onboardingToken = null
     if (!customer.onboarding_completed) {
       const { data: tokenData } = await supabase
         .from('onboarding_tokens')
         .select('token, used')
         .eq('customer_id', customerId)
-        .eq('used', false)
         .order('created_at', { ascending: false })
         .limit(1)
         .single()

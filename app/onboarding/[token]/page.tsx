@@ -193,59 +193,73 @@ export default function OnboardingPage() {
             </div>
           )}
 
-          <form onSubmit={handleRegister} className="space-y-4">
-            {error && (
-              <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
-                {error}
+          {lead?.user_id ? (
+            <div className="space-y-4">
+              <div className="bg-sage-50 border border-sage-200 text-sage-800 px-4 py-3 rounded text-center text-sm">
+                Ihr Kundenkonto wurde bereits erfolgreich erstellt. Sie können sich direkt anmelden, um Ihr Onboarding fortzusetzen.
               </div>
-            )}
-
-            <div className="space-y-2">
-              <Label htmlFor="email">E-Mail</Label>
-              <Input
-                id="email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                disabled
-                className="bg-sage-100"
-              />
+              <Button
+                onClick={() => router.push('/login?redirectTo=/portal/profile?onboarding=true')}
+                className="w-full bg-sage-600 hover:bg-sage-700"
+              >
+                Zur Anmeldung
+              </Button>
             </div>
+          ) : (
+            <form onSubmit={handleRegister} className="space-y-4">
+              {error && (
+                <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
+                  {error}
+                </div>
+              )}
 
-            <div className="space-y-2">
-              <Label htmlFor="password">Passwort</Label>
-              <Input
-                id="password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                placeholder="Mindestens 8 Zeichen"
-                minLength={8}
-              />
-            </div>
+              <div className="space-y-2">
+                <Label htmlFor="email">E-Mail</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                  disabled
+                  className="bg-sage-100"
+                />
+              </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="confirmPassword">Passwort bestätigen</Label>
-              <Input
-                id="confirmPassword"
-                type="password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                required
-                placeholder="Passwort wiederholen"
-                minLength={8}
-              />
-            </div>
+              <div className="space-y-2">
+                <Label htmlFor="password">Passwort</Label>
+                <Input
+                  id="password"
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  placeholder="Mindestens 8 Zeichen"
+                  minLength={8}
+                />
+              </div>
 
-            <Button
-              type="submit"
-              className="w-full bg-sage-600 hover:bg-sage-700"
-            >
-              Konto erstellen
-            </Button>
-          </form>
+              <div className="space-y-2">
+                <Label htmlFor="confirmPassword">Passwort bestätigen</Label>
+                <Input
+                  id="confirmPassword"
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  required
+                  placeholder="Passwort wiederholen"
+                  minLength={8}
+                />
+              </div>
+
+              <Button
+                type="submit"
+                className="w-full bg-sage-600 hover:bg-sage-700"
+              >
+                Konto erstellen
+              </Button>
+            </form>
+          )}
         </CardContent>
       </Card>
     </div>

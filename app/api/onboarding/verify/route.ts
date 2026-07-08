@@ -69,23 +69,10 @@ export async function POST(request: NextRequest) {
     const tokenData = tokenDataArray[0]
     console.log('Token found:', tokenData.id, 'Customer ID:', tokenData.customer_id)
 
-    // Prüfe ob Token bereits verwendet wurde
-    if (tokenData.used) {
-      return NextResponse.json(
-        { error: 'Token wurde bereits verwendet' },
-        { status: 400 }
-      )
-    }
-
-    if (tokenData.expires_at && new Date(tokenData.expires_at).getTime() <= Date.now()) {
-      return NextResponse.json({ error: 'Dieser Onboarding-Link ist abgelaufen' }, { status: 410 })
-    }
-
     // Hole Customer-Daten direkt (nicht über Relation wegen RLS)
     let customer = null
     if (tokenData.customer_id) {
       console.log('Fetching customer with ID:', tokenData.customer_id)
-      // Verwende limit(1) statt single() um RLS-Probleme zu vermeiden
       const { data: customerDataArray, error: customerError } = await supabase
         .from('contacts')
         .select('*')
@@ -95,7 +82,6 @@ export async function POST(request: NextRequest) {
 
       if (customerError) {
         console.error('Error fetching customer:', customerError)
-        console.error('Customer error details:', JSON.stringify(customerError, null, 2))
         return NextResponse.json(
           { error: `Fehler beim Laden der Kundendaten: ${customerError.message || 'Unbekannter Fehler'}` },
           { status: 404 }
@@ -104,16 +90,13 @@ export async function POST(request: NextRequest) {
 
       if (customerDataArray && customerDataArray.length > 0) {
         customer = customerDataArray[0]
-        console.log('Customer found:', customer?.email)
       } else {
-        console.error('Customer array is empty')
         return NextResponse.json(
           { error: 'Keine Kundendaten gefunden' },
           { status: 404 }
         )
       }
     } else {
-      console.error('Token has no customer_id')
       return NextResponse.json(
         { error: 'Token hat keine zugeordnete Kunden-ID' },
         { status: 404 }
@@ -121,11 +104,22 @@ export async function POST(request: NextRequest) {
     }
 
     if (!customer) {
-      console.error('Customer is null after fetch')
       return NextResponse.json(
         { error: 'Keine Kundendaten gefunden' },
         { status: 404 }
       )
+    }
+
+    // Prüfe ob Token bereits verwendet wurde und das Onboarding bereits abgeschlossen ist
+    if (tokenData.used && customer.onboarding_completed) {
+      return NextResponse.json(
+        { error: 'Dieses Onboarding ist bereits abgeschlossen.' },
+        { status: 400 }
+      )
+    }
+
+    if (tokenData.expires_at && new Date(tokenData.expires_at).getTime() <= Date.now()) {
+      return NextResponse.json({ error: 'Dieser Onboarding-Link ist abgelaufen' }, { status: 410 })
     }
 
     const responseData = {
@@ -145,6 +139,7 @@ export async function POST(request: NextRequest) {
         message: customer.message,
         availability: customer.availability,
         datenschutz: customer.datenschutz,
+        user_id: customer.user_id,
       },
     }
 

@@ -10,10 +10,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
 import { useToast } from '@/hooks/use-toast'
 import { Plus, Trash2 } from 'lucide-react'
-import type { Pet } from '@/lib/types'
+import type { Pet, Document } from '@/lib/types'
 
 export default function PetsPage() {
   const [pets, setPets] = useState<Pet[]>([])
+  const [documents, setDocuments] = useState<Document[]>([])
   const [loading, setLoading] = useState(true)
   const [showPetForm, setShowPetForm] = useState(false)
   const [editingPetId, setEditingPetId] = useState<string | null>(null)
@@ -30,6 +31,7 @@ export default function PetsPage() {
     besonderheiten: '',
     intervall_impfung: '',
     intervall_entwurmung: '',
+    letzte_stuhlprobe: '',
   })
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [petToDelete, setPetToDelete] = useState<Pet | null>(null)
@@ -44,6 +46,12 @@ export default function PetsPage() {
       const response = await fetch('/api/portal/pets')
       const data = await response.json()
       setPets(data.pets || [])
+
+      const docsResponse = await fetch('/api/portal/documents')
+      if (docsResponse.ok) {
+        const docsData = await docsResponse.json()
+        setDocuments(docsData.documents || [])
+      }
     } catch (error) {
       console.error('Error loading pets:', error)
     } finally {
@@ -64,6 +72,7 @@ export default function PetsPage() {
         besonderheiten: pet.besonderheiten || '',
         intervall_impfung: pet.intervall_impfung || '',
         intervall_entwurmung: pet.intervall_entwurmung || '',
+        letzte_stuhlprobe: pet.letzte_stuhlprobe || '',
       })
     } else {
       setEditingPetId(null)
@@ -77,6 +86,7 @@ export default function PetsPage() {
         besonderheiten: '',
         intervall_impfung: '',
         intervall_entwurmung: '',
+        letzte_stuhlprobe: '',
       })
     }
     setImpfpassFile(null)
@@ -85,6 +95,55 @@ export default function PetsPage() {
   }
 
   async function handleSavePet() {
+    if (!petFormData.name) {
+      toast({
+        title: 'Fehler',
+        description: 'Name des Tieres ist erforderlich',
+        variant: 'destructive',
+      })
+      return
+    }
+
+    const hasExistingImpfpass = editingPetId && documents.some(d => d.pet_id === editingPetId && d.document_type === 'impfpass')
+    const hasExistingWurmtest = editingPetId && documents.some(d => d.pet_id === editingPetId && d.document_type === 'wurmtest')
+
+    if (!impfpassFile && !hasExistingImpfpass) {
+      toast({
+        title: 'Fehler',
+        description: 'Der Impfpass (Bild oder PDF) ist ein Pflichtfeld.',
+        variant: 'destructive',
+      })
+      return
+    }
+
+    if (!wurmtestFile && !hasExistingWurmtest) {
+      toast({
+        title: 'Fehler',
+        description: 'Der Wurmtest (Bild oder PDF) ist ein Pflichtfeld.',
+        variant: 'destructive',
+      })
+      return
+    }
+
+    if (!petFormData.letzte_stuhlprobe) {
+      toast({
+        title: 'Fehler',
+        description: 'Das Datum der letzten Stuhlprobe ist erforderlich.',
+        variant: 'destructive',
+      })
+      return
+    }
+
+    const today = new Date().toISOString().split('T')[0]
+    if (petFormData.letzte_stuhlprobe > today) {
+      toast({
+        title: 'Fehler',
+        description: 'Das Datum der letzten Stuhlprobe darf nicht in der Zukunft liegen.',
+        variant: 'destructive',
+      })
+      return
+    }
+
     try {
       setUploadingDocuments(true)
       
@@ -173,6 +232,7 @@ export default function PetsPage() {
         besonderheiten: '',
         intervall_impfung: '',
         intervall_entwurmung: '',
+        letzte_stuhlprobe: '',
       })
       setImpfpassFile(null)
       setWurmtestFile(null)
@@ -240,6 +300,9 @@ export default function PetsPage() {
       </div>
     )
   }
+
+  const hasExistingImpfpass = editingPetId && documents.some(d => d.pet_id === editingPetId && d.document_type === 'impfpass')
+  const hasExistingWurmtest = editingPetId && documents.some(d => d.pet_id === editingPetId && d.document_type === 'wurmtest')
 
   return (
     <div className="space-y-6">
@@ -406,10 +469,12 @@ export default function PetsPage() {
 
               {/* Dokumente-Upload */}
               <div className="border-t pt-4 space-y-4">
-                <h3 className="font-semibold text-sage-900">Dokumente</h3>
+                <h3 className="font-semibold text-sage-900">Dokumente & Vorsorge</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <Label htmlFor="pet-impfpass">Impfpass (Bild)</Label>
+                    <Label htmlFor="pet-impfpass">
+                      Impfpass (Bild oder PDF) {hasExistingImpfpass ? '(bereits hochgeladen)' : '*'}
+                    </Label>
                     <Input
                       id="pet-impfpass"
                       type="file"
@@ -426,7 +491,9 @@ export default function PetsPage() {
                     )}
                   </div>
                   <div>
-                    <Label htmlFor="pet-wurmtest">Wurmtest (Bild)</Label>
+                    <Label htmlFor="pet-wurmtest">
+                      Wurmtest (Bild oder PDF) {hasExistingWurmtest ? '(bereits hochgeladen)' : '*'}
+                    </Label>
                     <Input
                       id="pet-wurmtest"
                       type="file"
@@ -441,6 +508,17 @@ export default function PetsPage() {
                         Ausgewählt: {wurmtestFile.name}
                       </p>
                     )}
+                  </div>
+                  <div className="md:col-span-2">
+                    <Label htmlFor="pet-stuhlprobe">Datum der letzten Stuhlprobe *</Label>
+                    <Input
+                      id="pet-stuhlprobe"
+                      type="date"
+                      value={petFormData.letzte_stuhlprobe}
+                      max={new Date().toISOString().split('T')[0]}
+                      onChange={(e) => setPetFormData({ ...petFormData, letzte_stuhlprobe: e.target.value })}
+                      required
+                    />
                   </div>
                 </div>
               </div>
@@ -518,8 +596,16 @@ export default function PetsPage() {
                       </Button>
                     </div>
                   </div>
-                  {(pet.futtermenge || pet.medikamente || pet.besonderheiten || pet.intervall_impfung || pet.intervall_entwurmung) && (
+                  {(pet.futtermenge || pet.medikamente || pet.besonderheiten || pet.intervall_impfung || pet.intervall_entwurmung || pet.letzte_stuhlprobe) && (
                     <div className="border-t pt-3 mt-3 space-y-2 text-sm">
+                      {pet.letzte_stuhlprobe && (
+                        <div>
+                          <p className="text-xs font-semibold text-sage-600">Letzte Stuhlprobe:</p>
+                          <p className="text-sm text-sage-700">
+                            {new Date(pet.letzte_stuhlprobe).toLocaleDateString('de-DE')}
+                          </p>
+                        </div>
+                      )}
                       {pet.futtermenge && (
                         <div>
                           <p className="text-xs font-semibold text-sage-600">Futtermenge:</p>

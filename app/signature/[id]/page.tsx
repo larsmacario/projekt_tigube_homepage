@@ -47,17 +47,27 @@ export default function SignatureMobilePage() {
     const ctx = canvas.getContext('2d')
     if (!ctx) return
 
-    // Set canvas dimensions
-    const rect = canvas.getBoundingClientRect()
-    const width = rect.width > 0 ? rect.width : (canvas.offsetWidth > 0 ? canvas.offsetWidth : 350)
-    const height = 300
-    canvas.width = width * window.devicePixelRatio
-    canvas.height = height * window.devicePixelRatio
-    ctx.scale(window.devicePixelRatio, window.devicePixelRatio)
+    // Funktion zum Anpassen der Canvas-Größe bei Rotation/Größenänderung
+    const resizeCanvas = () => {
+      const rect = canvas.getBoundingClientRect()
+      const width = rect.width > 0 ? rect.width : (canvas.offsetWidth > 0 ? canvas.offsetWidth : 350)
+      const height = 300
+      
+      canvas.width = width * window.devicePixelRatio
+      canvas.height = height * window.devicePixelRatio
+      
+      ctx.setTransform(1, 0, 0, 1, 0, 0)
+      ctx.scale(window.devicePixelRatio, window.devicePixelRatio)
+      
+      ctx.lineWidth = 3
+      ctx.lineCap = 'round'
+      ctx.strokeStyle = '#0f172a' // slate-900
+    }
 
-    ctx.lineWidth = 3
-    ctx.lineCap = 'round'
-    ctx.strokeStyle = '#0f172a' // slate-900
+    // Initial ausführen und Listener binden
+    resizeCanvas()
+    window.addEventListener('resize', resizeCanvas)
+    window.addEventListener('orientationchange', resizeCanvas)
 
     let drawing = false
 
@@ -132,6 +142,9 @@ export default function SignatureMobilePage() {
     canvas.addEventListener('touchend', stopDrawing)
 
     return () => {
+      window.removeEventListener('resize', resizeCanvas)
+      window.removeEventListener('orientationchange', resizeCanvas)
+
       canvas.removeEventListener('mousedown', startDrawing)
       canvas.removeEventListener('mousemove', draw)
       canvas.removeEventListener('mouseup', stopDrawing)

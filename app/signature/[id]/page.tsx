@@ -64,12 +64,13 @@ export default function SignatureMobilePage() {
     const getCoordinates = (e: MouseEvent | TouchEvent) => {
       const canvasRect = canvas.getBoundingClientRect()
       
-      const isTouch = e.type.startsWith('touch') || 'touches' in e
+      const isTouch = e.type.startsWith('touch')
       
       let clientX, clientY
       if (isTouch) {
         const touchEvent = e as TouchEvent
-        const touch = touchEvent.touches?.[0] || touchEvent.changedTouches?.[0]
+        const touch = (touchEvent.touches && touchEvent.touches[0]) || 
+                      (touchEvent.changedTouches && touchEvent.changedTouches[0])
         if (!touch) return null
         clientX = touch.clientX
         clientY = touch.clientY

@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useToast } from '@/hooks/use-toast'
 import { Plus, Trash2 } from 'lucide-react'
 import type { Customer, Pet, Document } from '@/lib/types'
+import { supabase } from '@/lib/supabase'
 
 function ProfileContent() {
   const searchParams = useSearchParams()

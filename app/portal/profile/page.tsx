@@ -331,7 +331,7 @@ function ProfileContent() {
       doc.text('für den Hundeurlaub in der Pension', 20, 28)
       doc.setFont('Helvetica', 'normal')
       doc.setFontSize(10)
-      doc.text('tierisch gut betreut UG, Tamara Pfaff & Gabriel Haaga, Iznangerstr. 32, 78345 Moos', 20, 35)
+      doc.text('tierisch gut betreut Gesellschaft mit beschränkter Haftung, Tamara Pfaff & Gabriel Haaga, Iznangerstr. 32, 78345 Moos', 20, 35)
       doc.line(20, 38, 190, 38)
 
       // Auftraggeber
@@ -382,7 +382,7 @@ function ProfileContent() {
         '   Der Impfpass sowie der Wurmtest wurden im Kundenportal digital hochgeladen.',
         '2. Die letzte Stuhlprobe wurde am ' + (pets[0]?.letzte_stuhlprobe ? new Date(pets[0].letzte_stuhlprobe).toLocaleDateString('de-DE') : '-') + ' durchgeführt.',
         '3. Der Tierbesitzer haftet für Sachschäden und Schäden an den in Obhut gegebenen Hunden.',
-        '4. In Notfällen ist tierisch gut betreut UG ausdrücklich bevollmächtigt, eine Tierklinik zu beauftragen. Die Kosten trägt der Halter.',
+        '4. In Notfällen ist tierisch gut betreut Gesellschaft mit beschränkter Haftung ausdrücklich bevollmächtigt, eine Tierklinik zu beauftragen. Die Kosten trägt der Halter.',
         '5. Einwilligung zur Veröffentlichung von Fotos/Videos: ' + (fotoVideoConsent ? 'JA, erteilt.' : 'NEIN, widersprochen.'),
         '6. Die Datenschutzerklärung wurde gelesen und akzeptiert.'
       ]
@@ -1467,19 +1467,19 @@ function ProfileContent() {
                   <br />
                   - der Hund stubenrein ist, nicht inkontinent ist oder in geschlossenen Räumen markiert.
                   <br />
-                  - das Tier über eine gültige Impfung gegen Hepatitis, Parvovirose, Leptospirose, Staupe und Zwingerhusten verfügt. Der Impfpass wird vor jedem Aufenthalt zur Durchsicht an tierisch gut betreut UG per Mail zugesandt oder hochgeladen.
+                  - das Tier über eine gültige Impfung gegen Hepatitis, Parvovirose, Leptospirose, Staupe und Zwingerhusten verfügt. Der Impfpass wird vor jedem Aufenthalt zur Durchsicht an tierisch gut betreut Gesellschaft mit beschränkter Haftung per Mail zugesandt oder hochgeladen.
                   <br />
                   - der Hund wurmfrei ist (Entwurmung oder negativer Kot-Test nicht älter als drei Monate).
                 </p>
                 <p>
                   <strong>(2) Erkrankungen & Tierarzt:</strong>
                   <br />
-                  Je nach Schwere der Erkrankung ist tierisch gut betreut UG berechtigt, vom Vertrag zurückzutreten oder das Tier in tierärztliche Betreuung zu geben. Die anfallenden Kosten werden vom Tierbesitzer getragen.
+                  Je nach Schwere der Erkrankung ist tierisch gut betreut Gesellschaft mit beschränkter Haftung berechtigt, vom Vertrag zurückzutreten oder das Tier in tierärztliche Betreuung zu geben. Die anfallenden Kosten werden vom Tierbesitzer getragen.
                 </p>
                 <p>
                   <strong>(3) Haftung:</strong>
                   <br />
-                  tierisch gut betreut UG haftet für Sachschäden und Schäden an den Hunden nur bei Vorsatz oder grober Fahrlässigkeit. Für Schäden, die der Hund verursacht, haftet allein der Tierbesitzer.
+                  tierisch gut betreut Gesellschaft mit beschränkter Haftung haftet für Sachschäden und Schäden an den Hunden nur bei Vorsatz oder grober Fahrlässigkeit. Für Schäden, die der Hund verursacht, haftet allein der Tierbesitzer.
                 </p>
                 <p>
                   <strong>(4) Notfall-Vollmacht:</strong>
@@ -1512,7 +1512,7 @@ function ProfileContent() {
                     className="mt-1 h-4 w-4 rounded border-gray-300 text-sage-600 focus:ring-sage-500"
                   />
                   <label htmlFor="fotoConsent" className="text-sm text-sage-700">
-                    <strong>Foto- & Videofreigabe (Freiwillig):</strong> Ich willige ein, dass Fotos und Videos von meinem Tier auf der Homepage oder sozialen Medien von tierisch gut betreut UG veröffentlicht werden dürfen.
+                    <strong>Foto- & Videofreigabe (Freiwillig):</strong> Ich willige ein, dass Fotos und Videos von meinem Tier auf der Homepage oder sozialen Medien von tierisch gut betreut Gesellschaft mit beschränkter Haftung veröffentlicht werden dürfen.
                   </label>
                 </div>
               </div>

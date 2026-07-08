@@ -55,7 +55,8 @@ export default function PortalPage() {
   }
 
   const showOnboardingBanner = customer && !customer.onboarding_completed
-  const isStep1Complete = customer && customer.nachname && customer.vorname && customer.datenschutz && customer.telefonnummer
+  const isProfileComplete = !!(customer && customer.nachname && customer.vorname && customer.datenschutz && customer.telefonnummer)
+  const isStep1Complete = isProfileComplete
   const hasPets = pets.length > 0
   const onboardingLink = !isStep1Complete
     ? '/portal/profile?onboarding=true&step=1'

@@ -73,7 +73,7 @@ export default function SignatureMobilePage() {
       if (width === currentWidth) return
       currentWidth = width
 
-      const height = 300
+      const height = 200
       canvas.width = width * window.devicePixelRatio
       canvas.height = height * window.devicePixelRatio
       
@@ -265,52 +265,36 @@ export default function SignatureMobilePage() {
 
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-sage-50 px-4 py-6">
-      <Card className="w-full max-w-2xl shadow-lg border-sage-200">
-        <CardHeader className="text-center pb-2">
-          <CardTitle className="text-xl">Digitale Unterschrift</CardTitle>
-          <CardDescription>
-            Bitte unterschreibe leserlich mit dem Finger innerhalb des Feldes.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="block landscape:hidden text-center text-xs text-amber-700 bg-amber-50 p-2 rounded-lg border border-amber-200">
-            🔄 Tipp: Drehe dein Smartphone ins Querformat (Landscape) für mehr Platz beim Unterschreiben!
-          </div>
+    <div className="min-h-screen flex flex-col items-center justify-center bg-sage-50 px-4 py-2 select-none">
+      <div className="w-full max-w-xl bg-white rounded-xl shadow-lg border border-sage-200 p-4 space-y-3">
+        <div className="block landscape:hidden text-center text-xs text-amber-700 bg-amber-50 p-2 rounded-lg border border-amber-200">
+          🔄 Tipp: Drehe dein Handy ins Querformat für mehr Platz zum Unterschreiben!
+        </div>
 
-          <div className="border border-dashed border-sage-300 rounded-lg overflow-hidden bg-white">
-            <canvas
-              ref={canvasRef}
-              className="w-full h-[300px] cursor-crosshair"
-              style={{ display: 'block', touchAction: 'none' }}
-            />
-          </div>
+        <div className="border border-dashed border-sage-300 rounded-lg overflow-hidden bg-white">
+          <canvas
+            ref={canvasRef}
+            className="w-full h-[200px] cursor-crosshair"
+            style={{ display: 'block', touchAction: 'none' }}
+          />
+        </div>
 
-          <div className="flex gap-2">
-            <Button
-              variant="outline"
-              onClick={clearCanvas}
-              className="flex-1 border-sage-300 text-sage-700 hover:bg-sage-50"
-            >
-              Löschen
-            </Button>
-            <Button
-              onClick={submitSignature}
-              className="flex-1 bg-sage-600 hover:bg-sage-700 text-white"
-            >
-              Fertigstellen & Senden
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-
-      <footer className="mt-8 text-center text-xs text-sage-500 space-x-4">
-        <a href="/impressum" target="_blank" className="hover:underline">Impressum</a>
-        <span className="text-sage-300">|</span>
-        <a href="/datenschutz" target="_blank" className="hover:underline">Datenschutz</a>
-        <span className="text-sage-300">|</span>
-        <a href="/agb" target="_blank" className="hover:underline">AGB</a>
-      </footer>
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            onClick={clearCanvas}
+            className="flex-1 border-sage-300 text-sage-700 hover:bg-sage-50 py-2 text-sm"
+          >
+            Löschen
+          </Button>
+          <Button
+            onClick={submitSignature}
+            className="flex-1 bg-sage-600 hover:bg-sage-700 text-white py-2 text-sm"
+          >
+            Senden
+          </Button>
+        </div>
+      </div>
     </div>
   )
 }

@@ -70,6 +70,21 @@ export async function DELETE(
 
     const supabaseAdmin = getAdminDbClient()
 
+    // Sicherstellen, dass nicht der letzte Admin gelöscht wird
+    const { count, error: countError } = await supabaseAdmin
+      .from('users')
+      .select('*', { count: 'exact', head: true })
+      .eq('role', 'admin')
+
+    if (countError) throw countError
+
+    if (count !== null && count <= 1) {
+      return NextResponse.json(
+        { error: 'Der letzte Administrator kann nicht gelöscht werden. Es muss mindestens ein Administrator vorhanden sein.' },
+        { status: 400 }
+      )
+    }
+
     // 1. Zuerst aus der Tabelle public.users löschen
     const { error: dbError } = await supabaseAdmin
       .from('users')

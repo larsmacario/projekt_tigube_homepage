@@ -307,7 +307,7 @@ export default function AdminsManagementPage() {
                         <Button
                           variant="ghost"
                           size="sm"
-                          disabled={admin.id === currentUser?.id}
+                          disabled={admin.id === currentUser?.id || admins.length <= 1}
                           onClick={() => handleDeleteUserClick(admin)}
                           className="text-red-600 hover:text-red-900 hover:bg-red-50 disabled:opacity-50"
                         >

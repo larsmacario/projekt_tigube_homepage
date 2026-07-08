@@ -229,9 +229,10 @@ export default function SignatureMobilePage() {
     )
   }
 
+
   return (
-    <div className="min-h-screen flex items-center justify-center bg-sage-50 px-4 py-8">
-      <Card className="w-full max-w-md">
+    <div className="min-h-screen flex flex-col items-center justify-center bg-sage-50 px-4 py-6">
+      <Card className="w-full max-w-2xl shadow-lg border-sage-200">
         <CardHeader className="text-center pb-2">
           <CardTitle className="text-xl">Digitale Unterschrift</CardTitle>
           <CardDescription>
@@ -239,6 +240,10 @@ export default function SignatureMobilePage() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          <div className="block landscape:hidden text-center text-xs text-amber-700 bg-amber-50 p-2 rounded-lg border border-amber-200">
+            🔄 Tipp: Drehe dein Smartphone ins Querformat (Landscape) für mehr Platz beim Unterschreiben!
+          </div>
+
           <div className="border border-dashed border-sage-300 rounded-lg overflow-hidden bg-white">
             <canvas
               ref={canvasRef}
@@ -264,6 +269,14 @@ export default function SignatureMobilePage() {
           </div>
         </CardContent>
       </Card>
+
+      <footer className="mt-8 text-center text-xs text-sage-500 space-x-4">
+        <a href="/impressum" target="_blank" className="hover:underline">Impressum</a>
+        <span className="text-sage-300">|</span>
+        <a href="/datenschutz" target="_blank" className="hover:underline">Datenschutz</a>
+        <span className="text-sage-300">|</span>
+        <a href="/agb" target="_blank" className="hover:underline">AGB</a>
+      </footer>
     </div>
   )
 }

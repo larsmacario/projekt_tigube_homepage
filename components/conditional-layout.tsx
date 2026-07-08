@@ -12,7 +12,8 @@ export function ConditionalLayout({ children }: { children: React.ReactNode }) {
   const hideNavAndFooter = pathname?.startsWith('/onboarding') || 
                            pathname?.startsWith('/login') ||
                            pathname?.startsWith('/portal') ||
-                           pathname?.startsWith('/admin')
+                           pathname?.startsWith('/admin') ||
+                           pathname?.startsWith('/signature')
 
   if (hideNavAndFooter) {
     return <>{children}</>

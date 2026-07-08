@@ -500,12 +500,12 @@ export default function PetsPage() {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                       <Label htmlFor="pet-impfpass">
-                        Impfpass (Bild oder PDF) {hasExistingImpfpass ? '(bereits hochgeladen)' : '*'}
+                        Impfpass (Foto aufnehmen, Bild oder PDF) {hasExistingImpfpass ? '(bereits hochgeladen)' : '*'}
                       </Label>
                       <Input
                         id="pet-impfpass"
                         type="file"
-                        accept="image/*,.pdf"
+                        accept="image/*,application/pdf"
                         onChange={(e) => {
                           const file = e.target.files?.[0]
                           setImpfpassFile(file || null)
@@ -537,12 +537,12 @@ export default function PetsPage() {
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                       <Label htmlFor="pet-wurmtest">
-                        Wurmtest (Bild oder PDF) {hasExistingWurmtest ? '(bereits hochgeladen)' : '*'}
+                        Wurmtest (Foto aufnehmen, Bild oder PDF) {hasExistingWurmtest ? '(bereits hochgeladen)' : '*'}
                       </Label>
                       <Input
                         id="pet-wurmtest"
                         type="file"
-                        accept="image/*,.pdf"
+                        accept="image/*,application/pdf"
                         onChange={(e) => {
                           const file = e.target.files?.[0]
                           setWurmtestFile(file || null)

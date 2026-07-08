@@ -246,6 +246,44 @@ function ProfileContent() {
       ctx.moveTo(e.clientX - rect.left, e.clientY - rect.top)
     }
 
+    // Touch Event Handlers für Mobilgeräte
+    const getTouchPos = (e: TouchEvent) => {
+      if (!canvasElement) return { x: 0, y: 0 }
+      const rect = canvasElement.getBoundingClientRect()
+      const touch = e.touches[0] || e.changedTouches[0]
+      return {
+        x: touch.clientX - rect.left,
+        y: touch.clientY - rect.top
+      }
+    }
+
+    const startDrawingTouch = (e: TouchEvent) => {
+      e.preventDefault()
+      drawing = true
+      const pos = getTouchPos(e)
+      if (ctx) {
+        ctx.beginPath()
+        ctx.moveTo(pos.x, pos.y)
+      }
+    }
+
+    const drawTouch = (e: TouchEvent) => {
+      e.preventDefault()
+      if (!drawing) return
+      if (!ctx) return
+      const pos = getTouchPos(e)
+      ctx.lineTo(pos.x, pos.y)
+      ctx.stroke()
+      ctx.beginPath()
+      ctx.moveTo(pos.x, pos.y)
+    }
+
+    const stopDrawingTouch = (e: TouchEvent) => {
+      e.preventDefault()
+      drawing = false
+      if (ctx) ctx.beginPath()
+    }
+
     const initCanvas = () => {
       canvasElement = desktopCanvasRef.current
       if (!canvasElement) {
@@ -266,6 +304,11 @@ function ProfileContent() {
       canvasElement.addEventListener('mousemove', draw)
       canvasElement.addEventListener('mouseup', stopDrawing)
       canvasElement.addEventListener('mouseleave', stopDrawing)
+
+      // Touch Listener registrieren (passive: false wird benötigt um das Scrollen des Bodys beim Zeichnen zu unterdrücken)
+      canvasElement.addEventListener('touchstart', startDrawingTouch, { passive: false })
+      canvasElement.addEventListener('touchmove', drawTouch, { passive: false })
+      canvasElement.addEventListener('touchend', stopDrawingTouch, { passive: false })
       
       isInitialized = true
     }
@@ -279,6 +322,10 @@ function ProfileContent() {
         canvasElement.removeEventListener('mousemove', draw)
         canvasElement.removeEventListener('mouseup', stopDrawing)
         canvasElement.removeEventListener('mouseleave', stopDrawing)
+
+        canvasElement.removeEventListener('touchstart', startDrawingTouch)
+        canvasElement.removeEventListener('touchmove', drawTouch)
+        canvasElement.removeEventListener('touchend', stopDrawingTouch)
       }
     }
   }, [step, signatureImage])
@@ -1567,12 +1614,12 @@ function ProfileContent() {
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
                           <Label htmlFor="pet-impfpass">
-                            Impfpass (Bild oder PDF) {hasExistingImpfpass ? '(bereits hochgeladen)' : '*'}
+                            Impfpass (Foto aufnehmen, Bild oder PDF) {hasExistingImpfpass ? '(bereits hochgeladen)' : '*'}
                           </Label>
                           <Input
                             id="pet-impfpass"
                             type="file"
-                            accept="image/*,.pdf"
+                            accept="image/*,application/pdf"
                             onChange={(e) => {
                               const file = e.target.files?.[0]
                               setImpfpassFile(file || null)
@@ -1604,12 +1651,12 @@ function ProfileContent() {
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
                           <Label htmlFor="pet-wurmtest">
-                            Wurmtest (Bild oder PDF) {hasExistingWurmtest ? '(bereits hochgeladen)' : '*'}
+                            Wurmtest (Foto aufnehmen, Bild oder PDF) {hasExistingWurmtest ? '(bereits hochgeladen)' : '*'}
                           </Label>
                           <Input
                             id="pet-wurmtest"
                             type="file"
-                            accept="image/*,.pdf"
+                            accept="image/*,application/pdf"
                             onChange={(e) => {
                               const file = e.target.files?.[0]
                               setWurmtestFile(file || null)
@@ -1889,9 +1936,10 @@ function ProfileContent() {
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    {/* Desktop Unterschrift */}
+                    {/* Desktop/Mobil Unterschrift */}
                     <div className="space-y-2">
-                      <p className="text-xs font-semibold text-sage-600">Option A: Direkt am Bildschirm unterschreiben</p>
+                      <p className="text-xs font-semibold text-sage-600 hidden md:block">Option A: Direkt am Bildschirm unterzeichnen</p>
+                      <p className="text-xs font-semibold text-sage-600 md:hidden">Hier mit dem Finger unterzeichnen</p>
                       <div className="border border-dashed rounded-lg bg-white overflow-hidden">
                         <canvas
                           ref={desktopCanvasRef}
@@ -1908,8 +1956,8 @@ function ProfileContent() {
                       </div>
                     </div>
 
-                    {/* QR Code / Smartphone Unterschrift */}
-                    <div className="border-l pl-0 md:pl-6 space-y-2 flex flex-col justify-between">
+                    {/* QR Code / Smartphone Unterschrift (Nur auf Desktop sichtbar) */}
+                    <div className="hidden md:flex border-l pl-0 md:pl-6 space-y-2 flex-col justify-between">
                       <div>
                         <p className="text-xs font-semibold text-sage-600">Option B: Bequem am Smartphone unterschreiben</p>
                         <p className="text-xs text-sage-500 mt-1">

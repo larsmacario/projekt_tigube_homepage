@@ -221,133 +221,137 @@ export default function PortalPage() {
         </Card>
       </div>
 
-      {/* Checkliste */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Deine Checkliste</CardTitle>
-          <CardDescription>Diese Schritte solltest du abschließen</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <ul className="space-y-3">
-            <li className="flex items-center gap-3">
-              <span className={`w-6 h-6 rounded-full flex items-center justify-center text-white text-sm ${isProfileComplete ? 'bg-green-500' : 'bg-sage-300'}`}>
-                {isProfileComplete ? '✓' : '1'}
-              </span>
-              <span className={isProfileComplete ? 'text-sage-600 line-through' : 'text-sage-900'}>
-                Profil vervollständigen
-              </span>
-            </li>
-            <li className="flex items-center gap-3">
-              <span className={`w-6 h-6 rounded-full flex items-center justify-center text-white text-sm ${pets.length > 0 ? 'bg-green-500' : 'bg-sage-300'}`}>
-                {pets.length > 0 ? '✓' : '2'}
-              </span>
-              <span className={pets.length > 0 ? 'text-sage-600 line-through' : 'text-sage-900'}>
-                Tiere hinzufügen
-              </span>
-            </li>
-            <li className="flex items-center gap-3">
-              <span className={`w-6 h-6 rounded-full flex items-center justify-center text-white text-sm ${documents.some(d => d.document_type === 'impfpass') ? 'bg-green-500' : 'bg-sage-300'}`}>
-                {documents.some(d => d.document_type === 'impfpass') ? '✓' : '3'}
-              </span>
-              <span className={documents.some(d => d.document_type === 'impfpass') ? 'text-sage-600 line-through' : 'text-sage-900'}>
-                Impfpass hochladen
-              </span>
-            </li>
-            <li className="flex items-center gap-3">
-              <span className={`w-6 h-6 rounded-full flex items-center justify-center text-white text-sm ${documents.some(d => d.document_type === 'wurmtest') ? 'bg-green-500' : 'bg-sage-300'}`}>
-                {documents.some(d => d.document_type === 'wurmtest') ? '✓' : '4'}
-              </span>
-              <span className={documents.some(d => d.document_type === 'wurmtest') ? 'text-sage-600 line-through' : 'text-sage-900'}>
-                Wurmtest hochladen
-              </span>
-            </li>
-            <li className="flex items-center gap-3">
-              <span className={`w-6 h-6 rounded-full flex items-center justify-center text-white text-sm ${documents.some(d => d.document_type === 'vertrag') ? 'bg-green-500' : 'bg-sage-300'}`}>
-                {documents.some(d => d.document_type === 'vertrag') ? '✓' : '5'}
-              </span>
-              <span className={documents.some(d => d.document_type === 'vertrag') ? 'text-sage-600 line-through' : 'text-sage-900'}>
-                Pflegevertrag unterzeichnen
-              </span>
-            </li>
-          </ul>
-        </CardContent>
-      </Card>
-
-      {/* Checkliste für Hundeurlaub */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-2xl font-bold text-sage-900">CHECKLISTE</CardTitle>
-          <CardDescription className="text-lg font-semibold text-sage-800">
-            für den Hundeurlaub in der Pension
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          {/* Für den Aufenthalt mitbringen */}
-          <div>
-            <h3 className="font-semibold text-sage-900 mb-3">für den Aufenthalt mitbringen</h3>
-            <ul className="space-y-2">
-              <li className="flex items-start gap-3">
-                <Checkbox id="check-1" className="mt-1" />
-                <label htmlFor="check-1" className="text-sage-700 cursor-pointer">
-                  Leine - Halsband - Geschirr
-                </label>
+      {/* Checklisten */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* Checkliste */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Deine Checkliste</CardTitle>
+            <CardDescription>Diese Schritte solltest du abschließen</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ul className="space-y-3">
+              <li className="flex items-center gap-3">
+                <span className={`w-6 h-6 rounded-full flex items-center justify-center text-white text-sm ${isProfileComplete ? 'bg-green-500' : 'bg-sage-300'}`}>
+                  {isProfileComplete ? '✓' : '1'}
+                </span>
+                <span className={isProfileComplete ? 'text-sage-600 line-through' : 'text-sage-900'}>
+                  Profil vervollständigen
+                </span>
               </li>
-              <li className="flex items-start gap-3">
-                <Checkbox id="check-2" className="mt-1" />
-                <label htmlFor="check-2" className="text-sage-700 cursor-pointer">
-                  Steuermarke
-                </label>
+              <li className="flex items-center gap-3">
+                <span className={`w-6 h-6 rounded-full flex items-center justify-center text-white text-sm ${pets.length > 0 ? 'bg-green-500' : 'bg-sage-300'}`}>
+                  {pets.length > 0 ? '✓' : '2'}
+                </span>
+                <span className={pets.length > 0 ? 'text-sage-600 line-through' : 'text-sage-900'}>
+                  Tiere hinzufügen
+                </span>
               </li>
-              <li className="flex items-start gap-3">
-                <Checkbox id="check-3" className="mt-1" />
-                <label htmlFor="check-3" className="text-sage-700 cursor-pointer">
-                  Fressnapf - Wassernapf
-                </label>
+              <li className="flex items-center gap-3">
+                <span className={`w-6 h-6 rounded-full flex items-center justify-center text-white text-sm ${documents.some(d => d.document_type === 'impfpass') ? 'bg-green-500' : 'bg-sage-300'}`}>
+                  {documents.some(d => d.document_type === 'impfpass') ? '✓' : '3'}
+                </span>
+                <span className={documents.some(d => d.document_type === 'impfpass') ? 'text-sage-600 line-through' : 'text-sage-900'}>
+                  Impfpass hochladen
+                </span>
               </li>
-              <li className="flex items-start gap-3">
-                <Checkbox id="check-4" className="mt-1" />
-                <label htmlFor="check-4" className="text-sage-700 cursor-pointer">
-                  Futter - Leckerlis
-                </label>
+              <li className="flex items-center gap-3">
+                <span className={`w-6 h-6 rounded-full flex items-center justify-center text-white text-sm ${documents.some(d => d.document_type === 'wurmtest') ? 'bg-green-500' : 'bg-sage-300'}`}>
+                  {documents.some(d => d.document_type === 'wurmtest') ? '✓' : '4'}
+                </span>
+                <span className={documents.some(d => d.document_type === 'wurmtest') ? 'text-sage-600 line-through' : 'text-sage-900'}>
+                  Wurmtest hochladen
+                </span>
               </li>
-              <li className="flex items-start gap-3">
-                <Checkbox id="check-5" className="mt-1" />
-                <label htmlFor="check-5" className="text-sage-700 cursor-pointer">
-                  Bettchen - Kissen - Kuscheldecke - Box/Hundezelt
-                </label>
-              </li>
-              <li className="flex items-start gap-3">
-                <Checkbox id="check-6" className="mt-1" />
-                <label htmlFor="check-6" className="text-sage-700 cursor-pointer">
-                  Medikamente - Nahrungsergänzung inkl. Verabreichungsplan
-                </label>
-              </li>
-              <li className="flex items-start gap-3">
-                <Checkbox id="check-7" className="mt-1" />
-                <label htmlFor="check-7" className="text-sage-700 cursor-pointer">
-                  Kopie der aktuellen Hundehalter-Haftpflicht
-                </label>
+              <li className="flex items-center gap-3">
+                <span className={`w-6 h-6 rounded-full flex items-center justify-center text-white text-sm ${documents.some(d => d.document_type === 'vertrag') ? 'bg-green-500' : 'bg-sage-300'}`}>
+                  {documents.some(d => d.document_type === 'vertrag') ? '✓' : '5'}
+                </span>
+                <span className={documents.some(d => d.document_type === 'vertrag') ? 'text-sage-600 line-through' : 'text-sage-900'}>
+                  Pflegevertrag unterzeichnen
+                </span>
               </li>
             </ul>
-          </div>
+          </CardContent>
+        </Card>
 
-          {/* ACHTUNG Abschnitt */}
-          <div className="border-t pt-6">
-            <h3 className="font-bold text-sage-900 mb-3">ACHTUNG:</h3>
-            <div className="space-y-3 text-sage-700">
-              <p>
-                Erneuere rechtzeitig den benötigten Impfschutz, sorge für eine Entwurmung oder eine Kotuntersuchung und führe eine Ungeziefer-Prävention durch, um deinen Hund maximal zu schützen.
-              </p>
-              <p>
-                Stelle unbedingt sicher, dass Dritte in der Hundehalter-Haftpflicht mit inbegriffen sind.
-              </p>
-              <p>
-                Fress- und Wassernapf sowie ein Bettchen mit Kuscheldecke stellen wir auf Wunsch selbstverständlich zur Verfügung. Dennoch macht es durchaus Sinn, die gewohnten Sachen von zu Hause in den Urlaub mitzugeben, um etwas Vertrautes in der neuen Umgebung dabei zu haben.
-              </p>
+        {/* Checkliste für Hundeurlaub */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-2xl font-bold text-sage-900">CHECKLISTE</CardTitle>
+            <CardDescription className="text-lg font-semibold text-sage-800">
+              für den Hundeurlaub in der Pension
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            {/* Für den Aufenthalt mitbringen */}
+            <div>
+              <h3 className="font-semibold text-sage-900 mb-3">für den Aufenthalt mitbringen</h3>
+              <ul className="space-y-2">
+                <li className="flex items-start gap-3">
+                  <Checkbox id="check-1" className="mt-1" />
+                  <label htmlFor="check-1" className="text-sage-700 cursor-pointer">
+                    Leine - Halsband - Geschirr
+                  </label>
+                </li>
+                <li className="flex items-start gap-3">
+                  <Checkbox id="check-2" className="mt-1" />
+                  <label htmlFor="check-2" className="text-sage-700 cursor-pointer">
+                    Steuermarke
+                  </label>
+                </li>
+                <li className="flex items-start gap-3">
+                  <Checkbox id="check-3" className="mt-1" />
+                  <label htmlFor="check-3" className="text-sage-700 cursor-pointer">
+                    Fressnapf - Wassernapf
+                  </label>
+                </li>
+                <li className="flex items-start gap-3">
+                  <Checkbox id="check-4" className="mt-1" />
+                  <label htmlFor="check-4" className="text-sage-700 cursor-pointer">
+                    Futter - Leckerlis
+                  </label>
+                </li>
+                <li className="flex items-start gap-3">
+                  <Checkbox id="check-5" className="mt-1" />
+                  <label htmlFor="check-5" className="text-sage-700 cursor-pointer">
+                    Bettchen - Kissen - Kuscheldecke - Box/Hundezelt
+                  </label>
+                </li>
+                <li className="flex items-start gap-3">
+                  <Checkbox id="check-6" className="mt-1" />
+                  <label htmlFor="check-6" className="text-sage-700 cursor-pointer">
+                    Medikamente - Nahrungsergänzung inkl. Verabreichungsplan
+                  </label>
+                </li>
+                <li className="flex items-start gap-3">
+                  <Checkbox id="check-7" className="mt-1" />
+                  <label htmlFor="check-7" className="text-sage-700 cursor-pointer">
+                    Kopie der aktuellen Hundehalter-Haftpflicht
+                  </label>
+                </li>
+              </ul>
             </div>
-          </div>
-        </CardContent>
-      </Card>
+
+            {/* ACHTUNG Abschnitt */}
+            <div className="border-t pt-6">
+              <h3 className="font-bold text-sage-900 mb-3">ACHTUNG:</h3>
+              <div className="space-y-3 text-sage-700">
+                <p>
+                  Erneuere rechtzeitig den benötigten Impfschutz, sorge für eine Entwurmung oder eine Kotuntersuchung und führe eine Ungeziefer-Prävention durch, um deinen Hund maximal zu schützen.
+                </p>
+                <p>
+                  Stelle unbedingt sicher, dass Dritte in der Hundehalter-Haftpflicht mit inbegriffen sind.
+                </p>
+                <p>
+                  Fress- und Wassernapf sowie ein Bettchen mit Kuscheldecke stellen wir auf Wunsch selbstverständlich zur Verfügung. Dennoch macht es durchaus Sinn, die gewohnten Sachen von zu Hause in den Urlaub mitzugeben, um etwas Vertrautes in der neuen Umgebung dabei zu haben.
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
 
       {/* Wichtige Infos */}
       <Card>

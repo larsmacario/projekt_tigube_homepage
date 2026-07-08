@@ -39,6 +39,21 @@ export default function SignatureMobilePage() {
     }
   }
 
+  // Verhindere Scrollen auf der gesamten mobilen Signaturseite
+  useEffect(() => {
+    document.body.style.overflow = 'hidden'
+    document.body.style.position = 'fixed'
+    document.body.style.width = '100%'
+    document.body.style.height = '100%'
+    
+    return () => {
+      document.body.style.overflow = ''
+      document.body.style.position = ''
+      document.body.style.width = ''
+      document.body.style.height = ''
+    }
+  }, [])
+
   // Setup Canvas touch events
   useEffect(() => {
     const canvas = canvasRef.current
@@ -47,12 +62,18 @@ export default function SignatureMobilePage() {
     const ctx = canvas.getContext('2d')
     if (!ctx) return
 
+    let currentWidth = 0
+
     // Funktion zum Anpassen der Canvas-Größe bei Rotation/Größenänderung
     const resizeCanvas = () => {
       const rect = canvas.getBoundingClientRect()
       const width = rect.width > 0 ? rect.width : (canvas.offsetWidth > 0 ? canvas.offsetWidth : 350)
-      const height = 300
       
+      // Verhindert das Löschen des Canvas bei reinem vertikalen Scrollen (Ein-/Ausblenden der URL-Bar)
+      if (width === currentWidth) return
+      currentWidth = width
+
+      const height = 300
       canvas.width = width * window.devicePixelRatio
       canvas.height = height * window.devicePixelRatio
       

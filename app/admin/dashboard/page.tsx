@@ -169,7 +169,7 @@ export default function AdminDashboard() {
                 >
                   <div>
                     <h3 className="font-semibold text-sage-900">
-                      {lead.nachname} {lead.vorname}
+                      {lead.vorname} {lead.nachname}
                     </h3>
                     <p className="text-sm text-sage-600">{lead.email}</p>
                     <p className="text-sm text-sage-600">{lead.telefonnummer}</p>

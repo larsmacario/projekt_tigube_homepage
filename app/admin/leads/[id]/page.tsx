@@ -326,7 +326,7 @@ export default function LeadDetailPage() {
         </Link>
         <div>
           <h1 className="text-3xl font-bold text-sage-900">
-            Lead: {lead.nachname} {lead.vorname}
+            Lead: {lead.vorname} {lead.nachname}
           </h1>
           <p className="mt-2 text-sage-600">Lead-Details und Verwaltung</p>
         </div>
@@ -341,7 +341,7 @@ export default function LeadDetailPage() {
           <CardContent className="space-y-4">
             <div>
               <Label>Name</Label>
-              <p className="text-sage-900 font-medium">{lead.nachname} {lead.vorname}</p>
+              <p className="text-sage-900 font-medium">{lead.vorname} {lead.nachname}</p>
             </div>
             <div>
               <Label>E-Mail</Label>

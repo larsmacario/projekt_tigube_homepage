@@ -187,7 +187,7 @@ export default function OnboardingPage() {
                 <strong>Ihre Daten:</strong>
               </p>
               <p className="text-sm text-sage-600 mt-1">
-                {lead.nachname} {lead.vorname}
+                {lead.vorname} {lead.nachname}
               </p>
               <p className="text-sm text-sage-600">{lead.email}</p>
             </div>

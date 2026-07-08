@@ -1,6 +1,7 @@
 # Aktueller Stand
 
 ## Letzte Änderungen
+- Im Lead-Bereich (Lead-Detailseite, Admin-Dashboard, Onboarding-Willkommensseite und Spaltenlayout in den Listen-Tabellen) wurde die Namensreihenfolge ebenfalls auf „Vorname Nachname“ bzw. Vorname-Spalte vor Nachname-Spalte angepasst.
 - Die Bereiche Eigenschaften, Individuelle Preise und Gefahrenbereich in der Admin-Kundenkartei (`app/admin/customers/[id]/page.tsx`) wurden in die linke Spalte verschoben und befinden sich nun direkt unter den Persönlichen Daten. Dadurch erstrecken sie sich über dieselbe Breite wie die persönlichen Daten und die Sidebar bleibt rechts oben bündig.
 - Im unverbindlichen Anfrageformular (ContactForm) wurden die Felder „Name“ und „Vorname“ getauscht, sodass das Feld „Vorname“ nun vor dem Feld „Name“ angezeigt wird.
 - Der Bereich „Individuelle Preise“ in der Admin-Kundenkartei (`app/admin/customers/[id]/page.tsx`) wurde nach unten verschoben und befindet sich nun genau zwischen dem Eigenschaften-Bereich (Property-Editor) und dem Gefahrenbereich. Er erstreckt sich nun über die volle Seitenbreite.

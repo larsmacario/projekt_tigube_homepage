@@ -88,7 +88,26 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Konto erstellt. Bitte melde dich mit deinen Zugangsdaten an.' }, { status: 400 })
     }
 
-    return NextResponse.json({ success: true, session: signInData.session })
+    const response = NextResponse.json({ success: true, session: signInData.session })
+
+    // Setze Session-Cookies für den Browser, damit API-Routen autorisiert sind
+    response.cookies.set('sb-access-token', signInData.session.access_token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: signInData.session.expires_in || 3600,
+      path: '/',
+    })
+
+    response.cookies.set('sb-refresh-token', signInData.session.refresh_token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 60 * 60 * 24 * 7, // 7 Tage
+      path: '/',
+    })
+
+    return response
   } catch (error: any) {
     console.error('Registration error:', error)
     return NextResponse.json(

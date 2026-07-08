@@ -28,6 +28,11 @@ export default function AdminLayout({
   }, [router])
 
   const handleLogout = async () => {
+    try {
+      await fetch('/api/auth/logout', { method: 'POST' })
+    } catch (e) {
+      console.error('Logout API failed', e)
+    }
     await signOut()
     router.push('/login')
   }

@@ -49,8 +49,10 @@ export default function SignatureMobilePage() {
 
     // Set canvas dimensions
     const rect = canvas.getBoundingClientRect()
-    canvas.width = rect.width * window.devicePixelRatio
-    canvas.height = 300 * window.devicePixelRatio
+    const width = rect.width > 0 ? rect.width : (canvas.offsetWidth > 0 ? canvas.offsetWidth : 350)
+    const height = 300
+    canvas.width = width * window.devicePixelRatio
+    canvas.height = height * window.devicePixelRatio
     ctx.scale(window.devicePixelRatio, window.devicePixelRatio)
 
     ctx.lineWidth = 3
@@ -239,8 +241,8 @@ export default function SignatureMobilePage() {
           <div className="border border-dashed border-sage-300 rounded-lg overflow-hidden bg-white">
             <canvas
               ref={canvasRef}
-              className="w-full h-[300px] cursor-crosshair touch-none"
-              style={{ display: 'block' }}
+              className="w-full h-[300px] cursor-crosshair"
+              style={{ display: 'block', touchAction: 'none' }}
             />
           </div>
 

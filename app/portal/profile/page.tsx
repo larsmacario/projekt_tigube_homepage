@@ -206,46 +206,66 @@ function ProfileContent() {
 
   // Setup Desktop Canvas Event Listeners
   useEffect(() => {
-    const canvas = desktopCanvasRef.current
-    if (!canvas || step !== 3 || signatureImage) return
-
-    const ctx = canvas.getContext('2d')
-    if (!ctx) return
-
-    canvas.width = canvas.offsetWidth || 400
-    canvas.height = 150
-    ctx.lineWidth = 2
-    ctx.lineCap = 'round'
-    ctx.strokeStyle = '#0f172a'
-
+    let timerId: any
+    let isInitialized = false
     let drawing = false
+    let ctx: CanvasRenderingContext2D | null = null
+    let canvasElement: HTMLCanvasElement | null = null
+
+    if (step !== 3 || signatureImage) return
+
     const startDrawing = (e: MouseEvent) => {
       drawing = true
       draw(e)
     }
     const stopDrawing = () => {
       drawing = false
-      ctx.beginPath()
+      if (ctx) ctx.beginPath()
     }
     const draw = (e: MouseEvent) => {
       if (!drawing) return
-      const rect = canvas.getBoundingClientRect()
+      if (!ctx || !canvasElement) return
+      const rect = canvasElement.getBoundingClientRect()
       ctx.lineTo(e.clientX - rect.left, e.clientY - rect.top)
       ctx.stroke()
       ctx.beginPath()
       ctx.moveTo(e.clientX - rect.left, e.clientY - rect.top)
     }
 
-    canvas.addEventListener('mousedown', startDrawing)
-    canvas.addEventListener('mousemove', draw)
-    canvas.addEventListener('mouseup', stopDrawing)
-    canvas.addEventListener('mouseleave', stopDrawing)
+    const initCanvas = () => {
+      canvasElement = desktopCanvasRef.current
+      if (!canvasElement) {
+        timerId = setTimeout(initCanvas, 50)
+        return
+      }
+
+      ctx = canvasElement.getContext('2d')
+      if (!ctx) return
+
+      canvasElement.width = canvasElement.offsetWidth || 400
+      canvasElement.height = 150
+      ctx.lineWidth = 2
+      ctx.lineCap = 'round'
+      ctx.strokeStyle = '#0f172a'
+
+      canvasElement.addEventListener('mousedown', startDrawing)
+      canvasElement.addEventListener('mousemove', draw)
+      canvasElement.addEventListener('mouseup', stopDrawing)
+      canvasElement.addEventListener('mouseleave', stopDrawing)
+      
+      isInitialized = true
+    }
+
+    initCanvas()
 
     return () => {
-      canvas.removeEventListener('mousedown', startDrawing)
-      canvas.removeEventListener('mousemove', draw)
-      canvas.removeEventListener('mouseup', stopDrawing)
-      canvas.removeEventListener('mouseleave', stopDrawing)
+      clearTimeout(timerId)
+      if (isInitialized && canvasElement) {
+        canvasElement.removeEventListener('mousedown', startDrawing)
+        canvasElement.removeEventListener('mousemove', draw)
+        canvasElement.removeEventListener('mouseup', stopDrawing)
+        canvasElement.removeEventListener('mouseleave', stopDrawing)
+      }
     }
   }, [step, signatureImage])
 

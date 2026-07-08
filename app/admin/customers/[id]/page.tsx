@@ -531,6 +531,91 @@ export default function CustomerDetailPage() {
             </div>
           </CardContent>
         </Card>
+
+        {/* Eigenschaften */}
+        <PropertyEditor entityType="customer" entityId={customerId} />
+
+        {/* Individuelle Preise */}
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between cursor-pointer select-none" onClick={() => setPricesExpanded(!pricesExpanded)}>
+            <div className="flex items-center gap-2">
+              {pricesExpanded ? <ChevronDown className="h-5 w-5 text-sage-500" /> : <ChevronRight className="h-5 w-5 text-sage-500" />}
+              <CardTitle>Individuelle Preise</CardTitle>
+            </div>
+            {pricesExpanded && (
+              <Button
+                size="sm"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  handleSavePrices()
+                }}
+                disabled={savingPrices}
+                className="bg-sage-600 hover:bg-sage-700"
+              >
+                {savingPrices ? 'Wird gespeichert...' : 'Preise speichern'}
+              </Button>
+            )}
+          </CardHeader>
+          {pricesExpanded && (
+            <CardContent className="space-y-4">
+              <p className="text-sm text-sage-600">
+                Überschreibe hier den Standard- oder Gruppenpreis für diesen Kunden. Leere Felder bedeuten, dass der Standard- bzw. Gruppenpreis gilt.
+              </p>
+              <div className="space-y-4">
+                {defaultPrices.filter(p => p.price_type !== 'text').map((price) => (
+                  <div key={price.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-3 border border-sage-100 rounded-lg">
+                    <div>
+                      <p className="font-semibold text-sage-900">{price.name}</p>
+                      <p className="text-xs text-sage-500">Kategorie: {categories.find(c => c.id === price.category_id)?.name || 'Allgemein'} (Standard: {price.price}€ {price.unit})</p>
+                    </div>
+                    <div className="flex items-center gap-2 max-w-[200px]">
+                      <Input
+                        type="number"
+                        step="0.01"
+                        placeholder="Standard"
+                        value={customerPrices[price.id] !== undefined ? customerPrices[price.id] : ''}
+                        onChange={(e) => updateCustomerPrice(price.id, e.target.value)}
+                        className="h-9 bg-white"
+                      />
+                      <span className="text-sage-700">€</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          )}
+        </Card>
+
+        {/* Gefahrenbereich */}
+        <Card className="border-destructive/40">
+          <CardHeader>
+            <CardTitle className="text-destructive">Gefahrenbereich</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="destructive" disabled={isDeleting}>
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Kunde löschen
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Kunde endgültig löschen?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Der Kunde inklusive Buchungen, Tieren, Dokumenten, Notizen, Onboarding-Links und zusätzlichen Eigenschaften wird dauerhaft entfernt. Diese Aktion kann nicht rückgängig gemacht werden.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Abbrechen</AlertDialogCancel>
+                  <AlertDialogAction onClick={deleteCustomer} disabled={isDeleting}>
+                    {isDeleting ? 'Wird gelöscht…' : 'Endgültig löschen'}
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Notizen & Tiere & Dokumente */}
@@ -725,91 +810,6 @@ export default function CustomerDetailPage() {
         </div>
       </div>
 
-      {/* Eigenschaften */}
-      <div className="mt-6">
-        <PropertyEditor entityType="customer" entityId={customerId} />
-      </div>
-
-      {/* Individuelle Preise */}
-      <Card className="mt-6">
-        <CardHeader className="flex flex-row items-center justify-between cursor-pointer select-none" onClick={() => setPricesExpanded(!pricesExpanded)}>
-          <div className="flex items-center gap-2">
-            {pricesExpanded ? <ChevronDown className="h-5 w-5 text-sage-500" /> : <ChevronRight className="h-5 w-5 text-sage-500" />}
-            <CardTitle>Individuelle Preise</CardTitle>
-          </div>
-          {pricesExpanded && (
-            <Button
-              size="sm"
-              onClick={(e) => {
-                e.stopPropagation()
-                handleSavePrices()
-              }}
-              disabled={savingPrices}
-              className="bg-sage-600 hover:bg-sage-700"
-            >
-              {savingPrices ? 'Wird gespeichert...' : 'Preise speichern'}
-            </Button>
-          )}
-        </CardHeader>
-        {pricesExpanded && (
-          <CardContent className="space-y-4">
-            <p className="text-sm text-sage-600">
-              Überschreibe hier den Standard- oder Gruppenpreis für diesen Kunden. Leere Felder bedeuten, dass der Standard- bzw. Gruppenpreis gilt.
-            </p>
-            <div className="space-y-4">
-              {defaultPrices.filter(p => p.price_type !== 'text').map((price) => (
-                <div key={price.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-3 border border-sage-100 rounded-lg">
-                  <div>
-                    <p className="font-semibold text-sage-900">{price.name}</p>
-                    <p className="text-xs text-sage-500">Kategorie: {categories.find(c => c.id === price.category_id)?.name || 'Allgemein'} (Standard: {price.price}€ {price.unit})</p>
-                  </div>
-                  <div className="flex items-center gap-2 max-w-[200px]">
-                    <Input
-                      type="number"
-                      step="0.01"
-                      placeholder="Standard"
-                      value={customerPrices[price.id] !== undefined ? customerPrices[price.id] : ''}
-                      onChange={(e) => updateCustomerPrice(price.id, e.target.value)}
-                      className="h-9 bg-white"
-                    />
-                    <span className="text-sage-700">€</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        )}
-      </Card>
-
-      <Card className="mt-6 border-destructive/40">
-        <CardHeader>
-          <CardTitle className="text-destructive">Gefahrenbereich</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
-              <Button variant="destructive" disabled={isDeleting}>
-                <Trash2 className="mr-2 h-4 w-4" />
-                Kunde löschen
-              </Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Kunde endgültig löschen?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  Der Kunde inklusive Buchungen, Tieren, Dokumenten, Notizen, Onboarding-Links und zusätzlichen Eigenschaften wird dauerhaft entfernt. Diese Aktion kann nicht rückgängig gemacht werden.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Abbrechen</AlertDialogCancel>
-                <AlertDialogAction onClick={deleteCustomer} disabled={isDeleting}>
-                  {isDeleting ? 'Wird gelöscht…' : 'Endgültig löschen'}
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
-        </CardContent>
-      </Card>
     </div>
   )
 }

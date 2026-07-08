@@ -31,6 +31,19 @@ function ProfileContent() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const { toast } = useToast()
+
+  const authenticatedFetch = async (url: string, options: RequestInit = {}) => {
+    const { data: { session } } = await supabase.auth.getSession()
+    const token = session?.access_token
+    
+    return fetch(url, {
+      ...options,
+      headers: {
+        ...options.headers,
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+      }
+    })
+  }
   
   // Schritt 1: Persönliche Daten
   const [personalData, setPersonalData] = useState({
@@ -90,7 +103,7 @@ function ProfileContent() {
 
   async function loadProfile() {
     try {
-      const response = await fetch('/api/portal/profile')
+      const response = await authenticatedFetch('/api/portal/profile')
       
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}))
@@ -143,7 +156,7 @@ function ProfileContent() {
       }
 
       // Dokumente laden
-      const docsResponse = await fetch('/api/portal/documents')
+      const docsResponse = await authenticatedFetch('/api/portal/documents')
       if (docsResponse.ok) {
         const docsData = await docsResponse.json()
         setDocuments(docsData.documents || [])
@@ -163,11 +176,11 @@ function ProfileContent() {
 
   async function loadPets() {
     try {
-      const response = await fetch('/api/portal/pets')
+      const response = await authenticatedFetch('/api/portal/pets')
       const data = await response.json()
       setPets(data.pets || [])
 
-      const docsResponse = await fetch('/api/portal/documents')
+      const docsResponse = await authenticatedFetch('/api/portal/documents')
       if (docsResponse.ok) {
         const docsData = await docsResponse.json()
         setDocuments(docsData.documents || [])
@@ -183,7 +196,7 @@ function ProfileContent() {
     if (mobileSessionId && isPolling) {
       intervalId = setInterval(async () => {
         try {
-          const response = await fetch(`/api/portal/signatures/session?id=${mobileSessionId}`)
+          const response = await authenticatedFetch(`/api/portal/signatures/session?id=${mobileSessionId}`)
           const data = await response.json()
           if (response.ok && data.session.status === 'completed' && data.session.signature_data) {
             setSignatureImage(data.session.signature_data)
@@ -273,7 +286,7 @@ function ProfileContent() {
     if (!customer?.id) return
     try {
       setSaving(true)
-      const response = await fetch('/api/portal/signatures/session', {
+      const response = await authenticatedFetch('/api/portal/signatures/session', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ customer_id: customer.id })
@@ -430,7 +443,7 @@ function ProfileContent() {
       uploadFormData.append('file', pdfFile)
       uploadFormData.append('document_type', 'vertrag')
 
-      const uploadResponse = await fetch('/api/portal/documents', {
+      const uploadResponse = await authenticatedFetch('/api/portal/documents', {
         method: 'POST',
         body: uploadFormData
       })
@@ -451,7 +464,7 @@ function ProfileContent() {
         reader.readAsDataURL(pdfFile)
       })
 
-      const mailResponse = await fetch('/api/portal/contracts/send-email', {
+      const mailResponse = await authenticatedFetch('/api/portal/contracts/send-email', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -465,7 +478,7 @@ function ProfileContent() {
       }
 
       // 5. Profil und Onboarding als abgeschlossen markieren
-      const profileResponse = await fetch('/api/portal/profile', {
+      const profileResponse = await authenticatedFetch('/api/portal/profile', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -500,7 +513,7 @@ function ProfileContent() {
   async function handleSaveStep1() {
     setSaving(true)
     try {
-      const response = await fetch('/api/portal/profile', {
+      const response = await authenticatedFetch('/api/portal/profile', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(personalData),
@@ -612,7 +625,7 @@ function ProfileContent() {
         : '/api/portal/pets'
       const method = editingPetId ? 'PUT' : 'POST'
       
-      const response = await fetch(url, {
+      const response = await authenticatedFetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(petFormData),
@@ -643,7 +656,7 @@ function ProfileContent() {
           formData.append('pet_id', savedPetId)
           
           uploadPromises.push(
-            fetch('/api/portal/documents', {
+            authenticatedFetch('/api/portal/documents', {
               method: 'POST',
               body: formData,
             }).catch(err => {
@@ -664,7 +677,7 @@ function ProfileContent() {
           formData.append('pet_id', savedPetId)
           
           uploadPromises.push(
-            fetch('/api/portal/documents', {
+            authenticatedFetch('/api/portal/documents', {
               method: 'POST',
               body: formData,
             }).catch(err => {
@@ -752,7 +765,7 @@ function ProfileContent() {
 
   async function handleDeletePet(petId: string) {
     try {
-      const response = await fetch(`/api/portal/pets/${petId}`, {
+      const response = await authenticatedFetch(`/api/portal/pets/${petId}`, {
         method: 'DELETE',
       })
 
@@ -797,7 +810,7 @@ function ProfileContent() {
     setSaving(true)
     try {
       // Markiere Onboarding als abgeschlossen (Tierinformationen sind jetzt pro Tier gespeichert)
-      const response = await fetch('/api/portal/profile', {
+      const response = await authenticatedFetch('/api/portal/profile', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -839,7 +852,7 @@ function ProfileContent() {
     // Tierinformationen werden jetzt pro Tier gespeichert, nicht mehr auf Customer-Ebene
     setSaving(true)
     try {
-      const response = await fetch('/api/portal/profile', {
+      const response = await authenticatedFetch('/api/portal/profile', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(personalData),

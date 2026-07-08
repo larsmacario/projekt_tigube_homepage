@@ -11,6 +11,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { useToast } from '@/hooks/use-toast'
 import { Plus, Trash2 } from 'lucide-react'
 import type { Pet, Document } from '@/lib/types'
+import { supabase } from '@/lib/supabase'
 
 export default function PetsPage() {
   const [pets, setPets] = useState<Pet[]>([])
@@ -37,17 +38,30 @@ export default function PetsPage() {
   const [petToDelete, setPetToDelete] = useState<Pet | null>(null)
   const { toast } = useToast()
 
+  const authenticatedFetch = async (url: string, options: RequestInit = {}) => {
+    const { data: { session } } = await supabase.auth.getSession()
+    const token = session?.access_token
+    
+    return fetch(url, {
+      ...options,
+      headers: {
+        ...options.headers,
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+      }
+    })
+  }
+
   useEffect(() => {
     loadPets()
   }, [])
 
   async function loadPets() {
     try {
-      const response = await fetch('/api/portal/pets')
+      const response = await authenticatedFetch('/api/portal/pets')
       const data = await response.json()
       setPets(data.pets || [])
 
-      const docsResponse = await fetch('/api/portal/documents')
+      const docsResponse = await authenticatedFetch('/api/portal/documents')
       if (docsResponse.ok) {
         const docsData = await docsResponse.json()
         setDocuments(docsData.documents || [])
@@ -170,7 +184,7 @@ export default function PetsPage() {
         : '/api/portal/pets'
       const method = editingPetId ? 'PUT' : 'POST'
       
-      const response = await fetch(url, {
+      const response = await authenticatedFetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(petFormData),
@@ -201,7 +215,7 @@ export default function PetsPage() {
           formData.append('pet_id', savedPetId)
           
           uploadPromises.push(
-            fetch('/api/portal/documents', {
+            authenticatedFetch('/api/portal/documents', {
               method: 'POST',
               body: formData,
             }).catch(err => {
@@ -222,7 +236,7 @@ export default function PetsPage() {
           formData.append('pet_id', savedPetId)
           
           uploadPromises.push(
-            fetch('/api/portal/documents', {
+            authenticatedFetch('/api/portal/documents', {
               method: 'POST',
               body: formData,
             }).catch(err => {
@@ -281,7 +295,7 @@ export default function PetsPage() {
     if (!petToDelete) return
 
     try {
-      const response = await fetch(`/api/portal/pets/${petToDelete.id}`, {
+      const response = await authenticatedFetch(`/api/portal/pets/${petToDelete.id}`, {
         method: 'DELETE',
       })
 

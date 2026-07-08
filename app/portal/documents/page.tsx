@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
 import { useToast } from '@/hooks/use-toast'
 import type { Document, Pet } from '@/lib/types'
+import { supabase } from '@/lib/supabase'
 
 export default function DocumentsPage() {
   const [documents, setDocuments] = useState<Document[]>([])
@@ -23,6 +24,19 @@ export default function DocumentsPage() {
   const [documentToDelete, setDocumentToDelete] = useState<Document | null>(null)
   const { toast } = useToast()
 
+  const authenticatedFetch = async (url: string, options: RequestInit = {}) => {
+    const { data: { session } } = await supabase.auth.getSession()
+    const token = session?.access_token
+    
+    return fetch(url, {
+      ...options,
+      headers: {
+        ...options.headers,
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+      }
+    })
+  }
+
   useEffect(() => {
     loadDocuments()
     loadPets()
@@ -30,7 +44,7 @@ export default function DocumentsPage() {
 
   async function loadDocuments() {
     try {
-      const response = await fetch('/api/portal/documents')
+      const response = await authenticatedFetch('/api/portal/documents')
       const data = await response.json()
       setDocuments(data.documents || [])
     } catch (error) {
@@ -42,7 +56,7 @@ export default function DocumentsPage() {
 
   async function loadPets() {
     try {
-      const response = await fetch('/api/portal/pets')
+      const response = await authenticatedFetch('/api/portal/pets')
       const data = await response.json()
       setPets(data.pets || [])
     } catch (error) {
@@ -69,7 +83,7 @@ export default function DocumentsPage() {
         formData.append('pet_id', uploadForm.pet_id)
       }
 
-      const response = await fetch('/api/portal/documents', {
+      const response = await authenticatedFetch('/api/portal/documents', {
         method: 'POST',
         body: formData,
       })
@@ -113,7 +127,7 @@ export default function DocumentsPage() {
     if (!documentToDelete) return
 
     try {
-      const response = await fetch(`/api/portal/documents/${documentToDelete.id}`, {
+      const response = await authenticatedFetch(`/api/portal/documents/${documentToDelete.id}`, {
         method: 'DELETE',
       })
 
@@ -138,6 +152,29 @@ export default function DocumentsPage() {
       toast({
         title: 'Fehler',
         description: 'Fehler beim Löschen',
+        variant: 'destructive',
+      })
+    }
+  }
+
+  async function handleOpenDocument(documentId: string) {
+    try {
+      const response = await authenticatedFetch(`/api/portal/documents/${documentId}`)
+      const data = await response.json()
+      if (response.ok && data.signedUrl) {
+        window.open(data.signedUrl, '_blank')
+      } else {
+        toast({
+          title: 'Fehler',
+          description: data.error || 'Dokument konnte nicht geöffnet werden',
+          variant: 'destructive',
+        })
+      }
+    } catch (error) {
+      console.error('Error opening document:', error)
+      toast({
+        title: 'Fehler',
+        description: 'Verbindungsfehler beim Öffnen des Dokuments',
         variant: 'destructive',
       })
     }
@@ -251,7 +288,12 @@ export default function DocumentsPage() {
               <CardContent className="pt-6">
                 <div className="flex justify-between items-start">
                   <div>
-                    <h3 className="font-semibold">{doc.file_name}</h3>
+                    <button
+                      onClick={() => handleOpenDocument(doc.id)}
+                      className="font-semibold text-left text-sage-800 hover:text-sage-600 hover:underline focus:outline-none block"
+                    >
+                      {doc.file_name}
+                    </button>
                     <p className="text-sm text-sage-600 mt-1">
                       {getDocumentTypeLabel(doc.document_type)}
                     </p>

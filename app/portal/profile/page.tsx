@@ -555,6 +555,7 @@ function ProfileContent() {
       doc.setFontSize(14)
       doc.text('Haftung beider Parteien', 20, textY)
       textY += 10
+      doc.setFontSize(9)
 
       const liabilitySections = [
         { num: '(1)', text: 'tierisch gut betreut Gesellschaft mit beschränkter Haftung bestätigt, dass eine Betriebshaftpflichtversicherung besteht.' },
@@ -580,6 +581,7 @@ function ProfileContent() {
       doc.setFontSize(14)
       doc.text('Information', 20, textY)
       textY += 10
+      doc.setFontSize(9)
 
       const infoSections = [
         { num: '(1)', text: 'tierisch gut betreut Gesellschaft mit beschränkter Haftung verpflichtet sich, bei Auftreten von schwerwiegenden Problemen (plötzliche Krankheit des Tieres, auffällige Verhaltensänderung, etc.) den Tierbesitzer oder dessen Kontaktperson umgehend zu benachrichtigen.' },
@@ -621,6 +623,7 @@ function ProfileContent() {
       doc.setFontSize(14)
       doc.text('Notfall', 20, textY)
       textY += 10
+      doc.setFontSize(9)
 
       const emergencySections = [
         { num: '(1)', text: 'Der Tierhalter erklärt sich damit einverstanden, dass in Notfällen und bei akuten Erkrankungen oder Verletzungen die erforderliche Behandlung bei einem Tierarzt erfolgt, der von tierisch gut betreut Gesellschaft mit beschränkter Haftung bestimmt wird. Für diesen Fall ist tierisch gut betreut Gesellschaft mit beschränkter Haftung ausdrücklich ermächtigt, im Namen und auf Rechnung des Kunden eine Tierarztpraxis/-klinik mit der tierärztlichen Versorgung und Behandlung des Tieres zu beauftragen. Die Kosten übernimmt der Tierhalter.' },
@@ -645,6 +648,7 @@ function ProfileContent() {
       doc.setFontSize(14)
       doc.text('STORNIERUNG', 20, textY)
       textY += 10
+      doc.setFontSize(9)
 
       const cancellationTexts = [
         '• 15 Tage und mehr vor Check-In: 100% Rückerstattung (kostenlos)',
@@ -681,6 +685,7 @@ function ProfileContent() {
       doc.setFontSize(9)
       doc.text('Der Tierbesitzer ist damit einverstanden,', 20, 42)
       textY = 50
+      doc.setFontSize(9)
 
       const privacySections = [
         { num: '(1)', text: 'dass tierisch gut betreut Gesellschaft mit beschränkter Haftung personenbezogene Daten speichern und verarbeiten darf. Die Daten dürfen nicht an dritte Personen weitergegeben werden, und sind auf Aufforderung unverzüglich zu löschen.' },

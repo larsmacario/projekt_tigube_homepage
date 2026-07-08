@@ -7,6 +7,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Badge } from '@/components/ui/badge'
 import Link from 'next/link'
 import type { Customer, Pet, Document, BookingRequest } from '@/lib/types'
+import { supabase } from '@/lib/supabase'
 
 export default function PortalPage() {
   const [customer, setCustomer] = useState<Customer | null>(null)
@@ -15,6 +16,19 @@ export default function PortalPage() {
   const [bookings, setBookings] = useState<BookingRequest[]>([])
   const [loading, setLoading] = useState(true)
 
+  const authenticatedFetch = async (url: string, options: RequestInit = {}) => {
+    const { data: { session } } = await supabase.auth.getSession()
+    const token = session?.access_token
+    
+    return fetch(url, {
+      ...options,
+      headers: {
+        ...options.headers,
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+      }
+    })
+  }
+
   useEffect(() => {
     loadData()
   }, [])
@@ -22,10 +36,10 @@ export default function PortalPage() {
   async function loadData() {
     try {
       const [profileRes, petsRes, docsRes, bookingsRes] = await Promise.all([
-        fetch('/api/portal/profile'),
-        fetch('/api/portal/pets'),
-        fetch('/api/portal/documents'),
-        fetch('/api/portal/bookings'),
+        authenticatedFetch('/api/portal/profile'),
+        authenticatedFetch('/api/portal/pets'),
+        authenticatedFetch('/api/portal/documents'),
+        authenticatedFetch('/api/portal/bookings'),
       ])
 
       const [profileData, petsData, docsData, bookingsData] = await Promise.all([
@@ -240,8 +254,16 @@ export default function PortalPage() {
               </span>
             </li>
             <li className="flex items-center gap-3">
+              <span className={`w-6 h-6 rounded-full flex items-center justify-center text-white text-sm ${documents.some(d => d.document_type === 'wurmtest') ? 'bg-green-500' : 'bg-sage-300'}`}>
+                {documents.some(d => d.document_type === 'wurmtest') ? '✓' : '4'}
+              </span>
+              <span className={documents.some(d => d.document_type === 'wurmtest') ? 'text-sage-600 line-through' : 'text-sage-900'}>
+                Wurmtest hochladen
+              </span>
+            </li>
+            <li className="flex items-center gap-3">
               <span className={`w-6 h-6 rounded-full flex items-center justify-center text-white text-sm ${documents.some(d => d.document_type === 'vertrag') ? 'bg-green-500' : 'bg-sage-300'}`}>
-                {documents.some(d => d.document_type === 'vertrag') ? '✓' : '4'}
+                {documents.some(d => d.document_type === 'vertrag') ? '✓' : '5'}
               </span>
               <span className={documents.some(d => d.document_type === 'vertrag') ? 'text-sage-600 line-through' : 'text-sage-900'}>
                 Vertrag hochladen

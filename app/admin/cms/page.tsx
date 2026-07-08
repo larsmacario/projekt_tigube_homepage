@@ -281,9 +281,8 @@ export default function CMSPage() {
 
   if (loading) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[400px] gap-2">
-        <Loader2 className="h-8 w-8 animate-spin text-sage-600" />
-        <p className="text-gray-500">Lade CMS-Inhalte...</p>
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-sage-600"></div>
       </div>
     )
   }

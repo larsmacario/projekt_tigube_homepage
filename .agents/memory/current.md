@@ -1,6 +1,7 @@
 # Aktueller Stand
 
 ## Letzte Änderungen
+- Loadingstates vereinheitlicht: Die Ladeanimationen (Loadingstate) in den Bereichen CMS (`/admin/cms`) und Admins (`/admin/admins`) wurden an das standardmäßige Layout mit der rotierenden sage-farbenen CSS-Border-Animation angepasst, die auch bei Leads und Kunden verwendet wird.
 - Admin-Verwaltung und Einladungsfunktion: Vollständige Admin-Verwaltung unter `/admin/admins` und Registrierungsseite unter `/admin/accept-invitation/[token]` implementiert. Admins können neue Teammitglieder per E-Mail einladen (E-Mail, Vorname, Nachname erforderlich). Es wurden neue API-Routen für Einladungsverwaltung (`/api/admin/invites`, `/api/admin/invites/[id]`, `/api/admin/invites/verify`, `/api/admin/invites/accept`) und für Admin-Benutzer (`/api/admin/users`, `/api/admin/users/[id]`) zur Auflistung, Bearbeitung und Löschung erstellt. Die Tabelle `public.users` und das TypeScript-Interface `User` wurden um die Spalten/Eigenschaften `vorname` und `nachname` erweitert.
 - Kunden einladen: Funktion „Kunde einladen“ im Admin-Dashboard (Kundenliste) implementiert. Neue API-Route (`/api/admin/customers/invite`) zur Prüfung existierender Kontakte (Konvertiert Leads automatisch zu Kunden bei E-Mail-Übereinstimmung), Erstellung von Onboarding-Tokens und Versand der Onboarding-E-Mail via SMTP und Webhook. Frontend um ein Modal-Dialogfeld (Vorname, Nachname, E-Mail) erweitert.
 - Die beiden Checklisten-Karten im Dashboard des Kundenportals (`app/portal/page.tsx`) wurden in einem zweispaltigen Grid-Layout nebeneinander platziert.

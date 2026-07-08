@@ -567,6 +567,25 @@ function ProfileContent() {
       return
     }
 
+    if (!petFormData.letzte_impfung) {
+      toast({
+        title: 'Fehler',
+        description: 'Das Datum der letzten Impfung ist erforderlich.',
+        variant: 'destructive',
+      })
+      return
+    }
+
+    const today = new Date().toISOString().split('T')[0]
+    if (petFormData.letzte_impfung > today) {
+      toast({
+        title: 'Fehler',
+        description: 'Das Datum der letzten Impfung darf nicht in der Zukunft liegen.',
+        variant: 'destructive',
+      })
+      return
+    }
+
     if (!petFormData.letzte_stuhlprobe) {
       toast({
         title: 'Fehler',
@@ -576,7 +595,6 @@ function ProfileContent() {
       return
     }
 
-    const today = new Date().toISOString().split('T')[0]
     if (petFormData.letzte_stuhlprobe > today) {
       toast({
         title: 'Fehler',
@@ -1159,15 +1177,6 @@ function ProfileContent() {
                         </SelectContent>
                       </Select>
                     </div>
-                    <div>
-                      <Label htmlFor="pet-impfung">Letzte Impfung</Label>
-                      <Input
-                        id="pet-impfung"
-                        type="date"
-                        value={petFormData.letzte_impfung}
-                        onChange={(e) => setPetFormData({ ...petFormData, letzte_impfung: e.target.value })}
-                      />
-                    </div>
                   </div>
 
                   {/* Tier-Informationen */}
@@ -1248,58 +1257,81 @@ function ProfileContent() {
                     </div>
                   </div>
 
-                  {/* Dokumente-Upload */}
+                  {/* Dokumente & Vorsorge */}
                   <div className="border-t pt-4 space-y-4">
                     <h3 className="font-semibold text-sage-900">Dokumente & Vorsorge</h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <Label htmlFor="pet-impfpass">
-                          Impfpass (Bild oder PDF) {hasExistingImpfpass ? '(bereits hochgeladen)' : '*'}
-                        </Label>
-                        <Input
-                          id="pet-impfpass"
-                          type="file"
-                          accept="image/*,.pdf"
-                          onChange={(e) => {
-                            const file = e.target.files?.[0]
-                            setImpfpassFile(file || null)
-                          }}
-                        />
-                        {impfpassFile && (
-                          <p className="text-sm text-sage-600 mt-1">
-                            Ausgewählt: {impfpassFile.name}
-                          </p>
-                        )}
+                    
+                    {/* Impfpass Bereich */}
+                    <div className="p-4 bg-sage-50/50 rounded-lg border border-sage-100 space-y-4">
+                      <h4 className="font-semibold text-sm text-sage-800 border-b pb-1">Impfpass & Impfstatus</h4>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <Label htmlFor="pet-impfpass">
+                            Impfpass (Bild oder PDF) {hasExistingImpfpass ? '(bereits hochgeladen)' : '*'}
+                          </Label>
+                          <Input
+                            id="pet-impfpass"
+                            type="file"
+                            accept="image/*,.pdf"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0]
+                              setImpfpassFile(file || null)
+                            }}
+                          />
+                          {impfpassFile && (
+                            <p className="text-sm text-sage-600 mt-1">
+                              Ausgewählt: {impfpassFile.name}
+                            </p>
+                          )}
+                        </div>
+                        <div>
+                          <Label htmlFor="pet-impfung">Datum der letzten Impfung *</Label>
+                          <Input
+                            id="pet-impfung"
+                            type="date"
+                            value={petFormData.letzte_impfung}
+                            max={new Date().toISOString().split('T')[0]}
+                            onChange={(e) => setPetFormData({ ...petFormData, letzte_impfung: e.target.value })}
+                            required
+                          />
+                        </div>
                       </div>
-                      <div>
-                        <Label htmlFor="pet-wurmtest">
-                          Wurmtest (Bild oder PDF) {hasExistingWurmtest ? '(bereits hochgeladen)' : '*'}
-                        </Label>
-                        <Input
-                          id="pet-wurmtest"
-                          type="file"
-                          accept="image/*,.pdf"
-                          onChange={(e) => {
-                            const file = e.target.files?.[0]
-                            setWurmtestFile(file || null)
-                          }}
-                        />
-                        {wurmtestFile && (
-                          <p className="text-sm text-sage-600 mt-1">
-                            Ausgewählt: {wurmtestFile.name}
-                          </p>
-                        )}
-                      </div>
-                      <div className="md:col-span-2">
-                        <Label htmlFor="pet-stuhlprobe">Datum der letzten Stuhlprobe *</Label>
-                        <Input
-                          id="pet-stuhlprobe"
-                          type="date"
-                          value={petFormData.letzte_stuhlprobe}
-                          max={new Date().toISOString().split('T')[0]}
-                          onChange={(e) => setPetFormData({ ...petFormData, letzte_stuhlprobe: e.target.value })}
-                          required
-                        />
+                    </div>
+
+                    {/* Wurmtest Bereich */}
+                    <div className="p-4 bg-sage-50/50 rounded-lg border border-sage-100 space-y-4">
+                      <h4 className="font-semibold text-sm text-sage-800 border-b pb-1">Wurmtest & Entwurmung</h4>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <Label htmlFor="pet-wurmtest">
+                            Wurmtest (Bild oder PDF) {hasExistingWurmtest ? '(bereits hochgeladen)' : '*'}
+                          </Label>
+                          <Input
+                            id="pet-wurmtest"
+                            type="file"
+                            accept="image/*,.pdf"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0]
+                              setWurmtestFile(file || null)
+                            }}
+                          />
+                          {wurmtestFile && (
+                            <p className="text-sm text-sage-600 mt-1">
+                              Ausgewählt: {wurmtestFile.name}
+                            </p>
+                          )}
+                        </div>
+                        <div>
+                          <Label htmlFor="pet-stuhlprobe">Datum der letzten Stuhlprobe *</Label>
+                          <Input
+                            id="pet-stuhlprobe"
+                            type="date"
+                            value={petFormData.letzte_stuhlprobe}
+                            max={new Date().toISOString().split('T')[0]}
+                            onChange={(e) => setPetFormData({ ...petFormData, letzte_stuhlprobe: e.target.value })}
+                            required
+                          />
+                        </div>
                       </div>
                     </div>
                   </div>

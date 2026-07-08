@@ -1,6 +1,7 @@
 # Aktueller Stand
 
 ## Letzte Änderungen
+- Der Bereich „Individuelle Preise“ in der Admin-Kundenkartei (`app/admin/customers/[id]/page.tsx`) wurde nach unten verschoben und befindet sich nun genau zwischen dem Eigenschaften-Bereich (Property-Editor) und dem Gefahrenbereich. Er erstreckt sich nun über die volle Seitenbreite.
 - Das Grid-Layout der Admin-Kundenkartei (`app/admin/customers/[id]/page.tsx`) wurde angepasst. Die linke Spalte (Persönliche Daten & Individuelle Preise) und die rechte Sidebar (E-Mail, Notizen, Tiere, Dokumente, Buchungen) sind nun in zwei separaten Containern strukturiert. Dadurch startet die Sidebar ganz oben auf gleicher Höhe wie die persönlichen Daten.
 - Bereich „Individuelle Preise“ in der Admin-Kundenkartei (`app/admin/customers/[id]/page.tsx`) ist jetzt auf- und zuklappbar und standardmäßig zugeklappt (Zustand wird über einen React-State gesteuert).
 - Spalte `letzte_stuhlprobe` (Typ: `DATE`) im DB-Schema (Migration vorbereitet unter `/supabase/migrations`) und im TypeScript-Interface `Pet` in `lib/types.ts` hinzugefügt.
@@ -21,8 +22,8 @@
 - Feature-Abnahme und manuelle Tests.
 
 ## Nächste Schritte
-- Testen der Klapp-Funktion für individuelle Preise.
-- Testen der neuen Sidebar-Ausrichtung auf Desktop.
+- Testen der Klapp-Funktion und der neuen Position für individuelle Preise.
+- Testen der Sidebar-Ausrichtung auf Desktop.
 - Manuelle Ausführung des SQL-Statements für `letzte_stuhlprobe` in der remote Supabase-Datenbank.
 - Testen des vollständigen Onboarding-Flows (inklusive Zwischenspeichern und Fortsetzen).
 

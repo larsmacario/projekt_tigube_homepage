@@ -18,6 +18,8 @@ import Image from "next/image"
 import { getCMSContent } from "@/lib/cms"
 import type { Metadata } from "next"
 
+export const dynamic = 'force-dynamic'
+
 export async function generateMetadata(): Promise<Metadata> {
   const data = await getCMSContent('hundepension')
   const title = data?.badge || "Hundepension"

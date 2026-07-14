@@ -5,6 +5,8 @@ import { Testimonials } from "@/components/testimonials"
 import { About } from "@/components/about"
 import { Contact } from "@/components/contact"
 
+export const dynamic = 'force-dynamic'
+
 export default async function HomePage() {
   const homepageData = await getCMSContent('homepage')
 

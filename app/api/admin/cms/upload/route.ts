@@ -1,5 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { requireAdmin } from '@/lib/admin-auth'
+import type { SupabaseClient } from '@supabase/supabase-js'
+import { requireAdmin, getAdminDbClient } from '@/lib/admin-auth'
+
+function getWritableDbClient(fallback: SupabaseClient): SupabaseClient {
+  try {
+    return getAdminDbClient()
+  } catch {
+    return fallback
+  }
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -7,7 +16,8 @@ export async function POST(request: NextRequest) {
     if ('error' in adminCheck) {
       return NextResponse.json({ error: adminCheck.error }, { status: adminCheck.status })
     }
-    const { client: supabase } = adminCheck
+
+    const supabase = getWritableDbClient(adminCheck.client)
 
     const formData = await request.formData()
     const file = formData.get('file') as File | null

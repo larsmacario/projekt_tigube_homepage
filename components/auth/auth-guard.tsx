@@ -18,12 +18,13 @@ export function AuthGuard({ children, requiredRole, redirectTo = '/login' }: Aut
   const router = useRouter()
 
   useEffect(() => {
-    async function verifyUser() {
+    let cancelled = false
+
+    async function verifyUser(): Promise<User | null> {
       try {
         const currentUser = await getCurrentUser()
 
         if (!currentUser) {
-          router.push(redirectTo)
           return null
         }
 
@@ -39,39 +40,55 @@ export function AuthGuard({ children, requiredRole, redirectTo = '/login' }: Aut
         return currentUser
       } catch (error) {
         console.error('Auth check error:', error)
-        router.push(redirectTo)
         return null
       }
     }
 
     async function checkAuth() {
       const currentUser = await verifyUser()
+      if (cancelled) return
+
       if (currentUser) {
         setUser(currentUser)
+        setLoading(false)
+        return
       }
+
       setLoading(false)
+      router.push(redirectTo)
     }
 
     checkAuth()
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        if (event === 'SIGNED_OUT' || !session) {
-          setUser(null)
-          router.push(redirectTo)
-          return
-        }
-
-        if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') {
-          const currentUser = await verifyUser()
-          if (currentUser) {
-            setUser(currentUser)
-          }
-        }
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      // Kein async/await im Callback – verhindert Supabase-Auth-Deadlock
+      if (event === 'SIGNED_OUT') {
+        setUser(null)
+        router.push(redirectTo)
+        return
       }
-    )
 
-    return () => subscription.unsubscribe()
+      if (
+        (event === 'SIGNED_IN' || event === 'INITIAL_SESSION' || event === 'TOKEN_REFRESHED') &&
+        session
+      ) {
+        setTimeout(() => {
+          if (cancelled) return
+          verifyUser().then((currentUser) => {
+            if (cancelled) return
+            if (currentUser) {
+              setUser(currentUser)
+              setLoading(false)
+            }
+          })
+        }, 0)
+      }
+    })
+
+    return () => {
+      cancelled = true
+      subscription.unsubscribe()
+    }
   }, [requiredRole, redirectTo, router])
 
   if (loading) {

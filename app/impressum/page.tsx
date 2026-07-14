@@ -5,6 +5,8 @@ import { getLegalContent } from "@/lib/cms/legal-defaults"
 import { LegalContent } from "@/components/legal-content"
 import type { Metadata } from "next"
 
+export const dynamic = 'force-dynamic'
+
 export async function generateMetadata(): Promise<Metadata> {
   const data = await getCMSContent('impressum')
   const title = data?.title || "Impressum"

@@ -156,9 +156,15 @@ export default function CMSPage() {
       })
       const result = await res.json()
       if (res.ok) {
+        if (result.data?.data) {
+          setCmsData((prev) => ({
+            ...prev,
+            [key]: result.data.data,
+          }))
+        }
         toast.success(`Inhalte für "${key}" erfolgreich gespeichert!`)
       } else {
-        toast.error("Speichern fehlgeschlagen: " + result.error)
+        toast.error("Speichern fehlgeschlagen: " + (result.error || 'Unbekannter Fehler'))
       }
     } catch (err: any) {
       toast.error("Netzwerkfehler beim Speichern: " + err.message)

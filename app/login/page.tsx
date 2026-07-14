@@ -68,7 +68,16 @@ export default function LoginPage() {
           throw new Error('Fehler beim Setzen der Session')
         }
 
-        console.log('Session gesetzt')
+        // Cookies sofort synchronisieren, bevor Redirect (AuthSessionProvider läuft erst danach)
+        await fetch('/api/auth/session', {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            access_token: data.session.access_token,
+            refresh_token: data.session.refresh_token,
+          }),
+        })
       } else {
         console.error('Keine Session-Daten erhalten:', data)
         throw new Error('Session-Daten fehlen')

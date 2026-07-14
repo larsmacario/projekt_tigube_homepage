@@ -1,5 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { requireAdmin } from '@/lib/admin-auth'
+import type { SupabaseClient } from '@supabase/supabase-js'
+import { requireAdmin, getAdminDbClient } from '@/lib/admin-auth'
+import { revalidateCMSPaths } from '@/lib/cms-revalidate'
+
+function getWritableDbClient(fallback: SupabaseClient): SupabaseClient {
+  try {
+    return getAdminDbClient()
+  } catch {
+    return fallback
+  }
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -7,7 +17,8 @@ export async function GET(request: NextRequest) {
     if ('error' in adminCheck) {
       return NextResponse.json({ error: adminCheck.error }, { status: adminCheck.status })
     }
-    const { client: supabase } = adminCheck
+
+    const supabase = getWritableDbClient(adminCheck.client)
 
     const { data, error } = await supabase
       .from('cms_content')
@@ -17,7 +28,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
-    const contentMap = (data || []).reduce((acc: any, row: any) => {
+    const contentMap = (data || []).reduce((acc: Record<string, unknown>, row: { key: string; data: unknown }) => {
       acc[row.key] = row.data
       return acc
     }, {})
@@ -35,27 +46,34 @@ export async function PUT(request: NextRequest) {
     if ('error' in adminCheck) {
       return NextResponse.json({ error: adminCheck.error }, { status: adminCheck.status })
     }
-    const { client: supabase } = adminCheck
 
     const { key, data } = await request.json()
 
-    if (!key || !data) {
+    if (!key || data === undefined || data === null) {
       return NextResponse.json({ error: 'Key und Daten sind erforderlich' }, { status: 400 })
     }
 
+    const supabase = getWritableDbClient(adminCheck.client)
+
     const { data: updated, error } = await supabase
       .from('cms_content')
-      .upsert({
-        key,
-        data,
-        updated_at: new Date().toISOString()
-      })
+      .upsert(
+        {
+          key,
+          data,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: 'key' }
+      )
       .select()
       .single()
 
     if (error) {
+      console.error('CMS upsert error:', error)
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
+
+    revalidateCMSPaths(key)
 
     return NextResponse.json({ success: true, data: updated })
   } catch (error: any) {

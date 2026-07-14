@@ -20,14 +20,12 @@ export default function PortalLayout({
   useEffect(() => {
     async function loadUser() {
       const currentUser = await getCurrentUser()
-      if (!currentUser || currentUser.role !== 'customer') {
-        router.push('/login')
-        return
+      if (currentUser?.role === 'customer') {
+        setUser(currentUser)
       }
-      setUser(currentUser)
     }
     loadUser()
-  }, [router])
+  }, [])
 
   const handleLogout = async () => {
     try {

@@ -19,14 +19,12 @@ export default function AdminLayout({
   useEffect(() => {
     async function loadUser() {
       const currentUser = await getCurrentUser()
-      if (!currentUser || currentUser.role !== 'admin') {
-        router.push('/login')
-        return
+      if (currentUser?.role === 'admin') {
+        setUser(currentUser)
       }
-      setUser(currentUser)
     }
     loadUser()
-  }, [router])
+  }, [])
 
   const handleLogout = async () => {
     try {

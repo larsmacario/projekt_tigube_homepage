@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { toast } from "sonner"
+import { useToast } from "@/hooks/use-toast"
 import { Trash2, Plus, Upload, Loader2, FileText, Globe } from "lucide-react"
 import { LegalRichTextEditor } from "@/components/admin/cms/legal-rich-text-editor"
 import { LegalContent } from "@/components/legal-content"
@@ -117,7 +117,17 @@ interface LegalData {
   content?: string
 }
 
+const CMS_SECTION_LABELS: Record<string, string> = {
+  homepage: 'Startseite',
+  hundepension: 'Hundepension',
+  katzenbetreuung: 'Katzenbetreuung',
+  impressum: 'Impressum',
+  datenschutz: 'Datenschutz',
+  agb: 'AGB',
+}
+
 export default function CMSPage() {
+  const { toast } = useToast()
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [cmsData, setCmsData] = useState<Record<string, any>>({})
@@ -131,10 +141,18 @@ export default function CMSPage() {
         if (res.ok) {
           setCmsData(result.data || {})
         } else {
-          toast.error("Fehler beim Laden: " + result.error)
+          toast({
+            title: 'Laden fehlgeschlagen',
+            description: result.error || 'Die CMS-Inhalte konnten nicht geladen werden.',
+            variant: 'destructive',
+          })
         }
       } catch (err: any) {
-        toast.error("Netzwerkfehler: " + err.message)
+        toast({
+          title: 'Netzwerkfehler',
+          description: err.message || 'Verbindung zum Server fehlgeschlagen.',
+          variant: 'destructive',
+        })
       } finally {
         setLoading(false)
       }
@@ -144,7 +162,14 @@ export default function CMSPage() {
 
   // Save specific key to Supabase
   const handleSave = async (key: string) => {
+    const sectionLabel = CMS_SECTION_LABELS[key] || key
     setSaving(true)
+
+    const saveToast = toast({
+      title: 'Speichern…',
+      description: `${sectionLabel} wird gespeichert.`,
+    })
+
     try {
       const res = await adminFetch('/api/admin/cms', {
         method: 'PUT',
@@ -154,7 +179,7 @@ export default function CMSPage() {
           data: cmsData[key] || {}
         })
       })
-      const result = await res.json()
+      const result = await res.json().catch(() => ({}))
       if (res.ok) {
         if (result.data?.data) {
           setCmsData((prev) => ({
@@ -162,12 +187,23 @@ export default function CMSPage() {
             [key]: result.data.data,
           }))
         }
-        toast.success(`Inhalte für "${key}" erfolgreich gespeichert!`)
+        saveToast.update({
+          title: 'Erfolgreich gespeichert',
+          description: `${sectionLabel} wurde aktualisiert und ist live.`,
+        })
       } else {
-        toast.error("Speichern fehlgeschlagen: " + (result.error || 'Unbekannter Fehler'))
+        saveToast.update({
+          title: 'Speichern fehlgeschlagen',
+          description: result.error || 'Unbekannter Fehler beim Speichern.',
+          variant: 'destructive',
+        })
       }
     } catch (err: any) {
-      toast.error("Netzwerkfehler beim Speichern: " + err.message)
+      saveToast.update({
+        title: 'Netzwerkfehler',
+        description: err.message || 'Verbindung zum Server fehlgeschlagen.',
+        variant: 'destructive',
+      })
     } finally {
       setSaving(false)
     }
@@ -192,21 +228,35 @@ export default function CMSPage() {
     const formData = new FormData()
     formData.append('file', file)
 
-    const uploadToast = toast.loading("Bild wird hochgeladen...")
+    const uploadToast = toast({
+      title: 'Upload läuft',
+      description: 'Bild wird hochgeladen…',
+    })
     try {
       const res = await adminFetch('/api/admin/cms/upload', {
         method: 'POST',
         body: formData
       })
-      const result = await res.json()
+      const result = await res.json().catch(() => ({}))
       if (res.ok) {
         updateData(key, field, result.url)
-        toast.success("Bild erfolgreich hochgeladen!", { id: uploadToast })
+        uploadToast.update({
+          title: 'Upload erfolgreich',
+          description: 'Das Bild wurde hochgeladen und eingefügt.',
+        })
       } else {
-        toast.error("Upload fehlgeschlagen: " + result.error, { id: uploadToast })
+        uploadToast.update({
+          title: 'Upload fehlgeschlagen',
+          description: result.error || 'Das Bild konnte nicht hochgeladen werden.',
+          variant: 'destructive',
+        })
       }
     } catch (err: any) {
-      toast.error("Upload-Fehler: " + err.message, { id: uploadToast })
+      uploadToast.update({
+        title: 'Upload-Fehler',
+        description: err.message || 'Verbindung zum Server fehlgeschlagen.',
+        variant: 'destructive',
+      })
     }
   }
 

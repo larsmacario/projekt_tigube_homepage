@@ -11,6 +11,7 @@ import { toast } from "sonner"
 import { Trash2, Plus, Upload, Loader2, FileText, Globe } from "lucide-react"
 import { LegalRichTextEditor } from "@/components/admin/cms/legal-rich-text-editor"
 import { LegalContent } from "@/components/legal-content"
+import { adminFetch } from "@/lib/admin-fetch"
 
 // Types matching page constants
 interface HomepageData {
@@ -125,7 +126,7 @@ export default function CMSPage() {
   useEffect(() => {
     async function loadCMSData() {
       try {
-        const res = await fetch('/api/admin/cms')
+        const res = await adminFetch('/api/admin/cms')
         const result = await res.json()
         if (res.ok) {
           setCmsData(result.data || {})
@@ -145,7 +146,7 @@ export default function CMSPage() {
   const handleSave = async (key: string) => {
     setSaving(true)
     try {
-      const res = await fetch('/api/admin/cms', {
+      const res = await adminFetch('/api/admin/cms', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -187,7 +188,7 @@ export default function CMSPage() {
 
     const uploadToast = toast.loading("Bild wird hochgeladen...")
     try {
-      const res = await fetch('/api/admin/cms/upload', {
+      const res = await adminFetch('/api/admin/cms/upload', {
         method: 'POST',
         body: formData
       })

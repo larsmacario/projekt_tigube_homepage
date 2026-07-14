@@ -18,6 +18,38 @@ import {
 } from "lucide-react"
 import Image from "next/image"
 import { getCMSContent } from "@/lib/cms"
+import type { Metadata } from "next"
+
+export async function generateMetadata(): Promise<Metadata> {
+  const data = await getCMSContent('katzenbetreuung')
+  const title = data?.badge || "Katzenbetreuung"
+  const subtitle = data?.heroSubtitle || "Deine Samtpfote in besten Händen"
+  
+  return {
+    title: `${title} | ${subtitle} - Tierisch Gut Betreut`,
+    description: "Liebevolle und professionelle mobile Katzenbetreuung in Moos und Umgebung. Füttern, Beschäftigung & Pflege in gewohnter Umgebung.",
+    alternates: {
+      canonical: "/katzenbetreuung",
+    },
+    openGraph: {
+      title: `${title} | ${subtitle}`,
+      description: "Liebevolle und professionelle mobile Katzenbetreuung in Moos und Umgebung. Füttern, Beschäftigung & Pflege in gewohnter Umgebung.",
+      url: "/katzenbetreuung",
+      images: [
+        {
+          url: data?.heroImageSrc || "/images/pexels-kerber-774731.jpg",
+          alt: "Katzenbetreuung",
+        }
+      ],
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: `${title} | ${subtitle}`,
+      description: "Liebevolle mobile Katzenbetreuung in Moos und Umgebung.",
+      images: [data?.heroImageSrc || "/images/pexels-kerber-774731.jpg"],
+    }
+  }
+}
 
 const defaultServices = [
   "Füttern",

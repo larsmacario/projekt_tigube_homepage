@@ -16,6 +16,38 @@ import {
 } from "lucide-react"
 import Image from "next/image"
 import { getCMSContent } from "@/lib/cms"
+import type { Metadata } from "next"
+
+export async function generateMetadata(): Promise<Metadata> {
+  const data = await getCMSContent('hundepension')
+  const title = data?.badge || "Hundepension"
+  const subtitle = data?.heroSubtitle || "Tages- und Urlaubsbetreuung für Deinen Hund"
+  
+  return {
+    title: `${title} | ${subtitle} - Tierisch Gut Betreut`,
+    description: "Professionelle Tages- und Urlaubsbetreuung für Deinen Hund in Moos. Hundepension, Hundegarten & erfahrene Hundetrainer mit Herz.",
+    alternates: {
+      canonical: "/hundepension",
+    },
+    openGraph: {
+      title: `${title} | ${subtitle}`,
+      description: "Professionelle Tages- und Urlaubsbetreuung für Deinen Hund in Moos. Hundepension, Hundegarten & erfahrene Hundetrainer mit Herz.",
+      url: "/hundepension",
+      images: [
+        {
+          url: data?.heroImageSrc || "/images/pexels-thijsvdw-998251.jpg",
+          alt: "Hundepension und Hundetagesbetreuung",
+        }
+      ],
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: `${title} | ${subtitle}`,
+      description: "Professionelle Tages- und Urlaubsbetreuung für Deinen Hund in Moos.",
+      images: [data?.heroImageSrc || "/images/pexels-thijsvdw-998251.jpg"],
+    }
+  }
+}
 
 const defaultReasons = [
   "Du arbeiten gehst und Dein Hund nicht allein zu Hause bleiben soll bzw. kann",

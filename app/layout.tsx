@@ -13,7 +13,11 @@ const raleway = Raleway({
   variable: "--font-raleway",
 })
 
+const rawUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://tierischgutbetreut.de"
+const siteUrl = rawUrl.replace("https:/t", "https://t")
+
 export const metadata: Metadata = {
+  metadataBase: new URL(siteUrl),
   title: "Tierisch Gut Betreut - Liebevolle Tierbetreuung in Moos",
   description:
     "Professionelle Tierbetreuung für Hunde und Katzen in Moos. Hundepension, mobile Katzenbetreuung und Tagesbetreuung mit Herz und Erfahrung.",
@@ -23,6 +27,31 @@ export const metadata: Metadata = {
     icon: '/images/tigube_logo_hund.jpg',
     shortcut: '/images/tigube_logo_hund.jpg',
     apple: '/images/tigube_logo_hund.jpg',
+  },
+  alternates: {
+    canonical: "/",
+  },
+  openGraph: {
+    title: "Tierisch Gut Betreut - Liebevolle Tierbetreuung in Moos",
+    description: "Professionelle Tierbetreuung für Hunde und Katzen in Moos. Hundepension, mobile Katzenbetreuung und Tagesbetreuung mit Herz und Erfahrung.",
+    url: "/",
+    siteName: "Tierisch Gut Betreut",
+    locale: "de_DE",
+    type: "website",
+    images: [
+      {
+        url: "/images/tigube_logo_hund.jpg",
+        width: 1200,
+        height: 630,
+        alt: "Tierisch Gut Betreut Logo",
+      }
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Tierisch Gut Betreut - Liebevolle Tierbetreuung in Moos",
+    description: "Professionelle Tierbetreuung für Hunde und Katzen in Moos. Hundepension, mobile Katzenbetreuung und Tagesbetreuung mit Herz und Erfahrung.",
+    images: ["/images/tigube_logo_hund.jpg"],
   },
 }
 

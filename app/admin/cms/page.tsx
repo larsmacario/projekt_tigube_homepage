@@ -9,6 +9,8 @@ import { Textarea } from "@/components/ui/textarea"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { toast } from "sonner"
 import { Trash2, Plus, Upload, Loader2, FileText, Globe } from "lucide-react"
+import { LegalRichTextEditor } from "@/components/admin/cms/legal-rich-text-editor"
+import { LegalContent } from "@/components/legal-content"
 
 // Types matching page constants
 interface HomepageData {
@@ -757,30 +759,34 @@ export default function CMSPage() {
                   <CardTitle className="text-xl text-sage-900 font-raleway flex items-center gap-2">
                     <FileText className="h-5 w-5" /> {lKey.toUpperCase()} verwalten
                   </CardTitle>
-                  <CardDescription>Passe den Titel und Inhalt dieser rechtlichen Seite an. Unterstützt HTML und reinen Text.</CardDescription>
+                  <CardDescription>
+                    Bearbeite Titel und Text wie in einem Textverarbeitungsprogramm – ohne HTML-Kenntnisse.
+                  </CardDescription>
                 </CardHeader>
                 <CardContent className="pt-6 space-y-6">
                   <div className="space-y-2">
                     <Label>Seitentitel</Label>
                     <Input value={lData.title || ''} onChange={(e) => updateData(lKey, 'title', e.target.value)} />
                   </div>
-                  <div className="grid md:grid-cols-2 gap-6">
+                  <div className="grid lg:grid-cols-2 gap-6">
                     <div className="space-y-2">
-                      <Label>Inhalt (HTML/Text)</Label>
-                      <Textarea 
-                        className="min-h-[400px] font-mono text-sm leading-relaxed" 
-                        value={lData.content || ''} 
-                        onChange={(e) => updateData(lKey, 'content', e.target.value)} 
-                        placeholder="Trage hier den Text oder HTML-Code für die AGBs ein. Zum Beispiel: <h2 class='text-xl font-bold'>Zusicherungen</h2>..."
+                      <Label>Inhalt</Label>
+                      <LegalRichTextEditor
+                        value={lData.content || ''}
+                        onChange={(html) => updateData(lKey, 'content', html)}
+                        placeholder="Text der rechtlichen Seite hier eingeben …"
                       />
+                      <p className="text-xs text-muted-foreground">
+                        Überschriften, Listen und Hinweis-Boxen über die Symbolleiste einfügen.
+                      </p>
                     </div>
                     <div className="space-y-2">
-                      <Label>Live Vorschau</Label>
-                      <div className="min-h-[400px] p-4 border rounded-lg overflow-y-auto bg-sage-50/20 prose max-w-none text-sm text-gray-700">
+                      <Label>Vorschau (wie auf der Website)</Label>
+                      <div className="min-h-[420px] p-6 border rounded-lg overflow-y-auto bg-white shadow-sm">
                         {lData.content ? (
-                          <div dangerouslySetInnerHTML={{ __html: lData.content }} />
+                          <LegalContent html={lData.content} />
                         ) : (
-                          <p className="text-gray-400 italic">Noch kein Inhalt eingetragen...</p>
+                          <p className="text-gray-400 italic">Noch kein Inhalt eingetragen …</p>
                         )}
                       </div>
                     </div>

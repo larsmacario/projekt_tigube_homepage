@@ -15,6 +15,7 @@ import { CalendarIcon, Trash2 } from 'lucide-react'
 import { format } from 'date-fns'
 import { de } from 'date-fns/locale'
 import type { CapacitySetting, CapacityOverride } from '@/lib/types'
+import { authenticatedFetch } from '@/lib/authenticated-fetch'
 
 export default function CapacityPage() {
   const [settings, setSettings] = useState<CapacitySetting[]>([])
@@ -43,8 +44,8 @@ export default function CapacityPage() {
   async function loadData() {
     try {
       const [settingsRes, overridesRes] = await Promise.all([
-        fetch('/api/admin/capacity'),
-        fetch('/api/admin/capacity/overrides'),
+        authenticatedFetch('/api/admin/capacity'),
+        authenticatedFetch('/api/admin/capacity/overrides'),
       ])
 
       const [settingsData, overridesData] = await Promise.all([
@@ -85,7 +86,7 @@ export default function CapacityPage() {
         }
       })
 
-      const response = await fetch('/api/admin/capacity', {
+      const response = await authenticatedFetch('/api/admin/capacity', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ settings: settingsToSave }),
@@ -122,7 +123,7 @@ export default function CapacityPage() {
     }
 
     try {
-      const response = await fetch('/api/admin/capacity/overrides', {
+      const response = await authenticatedFetch('/api/admin/capacity/overrides', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -162,7 +163,7 @@ export default function CapacityPage() {
 
   async function handleDeleteOverride(id: string) {
     try {
-      const response = await fetch(`/api/admin/capacity/overrides/${id}`, {
+      const response = await authenticatedFetch(`/api/admin/capacity/overrides/${id}`, {
         method: 'DELETE',
       })
 

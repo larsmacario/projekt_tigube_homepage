@@ -123,15 +123,6 @@ export interface ContactNote {
   updated_at: string
 }
 
-/** @deprecated Umbenannt in ContactNote */
-export type LeadNote = ContactNote
-
-/** @deprecated Umbenannt in ContactNote */
-export type CustomerNote = ContactNote
-
-/** Lead-Zeilen aus der API (= Contact mit typ lead) — gleiche Form wie Contact */
-export type ContactRequest = Contact
-
 // Testimonial type definition
 export interface Testimonial {
   id: string

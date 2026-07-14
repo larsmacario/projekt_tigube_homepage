@@ -14,6 +14,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { authenticatedFetch } from '@/lib/authenticated-fetch'
 import { useToast } from '@/hooks/use-toast'
 import { RichTextEditor } from '@/components/admin/newsletter/rich-text-editor'
 import { RecipientPicker } from '@/components/admin/newsletter/recipient-picker'
@@ -47,12 +48,12 @@ export default function NewsletterPage() {
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
-    fetch('/api/admin/newsletter/config').then((r) => r.json()).then((d) => {
+    authenticatedFetch('/api/admin/newsletter/config').then((r) => r.json()).then((d) => {
       setFromAddress(d.from || '')
       setTestEmail(d.testEmail || '')
       setAiEnabled(Boolean(d.aiEnabled))
     })
-    fetch('/api/admin/newsletter/topics').then((r) => r.json()).then((d) => setTopics(d.topics || []))
+    authenticatedFetch('/api/admin/newsletter/topics').then((r) => r.json()).then((d) => setTopics(d.topics || []))
   }, [])
 
   const previewRecipients = useCallback(async () => {
@@ -61,7 +62,7 @@ export default function NewsletterPage() {
       setWarnLargeList(false)
       return
     }
-    const res = await fetch('/api/admin/newsletter/recipients/preview', {
+    const res = await authenticatedFetch('/api/admin/newsletter/recipients/preview', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ groups, contactIds }),
@@ -95,7 +96,7 @@ export default function NewsletterPage() {
       const url = campaignId
         ? `/api/admin/newsletter/campaigns/${campaignId}`
         : '/api/admin/newsletter/campaigns'
-      const res = await fetch(url, {
+      const res = await authenticatedFetch(url, {
         method: campaignId ? 'PUT' : 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
@@ -118,7 +119,7 @@ export default function NewsletterPage() {
   const sendTest = async () => {
     setLoading(true)
     try {
-      const res = await fetch('/api/admin/newsletter/test', {
+      const res = await authenticatedFetch('/api/admin/newsletter/test', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...buildPayload(), testEmail }),
@@ -153,7 +154,7 @@ export default function NewsletterPage() {
       const payload = buildPayload()
 
       if (!id) {
-        const createRes = await fetch('/api/admin/newsletter/campaigns', {
+        const createRes = await authenticatedFetch('/api/admin/newsletter/campaigns', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload),
@@ -163,7 +164,7 @@ export default function NewsletterPage() {
         id = createData.campaign.id
         setCampaignId(id)
       } else {
-        const updateRes = await fetch(`/api/admin/newsletter/campaigns/${id}`, {
+        const updateRes = await authenticatedFetch(`/api/admin/newsletter/campaigns/${id}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload),
@@ -177,7 +178,7 @@ export default function NewsletterPage() {
         return
       }
 
-      const res = await fetch(`/api/admin/newsletter/campaigns/${id}/send`, { method: 'POST' })
+      const res = await authenticatedFetch(`/api/admin/newsletter/campaigns/${id}/send`, { method: 'POST' })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error)
       toast({
@@ -203,7 +204,7 @@ export default function NewsletterPage() {
     setLoading(true)
     try {
       const topicName = topics.find((t) => t.id === topicId)?.name || 'Allgemein'
-      const res = await fetch('/api/admin/newsletter/ai/draft', {
+      const res = await authenticatedFetch('/api/admin/newsletter/ai/draft', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ topic: topicName, audience: groups.join(', ') || 'Kontakte', prompt: aiPrompt }),
@@ -236,7 +237,7 @@ export default function NewsletterPage() {
   const saveAsTemplate = async () => {
     const name = window.prompt('Template-Name')
     if (!name) return
-    const res = await fetch('/api/admin/newsletter/templates', {
+    const res = await authenticatedFetch('/api/admin/newsletter/templates', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({

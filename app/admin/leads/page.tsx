@@ -3,10 +3,11 @@
 import { useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { useToast } from '@/hooks/use-toast'
-import type { ContactRequest, PropertyDefinition } from '@/lib/types'
+import type { Contact, PropertyDefinition } from '@/lib/types'
 import { DataTable } from '@/components/admin/data-table'
 import { getLeadColumns } from '@/lib/table-columns'
 import type { TableColumn } from '@/lib/table-columns'
+import { authenticatedFetch } from '@/lib/authenticated-fetch'
 
 export default function LeadsPage() {
   const [leads, setLeads] = useState<Record<string, any>[]>([])
@@ -24,7 +25,7 @@ export default function LeadsPage() {
     setLoading(true)
     try {
       // Lade Property Definitions
-      const defResponse = await fetch('/api/admin/properties?applies_to=lead')
+      const defResponse = await authenticatedFetch('/api/admin/properties?applies_to=lead')
       const defData = await defResponse.json()
       setPropertyDefinitions(defData.definitions || [])
 
@@ -33,7 +34,7 @@ export default function LeadsPage() {
         ? '/api/admin/leads'
         : `/api/admin/leads?status=${statusFilter}`
       
-      const response = await fetch(url)
+      const response = await authenticatedFetch(url)
       const data = await response.json()
       setLeads(data.leads || [])
 
@@ -58,7 +59,7 @@ export default function LeadsPage() {
 
       if (column.isProperty && column.propertyDefinitionId) {
         // Property Value aktualisieren
-        const response = await fetch('/api/admin/properties/values', {
+        const response = await authenticatedFetch('/api/admin/properties/values', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -75,7 +76,7 @@ export default function LeadsPage() {
         }
       } else {
         // Standard-Feld aktualisieren
-        const response = await fetch('/api/admin/leads', {
+        const response = await authenticatedFetch('/api/admin/leads', {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({

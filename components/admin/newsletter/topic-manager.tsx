@@ -8,6 +8,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog'
+import { authenticatedFetch } from '@/lib/authenticated-fetch'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -31,7 +32,7 @@ export function TopicManager({ topics, onTopicsChange, selectedTopicId, onSelect
   const [saving, setSaving] = useState(false)
 
   const loadTopics = async () => {
-    const res = await fetch('/api/admin/newsletter/topics')
+    const res = await authenticatedFetch('/api/admin/newsletter/topics')
     const data = await res.json()
     if (res.ok) onTopicsChange(data.topics || [])
   }
@@ -47,7 +48,7 @@ export function TopicManager({ topics, onTopicsChange, selectedTopicId, onSelect
     }
     setSaving(true)
     try {
-      const res = await fetch('/api/admin/newsletter/topics', {
+      const res = await authenticatedFetch('/api/admin/newsletter/topics', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: name.trim(), description: description.trim() || null }),
@@ -72,7 +73,7 @@ export function TopicManager({ topics, onTopicsChange, selectedTopicId, onSelect
 
   const deleteTopic = async (topic: NewsletterTopic) => {
     if (!window.confirm(`Thema „${topic.name}" wirklich löschen?`)) return
-    const res = await fetch(`/api/admin/newsletter/topics/${topic.id}`, { method: 'DELETE' })
+    const res = await authenticatedFetch(`/api/admin/newsletter/topics/${topic.id}`, { method: 'DELETE' })
     const data = await res.json()
     if (!res.ok) {
       toast({ title: 'Fehler', description: data.error, variant: 'destructive' })

@@ -17,6 +17,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog'
+import { authenticatedFetch } from '@/lib/authenticated-fetch'
 import { Label } from '@/components/ui/label'
 import { UserPlus, Loader2 } from 'lucide-react'
 
@@ -43,7 +44,7 @@ export default function CustomersPage() {
     setLoading(true)
     try {
       // Lade Kundengruppen
-      const groupsResponse = await fetch('/api/admin/customer-groups')
+      const groupsResponse = await authenticatedFetch('/api/admin/customer-groups')
       const groupsData = await groupsResponse.json()
       const groups = groupsData.groups || []
       const groupsMap: Record<string, string> = {}
@@ -52,12 +53,12 @@ export default function CustomersPage() {
       })
 
       // Lade Property Definitions
-      const defResponse = await fetch('/api/admin/properties?applies_to=customer')
+      const defResponse = await authenticatedFetch('/api/admin/properties?applies_to=customer')
       const defData = await defResponse.json()
       setPropertyDefinitions(defData.definitions || [])
 
       // Lade Kunden
-      const response = await fetch('/api/admin/customers')
+      const response = await authenticatedFetch('/api/admin/customers')
       const data = await response.json()
       setCustomers(data.customers || [])
 
@@ -88,7 +89,7 @@ export default function CustomersPage() {
 
     setIsInviting(true)
     try {
-      const response = await fetch('/api/admin/customers/invite', {
+      const response = await authenticatedFetch('/api/admin/customers/invite', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ vorname, nachname, email }),
@@ -129,7 +130,7 @@ export default function CustomersPage() {
 
       if (column.isProperty && column.propertyDefinitionId) {
         // Property Value aktualisieren
-        const response = await fetch('/api/admin/properties/values', {
+        const response = await authenticatedFetch('/api/admin/properties/values', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -146,7 +147,7 @@ export default function CustomersPage() {
         }
       } else {
         // Standard-Feld aktualisieren
-        const response = await fetch(`/api/admin/customers/${rowId}`, {
+        const response = await authenticatedFetch(`/api/admin/customers/${rowId}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({

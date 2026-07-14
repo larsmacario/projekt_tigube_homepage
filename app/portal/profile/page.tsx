@@ -11,7 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useToast } from '@/hooks/use-toast'
 import { Plus, Trash2 } from 'lucide-react'
 import type { Customer, Pet, Document } from '@/lib/types'
-import { supabase } from '@/lib/supabase'
+import { authenticatedFetch } from '@/lib/authenticated-fetch'
 
 function ProfileContent() {
   const searchParams = useSearchParams()
@@ -33,19 +33,6 @@ function ProfileContent() {
   const [saving, setSaving] = useState(false)
   const { toast } = useToast()
 
-  const authenticatedFetch = async (url: string, options: RequestInit = {}) => {
-    const { data: { session } } = await supabase.auth.getSession()
-    const token = session?.access_token
-    
-    return fetch(url, {
-      ...options,
-      headers: {
-        ...options.headers,
-        ...(token ? { 'Authorization': `Bearer ${token}` } : {})
-      }
-    })
-  }
-  
   // Schritt 1: Persönliche Daten
   const [personalData, setPersonalData] = useState({
     email: '',

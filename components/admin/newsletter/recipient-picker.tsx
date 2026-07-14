@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label'
 import { Checkbox } from '@/components/ui/checkbox'
 import { NEWSLETTER_GROUP_OPTIONS } from '@/lib/newsletter-groups'
 import { X } from 'lucide-react'
+import { authenticatedFetch } from '@/lib/authenticated-fetch'
 
 type ContactOption = {
   id: string
@@ -42,7 +43,7 @@ export function RecipientPicker({
   useEffect(() => {
     const timer = setTimeout(async () => {
       const params = search ? `?q=${encodeURIComponent(search)}` : ''
-      const res = await fetch(`/api/admin/newsletter/contacts/search${params}`)
+      const res = await authenticatedFetch(`/api/admin/newsletter/contacts/search${params}`)
       const data = await res.json()
       if (res.ok) setResults(data.contacts || [])
     }, 300)

@@ -1,52 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
-
-function getServerClient(request: NextRequest) {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-
-  // Supabase Cookie-Namen basierend auf Projekt-URL
-  const projectRef = supabaseUrl.split('//')[1]?.split('.')[0] || 'default'
-  const cookieName = `sb-${projectRef}-auth-token`
-  
-  // Hole Session aus Cookie
-  const authCookie = request.cookies.get(cookieName)?.value
-  let accessToken: string | undefined
-
-  if (authCookie) {
-    try {
-      const sessionData = JSON.parse(decodeURIComponent(authCookie))
-      accessToken = sessionData.access_token
-    } catch (e) {
-      accessToken = authCookie
-    }
-  }
-
-  // Fallback: Versuche aus Authorization Header
-  if (!accessToken) {
-    const authHeader = request.headers.get('authorization')
-    accessToken = authHeader?.replace('Bearer ', '')
-  }
-
-  // Fallback: Versuche aus Custom Cookie
-  if (!accessToken) {
-    accessToken = request.cookies.get('sb-access-token')?.value
-  }
-
-  const client = createClient(supabaseUrl, supabaseAnonKey, {
-    global: {
-      headers: accessToken ? {
-        Authorization: `Bearer ${accessToken}`,
-      } : {},
-    },
-    auth: {
-      persistSession: false,
-      autoRefreshToken: false,
-    },
-  })
-
-  return { client, accessToken }
-}
+import { getServerClient } from '@/lib/admin-auth'
 
 export async function GET(
   request: NextRequest,
@@ -54,7 +7,7 @@ export async function GET(
 ) {
   try {
     const { id: documentId } = await props.params
-    const { client: supabase, accessToken } = getServerClient(request)
+    const { client: supabase, accessToken } = await getServerClient(request)
     
     if (!accessToken) {
       return NextResponse.json({ error: 'Nicht autorisiert' }, { status: 401 })
@@ -106,7 +59,7 @@ export async function DELETE(
 ) {
   try {
     const { id: documentId } = await props.params
-    const { client: supabase, accessToken } = getServerClient(request)
+    const { client: supabase, accessToken } = await getServerClient(request)
     
     if (!accessToken) {
       return NextResponse.json({ error: 'Nicht autorisiert' }, { status: 401 })

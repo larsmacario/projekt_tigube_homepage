@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { BookingCalendar } from '@/components/booking-calendar'
 import { useToast } from '@/hooks/use-toast'
 import type { BookingRequest, Pet, ServiceType } from '@/lib/types'
+import { authenticatedFetch } from '@/lib/authenticated-fetch'
 import { Calendar } from '@/components/ui/calendar'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { CalendarIcon } from 'lucide-react'
@@ -42,8 +43,8 @@ export default function BookingsPage() {
   async function loadData() {
     try {
       const [bookingsRes, petsRes] = await Promise.all([
-        fetch('/api/portal/bookings'),
-        fetch('/api/portal/pets'),
+        authenticatedFetch('/api/portal/bookings'),
+        authenticatedFetch('/api/portal/pets'),
       ])
 
       const [bookingsData, petsData] = await Promise.all([
@@ -85,7 +86,7 @@ export default function BookingsPage() {
     }
 
     try {
-      const response = await fetch('/api/portal/bookings', {
+      const response = await authenticatedFetch('/api/portal/bookings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

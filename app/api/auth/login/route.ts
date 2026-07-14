@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { setAuthCookies } from '@/lib/auth-cookies'
 
 export async function POST(request: NextRequest) {
   try {
@@ -79,22 +80,7 @@ export async function POST(request: NextRequest) {
           warning: 'User wurde automatisch erstellt, bitte Seite neu laden',
         })
 
-        // Setze Session-Cookies auch für Fallback
-        fallbackResponse.cookies.set('sb-access-token', authData.session.access_token, {
-          httpOnly: true,
-          secure: process.env.NODE_ENV === 'production',
-          sameSite: 'lax',
-          maxAge: authData.session.expires_in || 3600,
-          path: '/',
-        })
-
-        fallbackResponse.cookies.set('sb-refresh-token', authData.session.refresh_token, {
-          httpOnly: true,
-          secure: process.env.NODE_ENV === 'production',
-          sameSite: 'lax',
-          maxAge: 60 * 60 * 24 * 7, // 7 Tage
-          path: '/',
-        })
+        setAuthCookies(fallbackResponse, authData.session)
 
         return fallbackResponse
       }
@@ -106,22 +92,7 @@ export async function POST(request: NextRequest) {
         session: authData.session,
       })
 
-      // Setze Session-Cookies für den Browser
-      response.cookies.set('sb-access-token', authData.session.access_token, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax',
-        maxAge: authData.session.expires_in || 3600,
-        path: '/',
-      })
-
-      response.cookies.set('sb-refresh-token', authData.session.refresh_token, {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'lax',
-        maxAge: 60 * 60 * 24 * 7, // 7 Tage
-        path: '/',
-      })
+      setAuthCookies(response, authData.session)
 
       return response
     }
@@ -133,22 +104,7 @@ export async function POST(request: NextRequest) {
       session: authData.session,
     })
 
-    // Setze Session-Cookies für den Browser
-    response.cookies.set('sb-access-token', authData.session.access_token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      maxAge: authData.session.expires_in || 3600,
-      path: '/',
-    })
-
-    response.cookies.set('sb-refresh-token', authData.session.refresh_token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      maxAge: 60 * 60 * 24 * 7, // 7 Tage
-      path: '/',
-    })
+    setAuthCookies(response, authData.session)
 
     return response
   } catch (error: any) {

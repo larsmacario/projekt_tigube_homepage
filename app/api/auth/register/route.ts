@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { setAuthCookies } from '@/lib/auth-cookies'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
@@ -90,22 +91,7 @@ export async function POST(request: NextRequest) {
 
     const response = NextResponse.json({ success: true, session: signInData.session })
 
-    // Setze Session-Cookies für den Browser, damit API-Routen autorisiert sind
-    response.cookies.set('sb-access-token', signInData.session.access_token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      maxAge: signInData.session.expires_in || 3600,
-      path: '/',
-    })
-
-    response.cookies.set('sb-refresh-token', signInData.session.refresh_token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      maxAge: 60 * 60 * 24 * 7, // 7 Tage
-      path: '/',
-    })
+    setAuthCookies(response, signInData.session)
 
     return response
   } catch (error: any) {

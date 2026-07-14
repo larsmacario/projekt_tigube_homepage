@@ -1,6 +1,7 @@
 'use client'
 
 import { AuthGuard } from '@/components/auth/auth-guard'
+import { AuthSessionProvider } from '@/components/auth/auth-session-provider'
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { getCurrentUser, signOut } from '@/lib/auth'
@@ -38,7 +39,8 @@ export default function AdminLayout({
   }
 
   return (
-    <AuthGuard requiredRole="admin">
+    <AuthSessionProvider>
+      <AuthGuard requiredRole="admin">
       <div className="min-h-screen bg-sage-50">
         <nav className="bg-white border-b border-sage-200">
           <div className="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8">
@@ -129,7 +131,8 @@ export default function AdminLayout({
           {children}
         </main>
       </div>
-    </AuthGuard>
+      </AuthGuard>
+    </AuthSessionProvider>
   )
 }
 

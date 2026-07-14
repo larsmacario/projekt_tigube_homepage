@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import type { NewsletterCampaign } from '@/lib/types'
 import { ArrowLeft } from 'lucide-react'
+import { authenticatedFetch } from '@/lib/authenticated-fetch'
 
 const statusLabels: Record<string, string> = {
   draft: 'Entwurf',
@@ -22,7 +23,7 @@ export default function NewsletterHistoryPage() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    fetch('/api/admin/newsletter/campaigns')
+    authenticatedFetch('/api/admin/newsletter/campaigns')
       .then((r) => r.json())
       .then((d) => setCampaigns(d.campaigns || []))
       .finally(() => setLoading(false))

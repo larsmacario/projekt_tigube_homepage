@@ -9,6 +9,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { CheckCircle2, Loader2, Mail, XCircle } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 import type { ContactEmail } from '@/lib/types'
+import { authenticatedFetch } from '@/lib/authenticated-fetch'
 
 type TransactionalEmailPanelProps = {
   contactId: string
@@ -43,7 +44,7 @@ export function TransactionalEmailPanel({
 
   const loadEmails = useCallback(async () => {
     try {
-      const response = await fetch(`/api/admin/contacts/${contactId}/emails`, {
+      const response = await authenticatedFetch(`/api/admin/contacts/${contactId}/emails`, {
         credentials: 'include',
       })
       const data = await response.json()
@@ -91,7 +92,7 @@ export function TransactionalEmailPanel({
 
     setSending(true)
     try {
-      const response = await fetch(`/api/admin/contacts/${contactId}/emails`, {
+      const response = await authenticatedFetch(`/api/admin/contacts/${contactId}/emails`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ subject, body }),

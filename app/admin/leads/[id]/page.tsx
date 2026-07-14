@@ -15,6 +15,7 @@ import { TransactionalEmailPanel } from '@/components/admin/transactional-email-
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
+import { authenticatedFetch } from '@/lib/authenticated-fetch'
 
 export default function LeadDetailPage() {
   const params = useParams()
@@ -42,7 +43,7 @@ export default function LeadDetailPage() {
 
   async function loadLead() {
     try {
-      const response = await fetch('/api/admin/leads', {
+      const response = await authenticatedFetch('/api/admin/leads', {
         credentials: 'include',
       })
       const data = await response.json()
@@ -75,7 +76,7 @@ export default function LeadDetailPage() {
 
   async function loadNotes() {
     try {
-      const response = await fetch(`/api/admin/leads/${leadId}/notes`, {
+      const response = await authenticatedFetch(`/api/admin/leads/${leadId}/notes`, {
         credentials: 'include',
       })
       const data = await response.json()
@@ -87,7 +88,7 @@ export default function LeadDetailPage() {
 
   async function updateLeadStatus(status: string) {
     try {
-      const response = await fetch('/api/admin/leads', {
+      const response = await authenticatedFetch('/api/admin/leads', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: leadId, status }),
@@ -123,7 +124,7 @@ export default function LeadDetailPage() {
     }
 
     try {
-      const response = await fetch(`/api/admin/leads/${leadId}/notes`, {
+      const response = await authenticatedFetch(`/api/admin/leads/${leadId}/notes`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ note: newNote }),
@@ -161,7 +162,7 @@ export default function LeadDetailPage() {
     if (!lead) return
 
     try {
-      const response = await fetch(`/api/admin/leads/${lead.id}/convert`, {
+      const response = await authenticatedFetch(`/api/admin/leads/${lead.id}/convert`, {
         method: 'POST',
         credentials: 'include',
       })
@@ -200,7 +201,7 @@ export default function LeadDetailPage() {
   async function markAsLost() {
     if (!lead) return
     try {
-      const response = await fetch('/api/admin/leads', {
+      const response = await authenticatedFetch('/api/admin/leads', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: leadId, contact_type: 'lost', status: null }),
@@ -223,7 +224,7 @@ export default function LeadDetailPage() {
 
     setIsDeleting(true)
     try {
-      const response = await fetch('/api/admin/leads', {
+      const response = await authenticatedFetch('/api/admin/leads', {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: lead.id }),
@@ -253,7 +254,7 @@ export default function LeadDetailPage() {
 
     setIsMerging(true)
     try {
-      const response = await fetch(`/api/admin/leads/${lead.id}/merge`, {
+      const response = await authenticatedFetch(`/api/admin/leads/${lead.id}/merge`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ sourceLeadId: selectedSourceLeadId }),

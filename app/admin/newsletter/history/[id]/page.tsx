@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import type { NewsletterCampaign, NewsletterSendLog } from '@/lib/types'
 import { ArrowLeft } from 'lucide-react'
+import { authenticatedFetch } from '@/lib/authenticated-fetch'
 
 export default function NewsletterCampaignDetailPage() {
   const params = useParams()
@@ -17,7 +18,7 @@ export default function NewsletterCampaignDetailPage() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    fetch(`/api/admin/newsletter/campaigns/${id}`)
+    authenticatedFetch(`/api/admin/newsletter/campaigns/${id}`)
       .then((r) => r.json())
       .then((d) => {
         setCampaign(d.campaign)

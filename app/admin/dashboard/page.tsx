@@ -2,9 +2,10 @@
 
 import { useEffect, useState } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import type { ContactRequest } from '@/lib/types'
+import type { Contact } from '@/lib/types'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
+import { authenticatedFetch } from '@/lib/authenticated-fetch'
 
 export default function AdminDashboard() {
   const [stats, setStats] = useState({
@@ -13,24 +14,24 @@ export default function AdminDashboard() {
     converted: 0,
     total: 0,
   })
-  const [recentLeads, setRecentLeads] = useState<ContactRequest[]>([])
+  const [recentLeads, setRecentLeads] = useState<Contact[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     async function loadData() {
       try {
         // Lade alle Leads für Statistiken
-        const allResponse = await fetch('/api/admin/leads', {
+        const allResponse = await authenticatedFetch('/api/admin/leads', {
           credentials: 'include',
         })
-        let allData: { leads?: ContactRequest[]; error?: string } = {}
+        let allData: { leads?: Contact[]; error?: string } = {}
         try {
           allData = await allResponse.json()
         } catch {
           console.error('Dashboard: Antwort ist kein gültiges JSON (/api/admin/leads)')
         }
 
-        const custResp = await fetch('/api/admin/customers', { credentials: 'include' })
+        const custResp = await authenticatedFetch('/api/admin/customers', { credentials: 'include' })
         let custData: { customers?: unknown[]; error?: string } = {}
         try {
           custData = await custResp.json()
@@ -46,7 +47,7 @@ export default function AdminDashboard() {
         }
 
         if (allData.leads) {
-          const allLeads = allData.leads as ContactRequest[]
+          const allLeads = allData.leads as Contact[]
           
           // Berechne Statistiken
           const newCount = allLeads.filter(l => l.status === 'new').length
@@ -60,10 +61,10 @@ export default function AdminDashboard() {
           })
         }
 
-        const newResponse = await fetch('/api/admin/leads?status=new', {
+        const newResponse = await authenticatedFetch('/api/admin/leads?status=new', {
           credentials: 'include',
         })
-        let newData: { leads?: ContactRequest[]; error?: string } = {}
+        let newData: { leads?: Contact[]; error?: string } = {}
         try {
           newData = await newResponse.json()
         } catch {
@@ -74,7 +75,7 @@ export default function AdminDashboard() {
         }
 
         if (newData.leads) {
-          const newLeads = newData.leads as ContactRequest[]
+          const newLeads = newData.leads as Contact[]
           // Zeige alle neuen Leads (oder die neuesten 10)
           setRecentLeads(newLeads.slice(0, 10))
         }

@@ -19,6 +19,7 @@ import { CalendarIcon, Trash2 } from 'lucide-react'
 import { format } from 'date-fns'
 import { de } from 'date-fns/locale'
 import type { BookingRequest, CapacitySetting, CapacityOverride } from '@/lib/types'
+import { authenticatedFetch } from '@/lib/authenticated-fetch'
 
 export default function AdminBookingsPage() {
   const [bookings, setBookings] = useState<BookingRequest[]>([])
@@ -46,9 +47,9 @@ export default function AdminBookingsPage() {
   async function loadData() {
     try {
       const [bookingsRes, capacityRes, overridesRes] = await Promise.all([
-        fetch('/api/admin/bookings'),
-        fetch('/api/admin/capacity'),
-        fetch('/api/admin/capacity/overrides'),
+        authenticatedFetch('/api/admin/bookings'),
+        authenticatedFetch('/api/admin/capacity'),
+        authenticatedFetch('/api/admin/capacity/overrides'),
       ])
 
       const [bookingsData, capacityData, overridesData] = await Promise.all([
@@ -131,7 +132,7 @@ export default function AdminBookingsPage() {
     if (!selectedBooking) return
 
     try {
-      const response = await fetch(`/api/admin/bookings/${selectedBooking.id}`, {
+      const response = await authenticatedFetch(`/api/admin/bookings/${selectedBooking.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -182,7 +183,7 @@ export default function AdminBookingsPage() {
         }
       })
 
-      const response = await fetch('/api/admin/capacity', {
+      const response = await authenticatedFetch('/api/admin/capacity', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ settings: settingsToSave }),
@@ -219,7 +220,7 @@ export default function AdminBookingsPage() {
     }
 
     try {
-      const response = await fetch('/api/admin/capacity/overrides', {
+      const response = await authenticatedFetch('/api/admin/capacity/overrides', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -260,7 +261,7 @@ export default function AdminBookingsPage() {
 
   async function handleDeleteOverride(id: string) {
     try {
-      const response = await fetch(`/api/admin/capacity/overrides/${id}`, {
+      const response = await authenticatedFetch(`/api/admin/capacity/overrides/${id}`, {
         method: 'DELETE',
       })
 

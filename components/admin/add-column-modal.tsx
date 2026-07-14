@@ -10,6 +10,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { useToast } from '@/hooks/use-toast'
 import { Plus, Trash2 } from 'lucide-react'
 import type { PropertyFieldType } from '@/lib/types'
+import { authenticatedFetch } from '@/lib/authenticated-fetch'
 
 interface AddColumnModalProps {
   open: boolean
@@ -93,7 +94,7 @@ export function AddColumnModal({ open, onOpenChange, entityType, onColumnAdded }
       // Generiere Name aus Label wenn nicht angegeben
       const name = formData.name.trim() || formData.label.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '')
 
-      const response = await fetch('/api/admin/properties', {
+      const response = await authenticatedFetch('/api/admin/properties', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

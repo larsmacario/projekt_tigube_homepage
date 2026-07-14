@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { getCurrentUser } from '@/lib/auth'
+import { supabase } from '@/lib/supabase'
 import type { User } from '@/lib/types'
 
 interface AuthGuardProps {
@@ -17,35 +18,60 @@ export function AuthGuard({ children, requiredRole, redirectTo = '/login' }: Aut
   const router = useRouter()
 
   useEffect(() => {
-    async function checkAuth() {
+    async function verifyUser() {
       try {
         const currentUser = await getCurrentUser()
-        
+
         if (!currentUser) {
           router.push(redirectTo)
-          return
+          return null
         }
 
         if (requiredRole && currentUser.role !== requiredRole) {
-          // Redirect basierend auf Rolle
           if (currentUser.role === 'admin') {
             router.push('/admin/dashboard')
           } else {
             router.push('/portal')
           }
-          return
+          return null
         }
 
-        setUser(currentUser)
+        return currentUser
       } catch (error) {
         console.error('Auth check error:', error)
         router.push(redirectTo)
-      } finally {
-        setLoading(false)
+        return null
       }
     }
 
+    async function checkAuth() {
+      const currentUser = await verifyUser()
+      if (currentUser) {
+        setUser(currentUser)
+      }
+      setLoading(false)
+    }
+
     checkAuth()
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        if (event === 'SIGNED_OUT' || !session) {
+          setUser(null)
+          router.push(redirectTo)
+          return
+        }
+
+        if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'USER_UPDATED') {
+          const currentUser = await verifyUser()
+          if (currentUser) {
+            setUser(currentUser)
+          }
+        }
+      }
+    )
+
+    return () => subscription.unsubscribe()
   }, [requiredRole, redirectTo, router])
 
   if (loading) {
@@ -69,5 +95,3 @@ export function AuthGuard({ children, requiredRole, redirectTo = '/login' }: Aut
 
   return <>{children}</>
 }
-
-

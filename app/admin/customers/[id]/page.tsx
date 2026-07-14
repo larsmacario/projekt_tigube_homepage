@@ -16,6 +16,7 @@ import { PropertyEditor } from '@/components/admin/property-editor'
 import { TransactionalEmailPanel } from '@/components/admin/transactional-email-panel'
 import { useToast } from '@/hooks/use-toast'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog'
+import { authenticatedFetch } from '@/lib/authenticated-fetch'
 
 interface Note {
   id: string
@@ -60,9 +61,9 @@ export default function CustomerDetailPage() {
   async function loadGroupsAndPrices() {
     try {
       const [groupsRes, defaultPricesRes, customerPricesRes] = await Promise.all([
-        fetch('/api/admin/customer-groups'),
-        fetch('/api/admin/prices'),
-        fetch(`/api/admin/customer-prices?customer_id=${customerId}`)
+        authenticatedFetch('/api/admin/customer-groups'),
+        authenticatedFetch('/api/admin/prices'),
+        authenticatedFetch(`/api/admin/customer-prices?customer_id=${customerId}`)
       ])
       
       const groupsData = await groupsRes.json()
@@ -88,7 +89,7 @@ export default function CustomerDetailPage() {
   async function handleGroupChange(value: string) {
     const groupId = value === 'none' ? null : value
     try {
-      const response = await fetch(`/api/admin/customers/${customerId}`, {
+      const response = await authenticatedFetch(`/api/admin/customers/${customerId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ customer_group_id: groupId }),
@@ -129,7 +130,7 @@ export default function CustomerDetailPage() {
           price,
         }))
 
-      const response = await fetch('/api/admin/customer-prices', {
+      const response = await authenticatedFetch('/api/admin/customer-prices', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -177,7 +178,7 @@ export default function CustomerDetailPage() {
 
   async function loadCustomer() {
     try {
-      const response = await fetch(`/api/admin/customers/${customerId}`, {
+      const response = await authenticatedFetch(`/api/admin/customers/${customerId}`, {
         credentials: 'include',
       })
       
@@ -223,7 +224,7 @@ export default function CustomerDetailPage() {
 
   async function loadNotes() {
     try {
-      const response = await fetch(`/api/admin/customers/${customerId}/notes`, {
+      const response = await authenticatedFetch(`/api/admin/customers/${customerId}/notes`, {
         credentials: 'include',
       })
       const data = await response.json()
@@ -238,7 +239,7 @@ export default function CustomerDetailPage() {
 
   async function loadBookings() {
     try {
-      const response = await fetch(`/api/admin/bookings?customer_id=${customerId}`, {
+      const response = await authenticatedFetch(`/api/admin/bookings?customer_id=${customerId}`, {
         credentials: 'include',
       })
       const data = await response.json()
@@ -255,7 +256,7 @@ export default function CustomerDetailPage() {
     if (!newNote.trim()) return
 
     try {
-      const response = await fetch(`/api/admin/customers/${customerId}/notes`, {
+      const response = await authenticatedFetch(`/api/admin/customers/${customerId}/notes`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ note: newNote }),
@@ -293,7 +294,7 @@ export default function CustomerDetailPage() {
 
     setIsDeleting(true)
     try {
-      const response = await fetch(`/api/admin/customers/${customer.id}`, {
+      const response = await authenticatedFetch(`/api/admin/customers/${customer.id}`, {
         method: 'DELETE',
         credentials: 'include',
       })

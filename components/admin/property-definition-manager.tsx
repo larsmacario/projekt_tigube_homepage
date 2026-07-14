@@ -13,6 +13,7 @@ import { useToast } from '@/hooks/use-toast'
 import { Plus, Trash2, Edit, GripVertical } from 'lucide-react'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog'
 import type { PropertyDefinition, PropertyFieldType } from '@/lib/types'
+import { authenticatedFetch } from '@/lib/authenticated-fetch'
 
 export function PropertyDefinitionManager() {
   const { toast } = useToast()
@@ -40,7 +41,7 @@ export function PropertyDefinitionManager() {
   async function loadDefinitions() {
     setLoading(true)
     try {
-      const response = await fetch('/api/admin/properties')
+      const response = await authenticatedFetch('/api/admin/properties')
       const data = await response.json()
       setDefinitions(data.definitions || [])
     } catch (error) {
@@ -115,7 +116,7 @@ export function PropertyDefinitionManager() {
       
       const method = editingId ? 'PUT' : 'POST'
 
-      const response = await fetch(url, {
+      const response = await authenticatedFetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData),
@@ -146,7 +147,7 @@ export function PropertyDefinitionManager() {
 
   async function deleteDefinition(id: string) {
     try {
-      const response = await fetch(`/api/admin/properties/${id}`, {
+      const response = await authenticatedFetch(`/api/admin/properties/${id}`, {
         method: 'DELETE',
       })
 

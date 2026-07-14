@@ -7,7 +7,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Badge } from '@/components/ui/badge'
 import Link from 'next/link'
 import type { Customer, Pet, Document, BookingRequest } from '@/lib/types'
-import { supabase } from '@/lib/supabase'
+import { authenticatedFetch } from '@/lib/authenticated-fetch'
 
 export default function PortalPage() {
   const [customer, setCustomer] = useState<Customer | null>(null)
@@ -15,19 +15,6 @@ export default function PortalPage() {
   const [documents, setDocuments] = useState<Document[]>([])
   const [bookings, setBookings] = useState<BookingRequest[]>([])
   const [loading, setLoading] = useState(true)
-
-  const authenticatedFetch = async (url: string, options: RequestInit = {}) => {
-    const { data: { session } } = await supabase.auth.getSession()
-    const token = session?.access_token
-    
-    return fetch(url, {
-      ...options,
-      headers: {
-        ...options.headers,
-        ...(token ? { 'Authorization': `Bearer ${token}` } : {})
-      }
-    })
-  }
 
   useEffect(() => {
     loadData()

@@ -8,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
 import { useToast } from '@/hooks/use-toast'
 import type { Document, Pet } from '@/lib/types'
-import { supabase } from '@/lib/supabase'
+import { authenticatedFetch } from '@/lib/authenticated-fetch'
 
 export default function DocumentsPage() {
   const [documents, setDocuments] = useState<Document[]>([])
@@ -23,19 +23,6 @@ export default function DocumentsPage() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [documentToDelete, setDocumentToDelete] = useState<Document | null>(null)
   const { toast } = useToast()
-
-  const authenticatedFetch = async (url: string, options: RequestInit = {}) => {
-    const { data: { session } } = await supabase.auth.getSession()
-    const token = session?.access_token
-    
-    return fetch(url, {
-      ...options,
-      headers: {
-        ...options.headers,
-        ...(token ? { 'Authorization': `Bearer ${token}` } : {})
-      }
-    })
-  }
 
   useEffect(() => {
     loadDocuments()

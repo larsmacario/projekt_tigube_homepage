@@ -16,6 +16,7 @@ import { de } from 'date-fns/locale'
 import { CalendarIcon } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { PropertyDefinition, PropertyValue } from '@/lib/types'
+import { authenticatedFetch } from '@/lib/authenticated-fetch'
 
 interface PropertyEditorProps {
   entityType: 'lead' | 'customer'
@@ -37,12 +38,12 @@ export function PropertyEditor({ entityType, entityId }: PropertyEditorProps) {
     setLoading(true)
     try {
       // Lade Definitions für diesen Entity-Typ
-      const defResponse = await fetch(`/api/admin/properties?applies_to=${entityType}`)
+      const defResponse = await authenticatedFetch(`/api/admin/properties?applies_to=${entityType}`)
       const defData = await defResponse.json()
       setDefinitions(defData.definitions || [])
 
       // Lade Values
-      const valResponse = await fetch(`/api/admin/properties/values?entity_type=${entityType}&entity_id=${entityId}`)
+      const valResponse = await authenticatedFetch(`/api/admin/properties/values?entity_type=${entityType}&entity_id=${entityId}`)
       const valData = await valResponse.json()
       
       // Konvertiere zu Record für einfachen Zugriff
@@ -66,7 +67,7 @@ export function PropertyEditor({ entityType, entityId }: PropertyEditorProps) {
   async function saveValue(definitionId: string, value: any) {
     setSaving(prev => ({ ...prev, [definitionId]: true }))
     try {
-      const response = await fetch('/api/admin/properties/values', {
+      const response = await authenticatedFetch('/api/admin/properties/values', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

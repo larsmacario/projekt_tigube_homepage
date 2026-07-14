@@ -1,6 +1,7 @@
 'use client'
 
 import { AuthGuard } from '@/components/auth/auth-guard'
+import { AuthSessionProvider } from '@/components/auth/auth-session-provider'
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { getCurrentUser, signOut } from '@/lib/auth'
@@ -39,7 +40,8 @@ export default function PortalLayout({
   }
 
   return (
-    <AuthGuard requiredRole="customer">
+    <AuthSessionProvider>
+      <AuthGuard requiredRole="customer">
       <div className="min-h-screen bg-sage-50">
         <NewsBar />
         <nav className="bg-white border-b border-sage-200">
@@ -107,7 +109,8 @@ export default function PortalLayout({
           {children}
         </main>
       </div>
-    </AuthGuard>
+      </AuthGuard>
+    </AuthSessionProvider>
   )
 }
 

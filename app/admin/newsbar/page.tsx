@@ -9,6 +9,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Switch } from '@/components/ui/switch'
 import { Trash2, Plus } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
+import { authenticatedFetch } from '@/lib/authenticated-fetch'
 
 interface VacationDate {
   id?: string
@@ -39,7 +40,7 @@ export default function NewsBarPage() {
 
   async function loadData() {
     try {
-      const response = await fetch('/api/admin/newsbar')
+      const response = await authenticatedFetch('/api/admin/newsbar')
       const data = await response.json()
       
       if (data.settings) {
@@ -60,7 +61,7 @@ export default function NewsBarPage() {
 
     setSaving(true)
     try {
-      const response = await fetch('/api/admin/newsbar', {
+      const response = await authenticatedFetch('/api/admin/newsbar', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ settings, vacationDates }),

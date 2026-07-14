@@ -8,6 +8,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog'
+import { authenticatedFetch } from '@/lib/authenticated-fetch'
 import { Button } from '@/components/ui/button'
 import { LayoutTemplate } from 'lucide-react'
 import type { NewsletterTemplate } from '@/lib/types'
@@ -22,7 +23,7 @@ export function TemplateModal({ onSelect }: TemplateModalProps) {
 
   useEffect(() => {
     if (!open) return
-    fetch('/api/admin/newsletter/templates')
+    authenticatedFetch('/api/admin/newsletter/templates')
       .then((res) => res.json())
       .then((data) => setTemplates(data.templates || []))
   }, [open])

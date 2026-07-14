@@ -11,7 +11,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { useToast } from '@/hooks/use-toast'
 import { Plus, Trash2 } from 'lucide-react'
 import type { Pet, Document } from '@/lib/types'
-import { supabase } from '@/lib/supabase'
+import { authenticatedFetch } from '@/lib/authenticated-fetch'
 
 export default function PetsPage() {
   const [pets, setPets] = useState<Pet[]>([])
@@ -37,19 +37,6 @@ export default function PetsPage() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [petToDelete, setPetToDelete] = useState<Pet | null>(null)
   const { toast } = useToast()
-
-  const authenticatedFetch = async (url: string, options: RequestInit = {}) => {
-    const { data: { session } } = await supabase.auth.getSession()
-    const token = session?.access_token
-    
-    return fetch(url, {
-      ...options,
-      headers: {
-        ...options.headers,
-        ...(token ? { 'Authorization': `Bearer ${token}` } : {})
-      }
-    })
-  }
 
   useEffect(() => {
     loadPets()

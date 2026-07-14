@@ -1,4 +1,5 @@
--- Normalize legal CMS content for TipTap editor (semantic HTML)
+-- Seed legal CMS content (idempotent, TipTap-kompatibles semantisches HTML)
+-- Ersetzt die frühere seed_legal + normalize_legal Doppel-Migration.
 
 UPDATE cms_content
 SET data = jsonb_set(data, '{content}', to_jsonb($impressum_html$<h2>Unternehmensinformationen</h2>

@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { authenticatedFetch } from '@/lib/authenticated-fetch'
 
 interface Price {
   id: string
@@ -37,7 +38,7 @@ export default function PricesPage() {
 
   async function loadPrices() {
     try {
-      const response = await fetch('/api/prices')
+      const response = await authenticatedFetch('/api/prices')
       const data = await response.json()
       setPrices(data.prices || [])
       setCategories(data.categories || [])

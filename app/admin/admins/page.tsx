@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { useToast } from '@/hooks/use-toast'
 import { getCurrentUser } from '@/lib/auth'
 import { Trash2, Edit2, UserPlus, Mail, ShieldAlert, Loader2 } from 'lucide-react'
+import { authenticatedFetch } from '@/lib/authenticated-fetch'
 
 interface AdminUser {
   id: string
@@ -71,7 +72,7 @@ export default function AdminsManagementPage() {
 
   async function loadAdmins() {
     try {
-      const res = await fetch('/api/admin/users')
+      const res = await authenticatedFetch('/api/admin/users')
       const data = await res.json()
       if (res.ok) {
         setAdmins(data.users || [])
@@ -89,7 +90,7 @@ export default function AdminsManagementPage() {
 
   async function loadInvites() {
     try {
-      const res = await fetch('/api/admin/invites')
+      const res = await authenticatedFetch('/api/admin/invites')
       const data = await res.json()
       if (res.ok) {
         setInvites(data.invites || [])
@@ -112,7 +113,7 @@ export default function AdminsManagementPage() {
 
     setInviteSubmitting(true)
     try {
-      const res = await fetch('/api/admin/invites', {
+      const res = await authenticatedFetch('/api/admin/invites', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(inviteForm),
@@ -156,7 +157,7 @@ export default function AdminsManagementPage() {
 
     setEditSubmitting(true)
     try {
-      const res = await fetch(`/api/admin/users/${editingAdmin.id}`, {
+      const res = await authenticatedFetch(`/api/admin/users/${editingAdmin.id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(editForm),
@@ -201,7 +202,7 @@ export default function AdminsManagementPage() {
     setDeleteSubmitting(true)
     try {
       if (deletingUser) {
-        const res = await fetch(`/api/admin/users/${deletingUser.id}`, {
+        const res = await authenticatedFetch(`/api/admin/users/${deletingUser.id}`, {
           method: 'DELETE',
         })
         const data = await res.json()
@@ -213,7 +214,7 @@ export default function AdminsManagementPage() {
         })
         await loadAdmins()
       } else if (deletingInvite) {
-        const res = await fetch(`/api/admin/invites/${deletingInvite.id}`, {
+        const res = await authenticatedFetch(`/api/admin/invites/${deletingInvite.id}`, {
           method: 'DELETE',
         })
         const data = await res.json()

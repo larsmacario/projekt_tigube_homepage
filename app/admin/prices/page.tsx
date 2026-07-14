@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useToast } from '@/hooks/use-toast'
 import { Plus, Trash2 } from 'lucide-react'
+import { authenticatedFetch } from '@/lib/authenticated-fetch'
 
 interface Price {
   id: string
@@ -93,8 +94,8 @@ export default function PricesPage() {
     setLoading(true)
     try {
       const [pricesRes, groupsRes] = await Promise.all([
-        fetch('/api/admin/prices'),
-        fetch('/api/admin/customer-groups'),
+        authenticatedFetch('/api/admin/prices'),
+        authenticatedFetch('/api/admin/customer-groups'),
       ])
       
       const pricesData = await pricesRes.json()
@@ -122,7 +123,7 @@ export default function PricesPage() {
 
   async function loadGroupPrices(groupId: string) {
     try {
-      const response = await fetch(`/api/admin/group-prices?group_id=${groupId}`)
+      const response = await authenticatedFetch(`/api/admin/group-prices?group_id=${groupId}`)
       const data = await response.json()
       
       const overridesMap: Record<string, number> = {}
@@ -140,7 +141,7 @@ export default function PricesPage() {
   async function handleSaveDefaultPrices() {
     setSaving(true)
     try {
-      const response = await fetch('/api/admin/prices', {
+      const response = await authenticatedFetch('/api/admin/prices', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ prices }),
@@ -175,7 +176,7 @@ export default function PricesPage() {
     if (!newGroupName.trim()) return
     setCreatingGroup(true)
     try {
-      const response = await fetch('/api/admin/customer-groups', {
+      const response = await authenticatedFetch('/api/admin/customer-groups', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: newGroupName, description: newGroupDesc }),
@@ -210,7 +211,7 @@ export default function PricesPage() {
   async function handleDeleteGroup(id: string) {
     if (!confirm('Möchtest du diese Kundengruppe wirklich löschen? Alle Verknüpfungen und Gruppenpreise gehen verloren.')) return
     try {
-      const response = await fetch(`/api/admin/customer-groups/${id}`, {
+      const response = await authenticatedFetch(`/api/admin/customer-groups/${id}`, {
         method: 'DELETE',
       })
 
@@ -248,7 +249,7 @@ export default function PricesPage() {
           price,
         }))
 
-      const response = await fetch('/api/admin/group-prices', {
+      const response = await authenticatedFetch('/api/admin/group-prices', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -286,7 +287,7 @@ export default function PricesPage() {
     if (!newCatName.trim()) return
     setCreatingCategory(true)
     try {
-      const response = await fetch('/api/admin/price-categories', {
+      const response = await authenticatedFetch('/api/admin/price-categories', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -327,7 +328,7 @@ export default function PricesPage() {
     try {
       const updates = await Promise.all(
         categories.map(c => 
-          fetch(`/api/admin/price-categories/${c.id}`, {
+          authenticatedFetch(`/api/admin/price-categories/${c.id}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(c)
@@ -361,7 +362,7 @@ export default function PricesPage() {
   async function handleDeleteCategory(id: string) {
     if (!confirm('Möchtest du diese Kategorie wirklich löschen? Alle zugeordneten Preise werden ebenfalls gelöscht.')) return
     try {
-      const response = await fetch(`/api/admin/price-categories/${id}`, {
+      const response = await authenticatedFetch(`/api/admin/price-categories/${id}`, {
         method: 'DELETE'
       })
 
@@ -399,7 +400,7 @@ export default function PricesPage() {
   async function handleCreatePrice(categoryId: string) {
     if (!newPriceName.trim()) return
     try {
-      const response = await fetch('/api/admin/prices', {
+      const response = await authenticatedFetch('/api/admin/prices', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -439,7 +440,7 @@ export default function PricesPage() {
   async function handleDeletePrice(id: string) {
     if (!confirm('Möchtest du diesen Preis wirklich löschen?')) return
     try {
-      const response = await fetch(`/api/admin/prices/${id}`, {
+      const response = await authenticatedFetch(`/api/admin/prices/${id}`, {
         method: 'DELETE'
       })
 

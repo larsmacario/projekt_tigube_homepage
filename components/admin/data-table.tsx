@@ -58,7 +58,7 @@ export function DataTable({
 
   function handleCellClick(rowId: string | number, columnId: string) {
     const column = columns.find(c => c.id === columnId)
-    if (!column || column.fieldType === 'id' || column.fieldType === 'timestamp') return
+    if (!column || column.fieldType === 'id' || column.fieldType === 'timestamp' || column.readOnly) return
 
     const row = data.find(r => String(r.id) === String(rowId))
     if (!row) return
@@ -164,6 +164,17 @@ export function DataTable({
             value === 'declined' && 'bg-red-100 text-red-800'
           )}>
             {value}
+          </span>
+        )
+      case 'email_status':
+        if (!value) return <span className="text-sage-400">-</span>
+        return (
+          <span className={cn(
+            'px-2 py-1 rounded text-xs',
+            value === 'sent' && 'bg-green-100 text-green-800',
+            value === 'failed' && 'bg-red-100 text-red-800'
+          )}>
+            {value === 'sent' ? 'Gesendet' : value === 'failed' ? 'Fehlgeschlagen' : value}
           </span>
         )
       default:
@@ -353,11 +364,12 @@ export function DataTable({
                              cn(ID_COL_TABLE_CLASS),
                            column.fieldType !== 'id' &&
                              column.fieldType !== 'timestamp' &&
+                             !column.readOnly &&
                              'cursor-pointer hover:bg-sage-100'
                          )}
                          onClick={() => {
                            if (column.fieldType === 'id') return
-                           if (column.fieldType !== 'timestamp') {
+                           if (column.fieldType !== 'timestamp' && !column.readOnly) {
                              handleCellClick(row.id, column.id)
                            }
                          }}

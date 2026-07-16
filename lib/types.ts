@@ -209,6 +209,33 @@ export interface PropertyValue {
   property_definition?: PropertyDefinition
 }
 
+export type TableViewEntityType = 'lead' | 'customer'
+export type TableViewScope = 'personal' | 'global'
+
+export interface TableViewColumnConfig {
+  id: string
+  visible: boolean
+  order: number
+  width?: number
+}
+
+export interface TableViewConfig {
+  columns: TableViewColumnConfig[]
+}
+
+export interface AdminTableView {
+  id: string
+  name: string
+  entity_type: TableViewEntityType
+  scope: TableViewScope
+  user_id: string | null
+  created_by: string
+  config: TableViewConfig
+  is_default: boolean
+  created_at: string
+  updated_at: string
+}
+
 // Booking Types
 export type ServiceType = 'hundepension' | 'katzenbetreuung' | 'tagesbetreuung'
 export type BookingStatus = 'pending' | 'approved' | 'rejected'

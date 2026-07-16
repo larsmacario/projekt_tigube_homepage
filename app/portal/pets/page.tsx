@@ -148,7 +148,7 @@ export default function PetsPage() {
     if (!petFormData.letzte_stuhlprobe) {
       toast({
         title: 'Fehler',
-        description: 'Das Datum der letzten Stuhlprobe ist erforderlich.',
+        description: 'Das Datum der letzten Entwurmung/Stuhlprobe ist erforderlich.',
         variant: 'destructive',
       })
       return
@@ -157,7 +157,7 @@ export default function PetsPage() {
     if (petFormData.letzte_stuhlprobe > today) {
       toast({
         title: 'Fehler',
-        description: 'Das Datum der letzten Stuhlprobe darf nicht in der Zukunft liegen.',
+        description: 'Das Datum der letzten Entwurmung/Stuhlprobe darf nicht in der Zukunft liegen.',
         variant: 'destructive',
       })
       return
@@ -542,7 +542,7 @@ export default function PetsPage() {
                       )}
                     </div>
                     <div>
-                      <Label htmlFor="pet-stuhlprobe">Datum der letzten Stuhlprobe *</Label>
+                      <Label htmlFor="pet-stuhlprobe">Datum der letzten Entwurmung/Stuhlprobe *</Label>
                       <Input
                         id="pet-stuhlprobe"
                         type="date"
@@ -633,7 +633,7 @@ export default function PetsPage() {
                     <div className="border-t pt-3 mt-3 space-y-2 text-sm">
                       {pet.letzte_stuhlprobe && (
                         <div>
-                          <p className="text-xs font-semibold text-sage-600">Letzte Stuhlprobe:</p>
+                          <p className="text-xs font-semibold text-sage-600">Letzte Entwurmung/Stuhlprobe:</p>
                           <p className="text-sm text-sage-700">
                             {new Date(pet.letzte_stuhlprobe).toLocaleDateString('de-DE')}
                           </p>

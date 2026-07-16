@@ -6,16 +6,64 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
-import { ArrowLeft, Trash2, GitMerge } from 'lucide-react'
+import { Input } from '@/components/ui/input'
+import { Checkbox } from '@/components/ui/checkbox'
+import { ArrowLeft, Trash2, GitMerge, Pencil, X, Check } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 import Link from 'next/link'
 import type { Contact, ContactNote } from '@/lib/types'
 import { PropertyEditor } from '@/components/admin/property-editor'
+import { NotesEditor } from '@/components/admin/notes-editor'
 import { TransactionalEmailPanel } from '@/components/admin/transactional-email-panel'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
-import { Input } from '@/components/ui/input'
 import { authenticatedFetch } from '@/lib/authenticated-fetch'
+
+type LeadFormData = {
+  vorname: string
+  nachname: string
+  email: string
+  telefonnummer: string
+  telefon_2: string
+  notfall_kontakt_name: string
+  notfallnummer: string
+  service: string
+  pet: string
+  message: string
+  availability: string
+  anzahl_tiere: string
+  tiernamen: string
+  schulferien_bw: boolean
+  konkreter_urlaub: string
+  urlaub_von: string
+  urlaub_bis: string
+  intakt_kastriert: string
+  alter_tier: string
+}
+
+function leadToFormData(lead: Contact): LeadFormData {
+  return {
+    vorname: lead.vorname || '',
+    nachname: lead.nachname || '',
+    email: lead.email || '',
+    telefonnummer: lead.telefonnummer || '',
+    telefon_2: lead.telefon_2 || '',
+    notfall_kontakt_name: lead.notfall_kontakt_name || '',
+    notfallnummer: lead.notfallnummer || '',
+    service: lead.service || '',
+    pet: lead.pet || '',
+    message: lead.message || '',
+    availability: lead.availability || '',
+    anzahl_tiere: lead.anzahl_tiere || '',
+    tiernamen: lead.tiernamen || '',
+    schulferien_bw: lead.schulferien_bw || false,
+    konkreter_urlaub: lead.konkreter_urlaub || '',
+    urlaub_von: lead.urlaub_von ? lead.urlaub_von.split('T')[0] : '',
+    urlaub_bis: lead.urlaub_bis ? lead.urlaub_bis.split('T')[0] : '',
+    intakt_kastriert: lead.intakt_kastriert || '',
+    alter_tier: lead.alter_tier || '',
+  }
+}
 
 export default function LeadDetailPage() {
   const params = useParams()
@@ -26,13 +74,15 @@ export default function LeadDetailPage() {
   const [lead, setLead] = useState<Contact | null>(null)
   const [notes, setNotes] = useState<ContactNote[]>([])
   const [loading, setLoading] = useState(true)
-  const [newNote, setNewNote] = useState('')
   const [isDeleting, setIsDeleting] = useState(false)
   const [allLeads, setAllLeads] = useState<Contact[]>([])
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedSourceLeadId, setSelectedSourceLeadId] = useState<string | null>(null)
   const [isMergeDialogOpen, setIsMergeDialogOpen] = useState(false)
   const [isMerging, setIsMerging] = useState(false)
+  const [isEditing, setIsEditing] = useState(false)
+  const [formData, setFormData] = useState<LeadFormData | null>(null)
+  const [savingContact, setSavingContact] = useState(false)
 
   useEffect(() => {
     if (leadId) {
@@ -53,6 +103,7 @@ export default function LeadDetailPage() {
         const foundLead = data.leads.find((l: Contact) => String(l.id) === String(leadId))
         if (foundLead) {
           setLead(foundLead)
+          setFormData(leadToFormData(foundLead))
         } else {
           toast({
             title: 'Fehler',
@@ -113,50 +164,46 @@ export default function LeadDetailPage() {
     }
   }
 
-  async function addNote() {
-    if (!newNote.trim()) {
-      toast({
-        title: 'Hinweis',
-        description: 'Bitte geben Sie eine Notiz ein',
-        variant: 'destructive',
-      })
-      return
-    }
+  async function saveContactDetails() {
+    if (!lead || !formData) return
 
+    setSavingContact(true)
     try {
-      const response = await authenticatedFetch(`/api/admin/leads/${leadId}/notes`, {
-        method: 'POST',
+      const response = await authenticatedFetch('/api/admin/leads', {
+        method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ note: newNote }),
+        body: JSON.stringify({
+          id: leadId,
+          ...formData,
+          urlaub_von: formData.urlaub_von || null,
+          urlaub_bis: formData.urlaub_bis || null,
+        }),
         credentials: 'include',
       })
 
       if (response.ok) {
-        const data = await response.json()
-        setNotes([data.note, ...notes])
-        setNewNote('')
-        toast({
-          title: 'Erfolg',
-          description: 'Notiz hinzugefügt',
-        })
+        const updated = await response.json()
+        setLead(updated.lead)
+        setFormData(leadToFormData(updated.lead))
+        setIsEditing(false)
+        toast({ title: 'Erfolg', description: 'Kontaktdaten gespeichert' })
       } else {
         const error = await response.json()
-        toast({
-          title: 'Fehler',
-          description: error.error || 'Fehler beim Hinzufügen der Notiz',
-          variant: 'destructive',
-        })
+        toast({ title: 'Fehler', description: error.error || 'Fehler beim Speichern', variant: 'destructive' })
       }
-    } catch (error: any) {
-      console.error('Error adding note:', error)
-      toast({
-        title: 'Fehler',
-        description: error.message || 'Fehler beim Hinzufügen der Notiz',
-        variant: 'destructive',
-      })
+    } catch {
+      toast({ title: 'Fehler', description: 'Fehler beim Speichern', variant: 'destructive' })
+    } finally {
+      setSavingContact(false)
     }
   }
 
+  function cancelEdit() {
+    if (lead) {
+      setFormData(leadToFormData(lead))
+    }
+    setIsEditing(false)
+  }
 
   async function convertToCustomer() {
     if (!lead) return
@@ -336,85 +383,180 @@ export default function LeadDetailPage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Lead-Informationen */}
         <Card className="lg:col-span-2">
-          <CardHeader>
+          <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle>Kontaktinformationen</CardTitle>
+            {!isEditing ? (
+              <Button size="sm" variant="outline" onClick={() => setIsEditing(true)}>
+                <Pencil className="h-4 w-4 mr-1" />
+                Bearbeiten
+              </Button>
+            ) : (
+              <div className="flex gap-2">
+                <Button size="sm" onClick={saveContactDetails} disabled={savingContact}>
+                  <Check className="h-4 w-4 mr-1" />
+                  {savingContact ? 'Speichern…' : 'Speichern'}
+                </Button>
+                <Button size="sm" variant="outline" onClick={cancelEdit} disabled={savingContact}>
+                  <X className="h-4 w-4 mr-1" />
+                  Abbrechen
+                </Button>
+              </div>
+            )}
           </CardHeader>
           <CardContent className="space-y-4">
-            <div>
-              <Label>Name</Label>
-              <p className="text-sage-900 font-medium">{lead.vorname} {lead.nachname}</p>
-            </div>
-            <div>
-              <Label>E-Mail</Label>
-              <p className="text-sage-900">{lead.email}</p>
-            </div>
-            <div>
-              <Label>Telefon</Label>
-              <p className="text-sage-900">{lead.telefonnummer}</p>
-            </div>
-            <div>
-              <Label>Service</Label>
-              <p className="text-sage-900">{lead.service}</p>
-            </div>
-            {lead.pet && (
-              <div>
-                <Label>Tier</Label>
-                <p className="text-sage-900">{lead.pet}</p>
-              </div>
-            )}
-            <div>
-              <Label>Nachricht</Label>
-              <p className="text-sage-900 whitespace-pre-wrap">{lead.message}</p>
-            </div>
-            <div>
-              <Label>Verfügbarkeit</Label>
-              <p className="text-sage-900 whitespace-pre-wrap">{lead.availability}</p>
-            </div>
-
-            {/* Zusätzliche Felder für Urlaubsbetreuung */}
-            {lead.service === 'hundepension' && (
-              <div className="border-t pt-4 space-y-2">
-                <h3 className="font-semibold">Urlaubsbetreuung-Details</h3>
-                {lead.anzahl_tiere && (
+            {formData && isEditing ? (
+              <>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
-                    <Label>Anzahl Tiere</Label>
-                    <p className="text-sage-900">{lead.anzahl_tiere}</p>
+                    <Label>Vorname</Label>
+                    <Input value={formData.vorname} onChange={(e) => setFormData({ ...formData, vorname: e.target.value })} />
+                  </div>
+                  <div>
+                    <Label>Nachname</Label>
+                    <Input value={formData.nachname} onChange={(e) => setFormData({ ...formData, nachname: e.target.value })} />
+                  </div>
+                  <div>
+                    <Label>E-Mail</Label>
+                    <Input type="email" value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} />
+                  </div>
+                  <div>
+                    <Label>Telefon</Label>
+                    <Input value={formData.telefonnummer} onChange={(e) => setFormData({ ...formData, telefonnummer: e.target.value })} />
+                  </div>
+                  <div>
+                    <Label>2. Telefon</Label>
+                    <Input value={formData.telefon_2} onChange={(e) => setFormData({ ...formData, telefon_2: e.target.value })} />
+                  </div>
+                  <div>
+                    <Label>Service</Label>
+                    <Input value={formData.service} onChange={(e) => setFormData({ ...formData, service: e.target.value })} />
+                  </div>
+                  <div>
+                    <Label>Tier</Label>
+                    <Input value={formData.pet} onChange={(e) => setFormData({ ...formData, pet: e.target.value })} />
+                  </div>
+                </div>
+                <div>
+                  <Label>Nachricht</Label>
+                  <Textarea value={formData.message} onChange={(e) => setFormData({ ...formData, message: e.target.value })} rows={3} />
+                </div>
+                <div>
+                  <Label>Verfügbarkeit</Label>
+                  <Textarea value={formData.availability} onChange={(e) => setFormData({ ...formData, availability: e.target.value })} rows={2} />
+                </div>
+                <div className="border-t pt-4 space-y-4">
+                  <h3 className="font-semibold">Notfallkontakt</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <Label>Name</Label>
+                      <Input value={formData.notfall_kontakt_name} onChange={(e) => setFormData({ ...formData, notfall_kontakt_name: e.target.value })} />
+                    </div>
+                    <div>
+                      <Label>Nummer</Label>
+                      <Input value={formData.notfallnummer} onChange={(e) => setFormData({ ...formData, notfallnummer: e.target.value })} />
+                    </div>
+                  </div>
+                </div>
+                <div className="border-t pt-4 space-y-4">
+                  <h3 className="font-semibold">Urlaubsbetreuung-Details</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <Label>Anzahl Tiere</Label>
+                      <Input value={formData.anzahl_tiere} onChange={(e) => setFormData({ ...formData, anzahl_tiere: e.target.value })} />
+                    </div>
+                    <div>
+                      <Label>Tiernamen</Label>
+                      <Input value={formData.tiernamen} onChange={(e) => setFormData({ ...formData, tiernamen: e.target.value })} />
+                    </div>
+                    <div>
+                      <Label>Alter Tier</Label>
+                      <Input value={formData.alter_tier} onChange={(e) => setFormData({ ...formData, alter_tier: e.target.value })} />
+                    </div>
+                    <div>
+                      <Label>Intakt/Kastriert</Label>
+                      <Input value={formData.intakt_kastriert} onChange={(e) => setFormData({ ...formData, intakt_kastriert: e.target.value })} />
+                    </div>
+                    <div>
+                      <Label>Konkreter Urlaub</Label>
+                      <Input value={formData.konkreter_urlaub} onChange={(e) => setFormData({ ...formData, konkreter_urlaub: e.target.value })} />
+                    </div>
+                    <div className="flex items-center gap-2 pt-6">
+                      <Checkbox
+                        checked={formData.schulferien_bw}
+                        onCheckedChange={(checked) => setFormData({ ...formData, schulferien_bw: checked === true })}
+                      />
+                      <Label>Schulferien BW</Label>
+                    </div>
+                    <div>
+                      <Label>Urlaub von</Label>
+                      <Input type="date" value={formData.urlaub_von} onChange={(e) => setFormData({ ...formData, urlaub_von: e.target.value })} />
+                    </div>
+                    <div>
+                      <Label>Urlaub bis</Label>
+                      <Input type="date" value={formData.urlaub_bis} onChange={(e) => setFormData({ ...formData, urlaub_bis: e.target.value })} />
+                    </div>
+                  </div>
+                </div>
+              </>
+            ) : formData ? (
+              <>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <Label>Name</Label>
+                    <p className="text-sage-900 font-medium">{formData.vorname} {formData.nachname}</p>
+                  </div>
+                  <div>
+                    <Label>E-Mail</Label>
+                    <p className="text-sage-900">{formData.email}</p>
+                  </div>
+                  <div>
+                    <Label>Telefon</Label>
+                    <p className="text-sage-900">{formData.telefonnummer || '-'}</p>
+                  </div>
+                  <div>
+                    <Label>2. Telefon</Label>
+                    <p className="text-sage-900">{formData.telefon_2 || '-'}</p>
+                  </div>
+                  <div>
+                    <Label>Service</Label>
+                    <p className="text-sage-900">{formData.service}</p>
+                  </div>
+                  {formData.pet && (
+                    <div>
+                      <Label>Tier</Label>
+                      <p className="text-sage-900">{formData.pet}</p>
+                    </div>
+                  )}
+                </div>
+                <div>
+                  <Label>Nachricht</Label>
+                  <p className="text-sage-900 whitespace-pre-wrap">{formData.message}</p>
+                </div>
+                <div>
+                  <Label>Verfügbarkeit</Label>
+                  <p className="text-sage-900 whitespace-pre-wrap">{formData.availability}</p>
+                </div>
+                {(formData.notfall_kontakt_name || formData.notfallnummer) && (
+                  <div className="border-t pt-4 space-y-2">
+                    <h3 className="font-semibold">Notfallkontakt</h3>
+                    <p className="text-sage-900">{formData.notfall_kontakt_name || '-'} • {formData.notfallnummer || '-'}</p>
                   </div>
                 )}
-                {lead.tiernamen && (
-                  <div>
-                    <Label>Tiernamen</Label>
-                    <p className="text-sage-900">{lead.tiernamen}</p>
+                {(formData.anzahl_tiere || formData.tiernamen || formData.alter_tier || formData.urlaub_von) && (
+                  <div className="border-t pt-4 space-y-2">
+                    <h3 className="font-semibold">Urlaubsbetreuung-Details</h3>
+                    {formData.anzahl_tiere && <p><Label>Anzahl Tiere</Label><span className="text-sage-900 ml-2">{formData.anzahl_tiere}</span></p>}
+                    {formData.tiernamen && <p><Label>Tiernamen</Label><span className="text-sage-900 ml-2">{formData.tiernamen}</span></p>}
+                    {formData.alter_tier && <p><Label>Alter</Label><span className="text-sage-900 ml-2">{formData.alter_tier}</span></p>}
+                    {formData.intakt_kastriert && <p><Label>Intakt/Kastriert</Label><span className="text-sage-900 ml-2">{formData.intakt_kastriert}</span></p>}
+                    {formData.konkreter_urlaub && <p><Label>Konkreter Urlaub</Label><span className="text-sage-900 ml-2">{formData.konkreter_urlaub}</span></p>}
+                    {formData.urlaub_von && formData.urlaub_bis && (
+                      <p><Label>Urlaubszeitraum</Label><span className="text-sage-900 ml-2">{new Date(formData.urlaub_von).toLocaleDateString('de-DE')} - {new Date(formData.urlaub_bis).toLocaleDateString('de-DE')}</span></p>
+                    )}
                   </div>
                 )}
-                {lead.alter_tier && (
-                  <div>
-                    <Label>Alter</Label>
-                    <p className="text-sage-900">{lead.alter_tier}</p>
-                  </div>
-                )}
-                {lead.intakt_kastriert && (
-                  <div>
-                    <Label>Intakt/Kastriert</Label>
-                    <p className="text-sage-900">{lead.intakt_kastriert}</p>
-                  </div>
-                )}
-                {lead.konkreter_urlaub && (
-                  <div>
-                    <Label>Konkreter Urlaub geplant</Label>
-                    <p className="text-sage-900">{lead.konkreter_urlaub}</p>
-                  </div>
-                )}
-                {lead.urlaub_von && lead.urlaub_bis && (
-                  <div>
-                    <Label>Urlaubszeitraum</Label>
-                    <p className="text-sage-900">
-                      {new Date(lead.urlaub_von).toLocaleDateString('de-DE')} - {new Date(lead.urlaub_bis).toLocaleDateString('de-DE')}
-                    </p>
-                  </div>
-                )}
-              </div>
-            )}
+              </>
+            ) : null}
 
             <div>
               <Label>Erstellt am</Label>
@@ -478,33 +620,12 @@ export default function LeadDetailPage() {
             {/* Notizen */}
             <div>
               <Label>Notizen</Label>
-              <div className="mt-2 space-y-2">
-                {notes.length === 0 ? (
-                  <p className="text-sage-600 text-center py-4 text-sm">Keine Notizen vorhanden</p>
-                ) : (
-                  notes.map((note) => (
-                    <div key={note.id} className="p-3 bg-sage-50 rounded text-sm">
-                      <p className="whitespace-pre-wrap">{note.note}</p>
-                      <p className="text-xs text-sage-600 mt-1">
-                        {new Date(note.created_at).toLocaleString('de-DE')}
-                        {note.created_by && typeof note.created_by === 'object' && 'email' in note.created_by && (
-                          ` • ${note.created_by.email}`
-                        )}
-                      </p>
-                    </div>
-                  ))
-                )}
-                <div className="space-y-2">
-                  <Textarea
-                    placeholder="Neue Notiz hinzufügen..."
-                    value={newNote}
-                    onChange={(e) => setNewNote(e.target.value)}
-                    rows={3}
-                  />
-                  <Button onClick={addNote} size="sm" className="w-full">
-                    Notiz hinzufügen
-                  </Button>
-                </div>
+              <div className="mt-2">
+                <NotesEditor
+                  notesApiPath={`/api/admin/leads/${leadId}/notes`}
+                  notes={notes}
+                  onNotesChange={setNotes}
+                />
               </div>
             </div>
 

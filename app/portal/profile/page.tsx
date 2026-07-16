@@ -923,7 +923,7 @@ function ProfileContent() {
     if (!petFormData.letzte_stuhlprobe) {
       toast({
         title: 'Fehler',
-        description: 'Das Datum der letzten Stuhlprobe ist erforderlich.',
+        description: 'Das Datum der letzten Entwurmung/Stuhlprobe ist erforderlich.',
         variant: 'destructive',
       })
       return
@@ -932,7 +932,7 @@ function ProfileContent() {
     if (petFormData.letzte_stuhlprobe > today) {
       toast({
         title: 'Fehler',
-        description: 'Das Datum der letzten Stuhlprobe darf nicht in der Zukunft liegen.',
+        description: 'Das Datum der letzten Entwurmung/Stuhlprobe darf nicht in der Zukunft liegen.',
         variant: 'destructive',
       })
       return
@@ -1656,7 +1656,7 @@ function ProfileContent() {
                           )}
                         </div>
                         <div>
-                          <Label htmlFor="pet-stuhlprobe">Datum der letzten Stuhlprobe *</Label>
+                          <Label htmlFor="pet-stuhlprobe">Datum der letzten Entwurmung/Stuhlprobe *</Label>
                           <Input
                             id="pet-stuhlprobe"
                             type="date"
@@ -1747,7 +1747,7 @@ function ProfileContent() {
                         <div className="mt-3 pt-3 border-t border-sage-200 space-y-2">
                           {pet.letzte_stuhlprobe && (
                             <div>
-                              <p className="text-xs font-semibold text-sage-600">Letzte Stuhlprobe:</p>
+                              <p className="text-xs font-semibold text-sage-600">Letzte Entwurmung/Stuhlprobe:</p>
                               <p className="text-sm text-sage-700">
                                 {new Date(pet.letzte_stuhlprobe).toLocaleDateString('de-DE')}
                               </p>

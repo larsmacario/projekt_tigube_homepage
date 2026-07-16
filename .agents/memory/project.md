@@ -13,6 +13,7 @@ Website und Verwaltungsportal für einen Tierbetreuungsservice. Das CRM verwalte
 - App Router mit Client-Seiten im Admin-Bereich und Route Handlers unter `app/api`.
 - Integrierte Admin-Oberfläche unter `/admin/cms` zur Inhaltsverwaltung aller statischen, Unter- und Rechtsseiten.
 - Die Tabelle `contacts` enthält Leads und Kunden über `contact_type`; weitere CRM-Daten referenzieren diese ID.
+- Admin-Tabellenlayouts (Spalten-Views) liegen in `admin_table_views` als JSON-Config, Scope `personal` oder `global`.
 - Admin-Zugriffe werden in jeder API-Route über die Supabase-Rolle `admin` geprüft.
 
 ## Entscheidungen & Constraints

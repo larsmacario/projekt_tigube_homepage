@@ -9,22 +9,50 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { ArrowLeft, Trash2, ChevronDown, ChevronRight } from 'lucide-react'
+import { ArrowLeft, Trash2, ChevronDown, ChevronRight, Pencil, Check, X } from 'lucide-react'
 import Link from 'next/link'
-import type { Customer, Pet, Document, BookingRequest } from '@/lib/types'
+import type { Customer, Pet, Document, BookingRequest, ContactNote } from '@/lib/types'
 import { PropertyEditor } from '@/components/admin/property-editor'
+import { NotesEditor } from '@/components/admin/notes-editor'
+import { PetManager } from '@/components/admin/pet-manager'
+import { DocumentManager } from '@/components/admin/document-manager'
+import { INTERVALL_OPTIONS } from '@/lib/pet-form-options'
 import { TransactionalEmailPanel } from '@/components/admin/transactional-email-panel'
 import { useToast } from '@/hooks/use-toast'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog'
 import { authenticatedFetch } from '@/lib/authenticated-fetch'
 
-interface Note {
-  id: string
-  note: string
-  created_at: string
-  created_by?: {
-    email: string
-    role: string
+type CustomerFormData = {
+  vorname: string
+  nachname: string
+  email: string
+  telefonnummer: string
+  telefon_2: string
+  kundennummer: string
+  notfall_kontakt_name: string
+  notfallnummer: string
+  futtermenge: string
+  medikamente: string
+  besonderheiten: string
+  intervall_impfung: string
+  intervall_entwurmung: string
+}
+
+function customerToFormData(customer: Customer): CustomerFormData {
+  return {
+    vorname: customer.vorname || '',
+    nachname: customer.nachname || '',
+    email: customer.email || '',
+    telefonnummer: customer.telefonnummer || '',
+    telefon_2: customer.telefon_2 || '',
+    kundennummer: customer.kundennummer || '',
+    notfall_kontakt_name: customer.notfall_kontakt_name || '',
+    notfallnummer: customer.notfallnummer || '',
+    futtermenge: customer.futtermenge || '',
+    medikamente: customer.medikamente || '',
+    besonderheiten: customer.besonderheiten || '',
+    intervall_impfung: customer.intervall_impfung || '',
+    intervall_entwurmung: customer.intervall_entwurmung || '',
   }
 }
 
@@ -36,11 +64,13 @@ export default function CustomerDetailPage() {
 
   const [customer, setCustomer] = useState<(Customer & { pets?: Pet[], documents?: Document[] }) | null>(null)
   const [loading, setLoading] = useState(true)
-  const [notes, setNotes] = useState<Note[]>([])
-  const [newNote, setNewNote] = useState('')
+  const [notes, setNotes] = useState<ContactNote[]>([])
   const [onboardingToken, setOnboardingToken] = useState<{ token: string; url: string } | null>(null)
   const [bookings, setBookings] = useState<BookingRequest[]>([])
   const [isDeleting, setIsDeleting] = useState(false)
+  const [isEditing, setIsEditing] = useState(false)
+  const [formData, setFormData] = useState<CustomerFormData | null>(null)
+  const [savingContact, setSavingContact] = useState(false)
 
   const [groups, setGroups] = useState<any[]>([])
   const [defaultPrices, setDefaultPrices] = useState<any[]>([])
@@ -198,6 +228,7 @@ export default function CustomerDetailPage() {
 
       if (data.customer) {
         setCustomer(data.customer)
+        setFormData(customerToFormData(data.customer))
         if (data.onboardingToken) {
           setOnboardingToken(data.onboardingToken)
         }
@@ -252,41 +283,38 @@ export default function CustomerDetailPage() {
     }
   }
 
-  async function addNote() {
-    if (!newNote.trim()) return
+  async function saveContactDetails() {
+    if (!customer || !formData) return
 
+    setSavingContact(true)
     try {
-      const response = await authenticatedFetch(`/api/admin/customers/${customerId}/notes`, {
-        method: 'POST',
+      const response = await authenticatedFetch(`/api/admin/customers/${customerId}`, {
+        method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ note: newNote }),
+        body: JSON.stringify(formData),
         credentials: 'include',
       })
 
       if (response.ok) {
         const data = await response.json()
-        setNotes([data.note, ...notes])
-        setNewNote('')
-        toast({
-          title: 'Erfolg',
-          description: 'Notiz hinzugefügt',
-        })
+        setCustomer((prev) => prev ? { ...prev, ...data.customer } : data.customer)
+        setFormData(customerToFormData(data.customer))
+        setIsEditing(false)
+        toast({ title: 'Erfolg', description: 'Kontaktdaten gespeichert' })
       } else {
         const error = await response.json()
-        toast({
-          title: 'Fehler',
-          description: error.error || 'Fehler beim Hinzufügen der Notiz',
-          variant: 'destructive',
-        })
+        toast({ title: 'Fehler', description: error.error || 'Fehler beim Speichern', variant: 'destructive' })
       }
-    } catch (error) {
-      console.error('Error adding note:', error)
-      toast({
-        title: 'Fehler',
-        description: 'Fehler beim Hinzufügen der Notiz',
-        variant: 'destructive',
-      })
+    } catch {
+      toast({ title: 'Fehler', description: 'Fehler beim Speichern', variant: 'destructive' })
+    } finally {
+      setSavingContact(false)
     }
+  }
+
+  function cancelEdit() {
+    if (customer) setFormData(customerToFormData(customer))
+    setIsEditing(false)
   }
 
   async function deleteCustomer() {
@@ -338,18 +366,7 @@ export default function CustomerDetailPage() {
     )
   }
 
-  function getDocumentTypeLabel(type: string) {
-    switch (type) {
-      case 'vertrag':
-        return 'Vertrag'
-      case 'impfpass':
-        return 'Impfpass'
-      case 'wurmtest':
-        return 'Wurmtest'
-      default:
-        return type
-    }
-  }
+  const hasLegacyPetFields = !!(customer.futtermenge || customer.medikamente || customer.besonderheiten || customer.intervall_impfung || customer.intervall_entwurmung)
 
   return (
     <div className="space-y-6">
@@ -372,97 +389,193 @@ export default function CustomerDetailPage() {
         <div className="lg:col-span-2 space-y-6">
           {/* Persönliche Daten */}
           <Card>
-            <CardHeader>
+            <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle>Persönliche Daten</CardTitle>
+            {!isEditing ? (
+              <Button size="sm" variant="outline" onClick={() => setIsEditing(true)}>
+                <Pencil className="h-4 w-4 mr-1" />
+                Bearbeiten
+              </Button>
+            ) : (
+              <div className="flex gap-2">
+                <Button size="sm" onClick={saveContactDetails} disabled={savingContact}>
+                  <Check className="h-4 w-4 mr-1" />
+                  {savingContact ? 'Speichern…' : 'Speichern'}
+                </Button>
+                <Button size="sm" variant="outline" onClick={cancelEdit} disabled={savingContact}>
+                  <X className="h-4 w-4 mr-1" />
+                  Abbrechen
+                </Button>
+              </div>
+            )}
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <p className="text-sm text-sage-500">Kundennummer</p>
-                <p className="font-medium">{customer.kundennummer || '-'}</p>
-              </div>
-              <div>
-                <p className="text-sm text-sage-500">Kundengruppe</p>
-                <Select
-                  value={customer.customer_group_id || 'none'}
-                  onValueChange={handleGroupChange}
-                >
-                  <SelectTrigger className="mt-1 h-9 bg-white">
-                    <SelectValue placeholder="Keine Gruppe" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">Keine Gruppe</SelectItem>
-                    {groups.map((group) => (
-                      <SelectItem key={group.id} value={group.id}>
-                        {group.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <p className="text-sm text-sage-500">E-Mail</p>
-                <p className="font-medium">{customer.email}</p>
-              </div>
-              <div>
-                <p className="text-sm text-sage-500">Telefon</p>
-                <p className="font-medium">{customer.telefonnummer || '-'}</p>
-              </div>
-              <div>
-                <p className="text-sm text-sage-500">2. Telefon</p>
-                <p className="font-medium">{customer.telefon_2 || '-'}</p>
-              </div>
-            </div>
-
-            <div className="border-t pt-4">
-              <h3 className="font-semibold mb-3">Notfallkontakt</h3>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <p className="text-sm text-sage-500">Name</p>
-                  <p className="font-medium">{customer.notfall_kontakt_name || '-'}</p>
+            {formData && isEditing ? (
+              <>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label>Kundennummer</Label>
+                    <Input value={formData.kundennummer} onChange={(e) => setFormData({ ...formData, kundennummer: e.target.value })} />
+                  </div>
+                  <div>
+                    <Label>Kundengruppe</Label>
+                    <Select value={customer.customer_group_id || 'none'} onValueChange={handleGroupChange}>
+                      <SelectTrigger className="mt-1 h-9 bg-white">
+                        <SelectValue placeholder="Keine Gruppe" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">Keine Gruppe</SelectItem>
+                        {groups.map((group) => (
+                          <SelectItem key={group.id} value={group.id}>{group.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label>Vorname</Label>
+                    <Input value={formData.vorname} onChange={(e) => setFormData({ ...formData, vorname: e.target.value })} />
+                  </div>
+                  <div>
+                    <Label>Nachname</Label>
+                    <Input value={formData.nachname} onChange={(e) => setFormData({ ...formData, nachname: e.target.value })} />
+                  </div>
+                  <div>
+                    <Label>E-Mail</Label>
+                    <Input type="email" value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} />
+                  </div>
+                  <div>
+                    <Label>Telefon</Label>
+                    <Input value={formData.telefonnummer} onChange={(e) => setFormData({ ...formData, telefonnummer: e.target.value })} />
+                  </div>
+                  <div>
+                    <Label>2. Telefon</Label>
+                    <Input value={formData.telefon_2} onChange={(e) => setFormData({ ...formData, telefon_2: e.target.value })} />
+                  </div>
                 </div>
-                <div>
-                  <p className="text-sm text-sage-500">Nummer</p>
-                  <p className="font-medium">{customer.notfallnummer || '-'}</p>
+                <div className="border-t pt-4">
+                  <h3 className="font-semibold mb-3">Notfallkontakt</h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label>Name</Label>
+                      <Input value={formData.notfall_kontakt_name} onChange={(e) => setFormData({ ...formData, notfall_kontakt_name: e.target.value })} />
+                    </div>
+                    <div>
+                      <Label>Nummer</Label>
+                      <Input value={formData.notfallnummer} onChange={(e) => setFormData({ ...formData, notfallnummer: e.target.value })} />
+                    </div>
+                  </div>
                 </div>
-              </div>
-            </div>
-
-            <div className="border-t pt-4">
-              <h3 className="font-semibold mb-3">Tier-Informationen</h3>
-              {customer.futtermenge && (
-                <div className="mb-2">
-                  <p className="text-sm text-sage-500">Futtermenge</p>
-                  <p className="font-medium">{customer.futtermenge}</p>
+                {hasLegacyPetFields && (
+                  <div className="border-t pt-4 space-y-4">
+                    <h3 className="font-semibold">Legacy Tier-Informationen (Kontakt-Ebene)</h3>
+                    <div>
+                      <Label>Futtermenge</Label>
+                      <Textarea value={formData.futtermenge} onChange={(e) => setFormData({ ...formData, futtermenge: e.target.value })} rows={2} />
+                    </div>
+                    <div>
+                      <Label>Medikamente</Label>
+                      <Textarea value={formData.medikamente} onChange={(e) => setFormData({ ...formData, medikamente: e.target.value })} rows={2} />
+                    </div>
+                    <div>
+                      <Label>Besonderheiten</Label>
+                      <Textarea value={formData.besonderheiten} onChange={(e) => setFormData({ ...formData, besonderheiten: e.target.value })} rows={2} />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Label>Intervall Impfung</Label>
+                        <Select value={formData.intervall_impfung} onValueChange={(v) => setFormData({ ...formData, intervall_impfung: v })}>
+                          <SelectTrigger><SelectValue placeholder="Intervall wählen" /></SelectTrigger>
+                          <SelectContent>
+                            {INTERVALL_OPTIONS.map((opt) => (
+                              <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <Label>Intervall Entwurmung</Label>
+                        <Select value={formData.intervall_entwurmung} onValueChange={(v) => setFormData({ ...formData, intervall_entwurmung: v })}>
+                          <SelectTrigger><SelectValue placeholder="Intervall wählen" /></SelectTrigger>
+                          <SelectContent>
+                            {INTERVALL_OPTIONS.map((opt) => (
+                              <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </>
+            ) : formData ? (
+              <>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-sm text-sage-500">Kundennummer</p>
+                    <p className="font-medium">{formData.kundennummer || '-'}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-sage-500">Kundengruppe</p>
+                    <Select value={customer.customer_group_id || 'none'} onValueChange={handleGroupChange}>
+                      <SelectTrigger className="mt-1 h-9 bg-white">
+                        <SelectValue placeholder="Keine Gruppe" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">Keine Gruppe</SelectItem>
+                        {groups.map((group) => (
+                          <SelectItem key={group.id} value={group.id}>{group.name}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <p className="text-sm text-sage-500">Vorname</p>
+                    <p className="font-medium">{formData.vorname || '-'}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-sage-500">Nachname</p>
+                    <p className="font-medium">{formData.nachname || '-'}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-sage-500">E-Mail</p>
+                    <p className="font-medium">{formData.email}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-sage-500">Telefon</p>
+                    <p className="font-medium">{formData.telefonnummer || '-'}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-sage-500">2. Telefon</p>
+                    <p className="font-medium">{formData.telefon_2 || '-'}</p>
+                  </div>
                 </div>
-              )}
-              {customer.medikamente && (
-                <div className="mb-2">
-                  <p className="text-sm text-sage-500">Medikamente</p>
-                  <p className="font-medium">{customer.medikamente}</p>
+                <div className="border-t pt-4">
+                  <h3 className="font-semibold mb-3">Notfallkontakt</h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-sm text-sage-500">Name</p>
+                      <p className="font-medium">{formData.notfall_kontakt_name || '-'}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-sage-500">Nummer</p>
+                      <p className="font-medium">{formData.notfallnummer || '-'}</p>
+                    </div>
+                  </div>
                 </div>
-              )}
-              {customer.besonderheiten && (
-                <div>
-                  <p className="text-sm text-sage-500">Besonderheiten</p>
-                  <p className="font-medium">{customer.besonderheiten}</p>
-                </div>
-              )}
-            </div>
-
-            <div className="border-t pt-4">
-              <h3 className="font-semibold mb-3">Intervalle</h3>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <p className="text-sm text-sage-500">Intervall Impfung</p>
-                  <p className="font-medium">{customer.intervall_impfung || '-'}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-sage-500">Intervall Entwurmung</p>
-                  <p className="font-medium">{customer.intervall_entwurmung || '-'}</p>
-                </div>
-              </div>
-            </div>
+                {hasLegacyPetFields && (
+                  <div className="border-t pt-4">
+                    <h3 className="font-semibold mb-3">Legacy Tier-Informationen (Kontakt-Ebene)</h3>
+                    {formData.futtermenge && <div className="mb-2"><p className="text-sm text-sage-500">Futtermenge</p><p className="font-medium">{formData.futtermenge}</p></div>}
+                    {formData.medikamente && <div className="mb-2"><p className="text-sm text-sage-500">Medikamente</p><p className="font-medium">{formData.medikamente}</p></div>}
+                    {formData.besonderheiten && <div><p className="text-sm text-sage-500">Besonderheiten</p><p className="font-medium">{formData.besonderheiten}</p></div>}
+                    <div className="grid grid-cols-2 gap-4 mt-3">
+                      <div><p className="text-sm text-sage-500">Intervall Impfung</p><p className="font-medium">{formData.intervall_impfung || '-'}</p></div>
+                      <div><p className="text-sm text-sage-500">Intervall Entwurmung</p><p className="font-medium">{formData.intervall_entwurmung || '-'}</p></div>
+                    </div>
+                  </div>
+                )}
+              </>
+            ) : null}
 
             <div className="border-t pt-4">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -631,111 +744,27 @@ export default function CustomerDetailPage() {
             <CardHeader>
               <CardTitle>Notizen</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                {notes.map((note) => (
-                  <div key={note.id} className="p-3 bg-sage-50 rounded text-sm">
-                    <p className="whitespace-pre-wrap">{note.note}</p>
-                    <p className="text-xs text-sage-600 mt-1">
-                      {new Date(note.created_at).toLocaleString('de-DE')}
-                      {note.created_by && ` • ${note.created_by.email}`}
-                    </p>
-                  </div>
-                ))}
-                {notes.length === 0 && (
-                  <p className="text-sage-600 text-center py-4 text-sm">Keine Notizen vorhanden</p>
-                )}
-              </div>
-              <div className="space-y-2">
-                <Textarea
-                  placeholder="Neue Notiz hinzufügen..."
-                  value={newNote}
-                  onChange={(e) => setNewNote(e.target.value)}
-                  rows={3}
-                />
-                <Button onClick={addNote} size="sm" className="w-full">
-                  Notiz hinzufügen
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-          {/* Tiere */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Tiere ({customer.pets?.length || 0})</CardTitle>
-            </CardHeader>
             <CardContent>
-              {customer.pets && customer.pets.length > 0 ? (
-                <div className="space-y-4">
-                  {customer.pets.map((pet) => (
-                    <div key={pet.id} className="p-4 border border-sage-200 rounded-lg">
-                      <h3 className="font-semibold text-lg mb-2">{pet.name}</h3>
-                      <div className="grid grid-cols-2 gap-2 text-sm">
-                        {pet.tierart && (
-                          <div>
-                            <span className="text-sage-500">Tierart:</span> {pet.tierart}
-                          </div>
-                        )}
-                        {pet.geschlecht && (
-                          <div>
-                            <span className="text-sage-500">Geschlecht:</span> {pet.geschlecht}
-                          </div>
-                        )}
-                        {pet.letzte_impfung && (
-                          <div>
-                            <span className="text-sage-500">Letzte Impfung:</span>{' '}
-                            {new Date(pet.letzte_impfung).toLocaleDateString('de-DE')}
-                          </div>
-                        )}
-                        {pet.letzte_impfung_zusatz && (
-                          <div>
-                            <span className="text-sage-500">Letzte Impfung (Zusatz):</span>{' '}
-                            {new Date(pet.letzte_impfung_zusatz).toLocaleDateString('de-DE')}
-                          </div>
-                        )}
-                        {pet.letzte_stuhlprobe && (
-                          <div>
-                            <span className="text-sage-500">Letzte Stuhlprobe:</span>{' '}
-                            {new Date(pet.letzte_stuhlprobe).toLocaleDateString('de-DE')}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-sage-600 text-center py-4">Keine Tiere registriert</p>
-              )}
+              <NotesEditor
+                notesApiPath={`/api/admin/customers/${customerId}/notes`}
+                notes={notes}
+                onNotesChange={setNotes}
+              />
             </CardContent>
           </Card>
 
-          {/* Dokumente */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Dokumente ({customer.documents?.length || 0})</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {customer.documents && customer.documents.length > 0 ? (
-                <div className="space-y-2">
-                  {customer.documents.map((doc) => (
-                    <div key={doc.id} className="p-3 border border-sage-200 rounded-lg flex justify-between items-center">
-                      <div>
-                        <p className="font-medium">{doc.file_name}</p>
-                        <p className="text-sm text-sage-600">
-                          {getDocumentTypeLabel(doc.document_type)}
-                        </p>
-                        <p className="text-xs text-sage-500">
-                          {new Date(doc.uploaded_at).toLocaleDateString('de-DE')}
-                        </p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-sage-600 text-center py-4">Keine Dokumente hochgeladen</p>
-              )}
-            </CardContent>
-          </Card>
+          <PetManager
+            customerId={customerId}
+            pets={customer.pets || []}
+            onPetsChange={(pets) => setCustomer((prev) => prev ? { ...prev, pets } : prev)}
+          />
+
+          <DocumentManager
+            customerId={customerId}
+            documents={customer.documents || []}
+            pets={customer.pets || []}
+            onDocumentsChange={(documents) => setCustomer((prev) => prev ? { ...prev, documents } : prev)}
+          />
 
           {/* Buchungen */}
           <Card>

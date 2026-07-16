@@ -1,21 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerClient } from '@/lib/admin-auth'
-
-function getAdminClient() {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-
-  if (!serviceRoleKey) {
-    throw new Error('Die Server-Konfiguration für die Datenbankverwaltung fehlt')
-  }
-
-  return createClient(supabaseUrl, serviceRoleKey, {
-    auth: {
-      persistSession: false,
-      autoRefreshToken: false,
-    },
-  })
-}
+import { getServerClient, getAdminDbClient } from '@/lib/admin-auth'
+import { CUSTOMER_EDITABLE_FIELDS, pickAllowedFields } from '@/lib/contact-editable-fields'
 
 export async function GET(
   request: NextRequest,
@@ -122,7 +107,15 @@ export async function PUT(
     }
 
     const customerId = params.id
-    const updates = await request.json()
+    const rawUpdates = await request.json()
+    const updates = pickAllowedFields(rawUpdates, CUSTOMER_EDITABLE_FIELDS)
+
+    if (Object.keys(updates).length === 0) {
+      return NextResponse.json(
+        { error: 'Keine gültigen Felder zum Aktualisieren' },
+        { status: 400 }
+      )
+    }
 
     const { data: customer, error: customerError } = await supabase
       .from('contacts')
@@ -168,7 +161,7 @@ export async function DELETE(
       return NextResponse.json({ error: 'Nicht autorisiert' }, { status: 403 })
     }
 
-    const adminSupabase = getAdminClient()
+    const adminSupabase = getAdminDbClient()
 
     const customerId = params.id
     const { data: customer, error: customerError } = await adminSupabase

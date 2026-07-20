@@ -24,6 +24,14 @@
   --input: #E0E3D7;
   --ring: #667B4B;
   --radius: 0.5rem;
+  --sidebar-background: 72 20% 98%;
+  --sidebar-foreground: 88 36% 19%;
+  --sidebar-primary: 88 25% 39%;
+  --sidebar-primary-foreground: 0 0% 100%;
+  --sidebar-accent: 72 14% 92%;
+  --sidebar-accent-foreground: 88 25% 39%;
+  --sidebar-border: 72 14% 87%;
+  --sidebar-ring: 88 25% 39%;
 }
 
 @layer base {

@@ -10,69 +10,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
-import { CalendarIcon, AlertTriangle } from "lucide-react"
+import { CalendarIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
-
-interface VacationDate {
-  id?: string
-  period: string
-  label: string
-}
-
-interface NewsBarSettings {
-  title: string
-  subtitle: string
-  dialog_title: string
-  dialog_description: string
-  hint_text: string
-  is_active: boolean
-}
-
-function parseVacationPeriod(periodStr: string): { start: Date; end: Date } | null {
-  try {
-    const cleanStr = periodStr.trim()
-    const parts = cleanStr.split(/\s*(?:bis|-)\s*/i)
-    if (parts.length !== 2) return null
-
-    const startPart = parts[0].trim()
-    const endPart = parts[1].trim()
-
-    const dateRegex = /(\d{1,2})\.(\d{1,2})\.?(\d{2,4})?/
-    const startMatch = startPart.match(dateRegex)
-    const endMatch = endPart.match(dateRegex)
-
-    if (!startMatch || !endMatch) return null
-
-    const endDay = parseInt(endMatch[1], 10)
-    const endMonth = parseInt(endMatch[2], 10) - 1
-    let endYear = endMatch[3] ? parseInt(endMatch[3], 10) : new Date().getFullYear()
-    if (endMatch[3] && endMatch[3].length === 2) endYear += 2000
-
-    const startDay = parseInt(startMatch[1], 10)
-    const startMonth = parseInt(startMatch[2], 10) - 1
-    let startYear = startMatch[3] ? parseInt(startMatch[3], 10) : endYear
-    if (startMatch[3] && startMatch[3].length === 2) startYear += 2000
-
-    const startDate = new Date(startYear, startMonth, startDay, 0, 0, 0)
-    const endDate = new Date(endYear, endMonth, endDay, 23, 59, 59)
-
-    if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) return null
-    return { start: startDate, end: endDate }
-  } catch (e) {
-    return null
-  }
-}
-
-const parseLocalDate = (dateString: string): Date | null => {
-  if (!dateString) return null
-  const parts = dateString.split("-")
-  if (parts.length !== 3) {
-    const d = new Date(dateString)
-    return isNaN(d.getTime()) ? null : d
-  }
-  const date = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10))
-  return isNaN(date.getTime()) ? null : date
-}
+import {
+  getFutureVacationPeriods,
+  TIGUBE_URL,
+  type VacationDate,
+} from "@/lib/vacation-dates"
 
 export type ContactFormProps = {
   /** Vorauswahl z. B. auf /hundepension oder /katzenbetreuung */
@@ -118,6 +62,11 @@ export function ContactForm({
   }))
 
   const [vacationDates, setVacationDates] = useState<VacationDate[]>([])
+  const [step, setStep] = useState<1 | 2>(1)
+  const [ferienAntwort, setFerienAntwort] = useState<"" | "ausserhalb" | "innerhalb">("")
+  const [submitOutcome, setSubmitOutcome] = useState<"normal" | "referred" | null>(null)
+
+  const futureVacationPeriods = getFutureVacationPeriods(vacationDates)
 
   useEffect(() => {
     async function loadVacationData() {
@@ -155,41 +104,6 @@ export function ContactForm({
     }
   }, [availabilityDays, availabilityTimes, showCustomAvailability, customAvailability])
 
-  // Prüfen, ob das heutige Datum in einem Ferienzeitraum liegt
-  const today = new Date()
-  let currentVacationPeriod: VacationDate | null = null
-  for (const date of vacationDates) {
-    const parsed = parseVacationPeriod(date.period)
-    if (parsed && today >= parsed.start && today <= parsed.end) {
-      currentVacationPeriod = date
-      break
-    }
-  }
-
-  // Prüfen, ob der vom Nutzer gewählte Zeitraum mit den Ferien kollidiert
-  let overlappingVacationPeriod: VacationDate | null = null
-  if (
-    formData.service === "hundepension" &&
-    formData.konkreterUrlaub === "ja" &&
-    formData.urlaubVon &&
-    formData.urlaubBis
-  ) {
-    const vonDate = parseLocalDate(formData.urlaubVon)
-    const bisDate = parseLocalDate(formData.urlaubBis)
-
-    if (vonDate && bisDate) {
-      for (const date of vacationDates) {
-        const parsed = parseVacationPeriod(date.period)
-        if (parsed) {
-          if (vonDate <= parsed.end && bisDate >= parsed.start) {
-            overlappingVacationPeriod = date
-            break
-          }
-        }
-      }
-    }
-  }
-
   const parseDateFromInput = (dateString: string): Date | undefined => {
     if (!dateString) return undefined
     const date = new Date(dateString)
@@ -208,51 +122,65 @@ export function ContactForm({
   const vonInputId = `${idPrefix}urlaubVon-input`
   const bisInputId = `${idPrefix}urlaubBis-input`
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    setIsSubmitting(true)
-    setSubmitStatus({ type: null, message: "" })
-
+  function validateStep1(): string | null {
     if (!formData.availability.trim()) {
-      setSubmitStatus({
-        type: "error",
-        message: "Bitte wählen Sie mindestens ein Zeitfenster für die Erreichbarkeit aus oder geben Sie eigene Zeiten an.",
-      })
-      setIsSubmitting(false)
-      return
+      return "Bitte wählen Sie mindestens ein Zeitfenster für die Erreichbarkeit aus oder geben Sie eigene Zeiten an."
     }
 
     if (formData.service === "hundepension" && formData.konkreterUrlaub === "ja") {
       if (!formData.urlaubVon || !formData.urlaubBis) {
-        setSubmitStatus({
-          type: "error",
-          message: "Bitte wählen Sie einen Urlaubszeitraum aus.",
-        })
-        setIsSubmitting(false)
-        return
+        return "Bitte wählen Sie einen Urlaubszeitraum aus."
       }
 
       const vonDate = parseDateFromInput(formData.urlaubVon)
       const bisDate = parseDateFromInput(formData.urlaubBis)
 
       if (!vonDate || !bisDate) {
-        setSubmitStatus({
-          type: "error",
-          message: "Bitte wählen Sie gültige Daten aus.",
-        })
-        setIsSubmitting(false)
-        return
+        return "Bitte wählen Sie gültige Daten aus."
       }
 
       if (bisDate < vonDate) {
-        setSubmitStatus({
-          type: "error",
-          message: "Das Enddatum muss nach dem Startdatum liegen.",
-        })
-        setIsSubmitting(false)
-        return
+        return "Das Enddatum muss nach dem Startdatum liegen."
       }
     }
+
+    return null
+  }
+
+  const handleContinue = (e: React.FormEvent) => {
+    e.preventDefault()
+    setSubmitStatus({ type: null, message: "" })
+
+    const validationError = validateStep1()
+    if (validationError) {
+      setSubmitStatus({ type: "error", message: validationError })
+      return
+    }
+
+    setFerienAntwort("")
+    setStep(2)
+  }
+
+  const handleBack = () => {
+    setSubmitStatus({ type: null, message: "" })
+    setFerienAntwort("")
+    setStep(1)
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+
+    if (ferienAntwort === "") {
+      setSubmitStatus({
+        type: "error",
+        message: "Bitte bestätigen Sie, ob Ihr Betreuungszeitraum in unsere Betriebsferien fällt.",
+      })
+      return
+    }
+
+    const ferienKonflikt = ferienAntwort === "innerhalb"
+    setIsSubmitting(true)
+    setSubmitStatus({ type: null, message: "" })
 
     try {
       const response = await fetch("/api/contact", {
@@ -268,6 +196,7 @@ export function ContactForm({
           urlaubBis: formData.urlaubBis
             ? parseDateFromInput(formData.urlaubBis)?.toISOString()
             : undefined,
+          ferienKonflikt,
           timestamp: new Date().toISOString(),
         }),
       })
@@ -278,16 +207,32 @@ export function ContactForm({
         throw new Error(data.error || "Fehler beim Senden der Anfrage")
       }
 
-      setSubmitStatus({
-        type: "success",
-        message:
-          "Ihre Anfrage wurde erfolgreich gesendet! Wir melden uns schnellstmöglich bei Ihnen.",
-      })
+      if (ferienKonflikt) {
+        setSubmitOutcome("referred")
+        setSubmitStatus({
+          type: "success",
+          message:
+            "Vielen Dank für Ihre Angaben. In den genannten Betriebsferien können wir leider keine Betreuung anbieten. Über tigube finden Sie alternative Betreuungspersonen in Ihrer Nähe.",
+        })
+      } else {
+        setSubmitOutcome("normal")
+        setSubmitStatus({
+          type: "success",
+          message:
+            "Ihre Anfrage wurde erfolgreich gesendet! Wir melden uns schnellstmöglich bei Ihnen.",
+        })
+      }
 
       setFormData({
         ...emptyForm,
         service: defaultService,
       })
+      setAvailabilityDays([])
+      setAvailabilityTimes([])
+      setCustomAvailability("")
+      setShowCustomAvailability(false)
+      setFerienAntwort("")
+      setStep(1)
     } catch (error) {
       console.error("Fehler beim Senden:", error)
       setSubmitStatus({
@@ -315,41 +260,49 @@ export function ContactForm({
     m ? "h-9 px-2.5 py-1 text-sm" : "px-3 py-2"
   )
 
-  const formInner = (
+  const formInner = submitOutcome ? (
+    <div className={cn(m ? "space-y-4" : "space-y-6")}>
+      <div
+        className={cn(
+          "rounded-lg bg-green-50 text-green-800 border border-green-200",
+          m ? "p-2.5 text-xs sm:text-sm" : "p-4"
+        )}
+      >
+        {submitStatus.message}
+      </div>
+      {submitOutcome === "referred" && (
+        <Button
+          asChild
+          size={m ? "default" : "lg"}
+          className={cn(
+            "w-full bg-sage-600 hover:bg-sage-700 text-white",
+            m && "h-10 text-sm"
+          )}
+        >
+          <a href={TIGUBE_URL} target="_blank" rel="noopener noreferrer">
+            Zu tigube.de
+          </a>
+        </Button>
+      )}
+      <Button
+        type="button"
+        variant="outline"
+        className={cn("w-full", m && "h-10 text-sm")}
+        onClick={() => {
+          setSubmitOutcome(null)
+          setSubmitStatus({ type: null, message: "" })
+        }}
+      >
+        Neue Anfrage stellen
+      </Button>
+    </div>
+  ) : (
     <form
-      onSubmit={handleSubmit}
+      onSubmit={step === 1 ? handleContinue : handleSubmit}
       className={cn(m ? "space-y-4" : "space-y-6")}
     >
-      {/* Betriebsferien-Hinweis */}
-      {(currentVacationPeriod || overlappingVacationPeriod) && (
-        <div className={cn(
-          "rounded-lg border p-4 flex gap-3 text-sm leading-relaxed text-left",
-          overlappingVacationPeriod 
-            ? "bg-red-50 border-red-200 text-red-800" 
-            : "bg-amber-50 border-amber-200 text-amber-800",
-          m && "p-3 text-xs"
-        )}>
-          <AlertTriangle className={cn("h-5 w-5 shrink-0 mt-0.5", overlappingVacationPeriod ? "text-red-600" : "text-amber-600")} />
-          <div>
-            {overlappingVacationPeriod ? (
-              <>
-                <p className="font-semibold mb-1">Kollision mit Betriebsferien</p>
-                <p>
-                  Ihr gewünschter Betreuungszeitraum ({parseLocalDate(formData.urlaubVon)?.toLocaleDateString('de-DE')} bis {parseLocalDate(formData.urlaubBis)?.toLocaleDateString('de-DE')}) überschneidet sich mit unseren Betriebsferien <strong>({overlappingVacationPeriod.period})</strong>. In diesem Zeitraum findet leider keine Tierbetreuung statt.
-                </p>
-              </>
-            ) : (
-              <>
-                <p className="font-semibold mb-1">Aktuell Betriebsferien</p>
-                <p>
-                  Bitte beachten Sie, dass wir uns derzeit (vom <strong>{currentVacationPeriod!.period}</strong>) in den Betriebsferien befinden. Sie können Ihre Anfrage gerne absenden, wir werden diese jedoch erst nach unserer Rückkehr beantworten.
-                </p>
-              </>
-            )}
-          </div>
-        </div>
-      )}
-
+      {step === 1 && (
+        <>
       <div className={grid2}>
         <div>
           <label className={labelCls}>Vorname *</label>
@@ -894,14 +847,11 @@ export function ContactForm({
         </label>
       </div>
 
-      {submitStatus.type && (
+      {submitStatus.type === "error" && (
         <div
           className={cn(
-            "rounded-lg",
-            m ? "p-2.5 text-xs sm:text-sm" : "p-4",
-            submitStatus.type === "success"
-              ? "bg-green-50 text-green-800 border border-green-200"
-              : "bg-red-50 text-red-800 border border-red-200"
+            "rounded-lg bg-red-50 text-red-800 border border-red-200",
+            m ? "p-2.5 text-xs sm:text-sm" : "p-4"
           )}
         >
           {submitStatus.message}
@@ -915,10 +865,137 @@ export function ContactForm({
           "w-full bg-sage-600 hover:bg-sage-700 text-white disabled:opacity-50 disabled:cursor-not-allowed",
           m && "h-10 text-sm"
         )}
-        disabled={isSubmitting}
       >
-        {isSubmitting ? "Wird gesendet..." : "Anfrage senden"}
+        Weiter
       </Button>
+        </>
+      )}
+
+      {step === 2 && (
+        <>
+          <div className={cn("space-y-3", m && "space-y-2")}>
+            <h3
+              className={cn(
+                "font-raleway font-bold text-sage-900",
+                m ? "text-sm sm:text-base" : "text-lg"
+              )}
+            >
+              Betriebsferien prüfen
+            </h3>
+            <p className={cn("text-gray-600 leading-relaxed", m ? "text-xs" : "text-sm")}>
+              In folgenden Zeiträumen findet bei uns keine Tierbetreuung statt. Bitte prüfen Sie,
+              ob Ihr gewünschter Betreuungszeitraum in diese Ferien fällt.
+            </p>
+          </div>
+
+          {futureVacationPeriods.length > 0 ? (
+            <ul
+              className={cn(
+                "rounded-lg border border-sage-200 bg-sage-50 divide-y divide-sage-200",
+                m ? "text-xs" : "text-sm"
+              )}
+            >
+              {futureVacationPeriods.map((period, index) => (
+                <li key={period.id ?? index} className={cn("px-4 py-3", m && "px-3 py-2.5")}>
+                  <p className="font-medium text-sage-900">{period.period}</p>
+                  {period.label && (
+                    <p className="text-sage-600 mt-0.5">{period.label}</p>
+                  )}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className={cn("text-sage-600", m ? "text-xs" : "text-sm")}>
+              Derzeit sind keine zukünftigen Betriebsferien hinterlegt.
+            </p>
+          )}
+
+          <div className="space-y-3">
+            <label className={labelCls}>
+              Liegt Ihr gewünschter Betreuungszeitraum in einem dieser Zeiträume? *
+            </label>
+            <RadioGroup
+              value={ferienAntwort}
+              onValueChange={(value) =>
+                setFerienAntwort(value as "ausserhalb" | "innerhalb")
+              }
+              className={cn("space-y-2", m && "space-y-1.5")}
+              required
+            >
+              <div className="flex items-start space-x-2">
+                <RadioGroupItem
+                  value="ausserhalb"
+                  id={`${idPrefix}ferien-ausserhalb`}
+                  className="border-sage-300 mt-0.5"
+                />
+                <Label
+                  htmlFor={`${idPrefix}ferien-ausserhalb`}
+                  className={cn(
+                    "text-gray-700 cursor-pointer leading-snug",
+                    m ? "text-xs" : "text-sm"
+                  )}
+                >
+                  Nein, mein Zeitraum liegt außerhalb der Betriebsferien
+                </Label>
+              </div>
+              <div className="flex items-start space-x-2">
+                <RadioGroupItem
+                  value="innerhalb"
+                  id={`${idPrefix}ferien-innerhalb`}
+                  className="border-sage-300 mt-0.5"
+                />
+                <Label
+                  htmlFor={`${idPrefix}ferien-innerhalb`}
+                  className={cn(
+                    "text-gray-700 cursor-pointer leading-snug",
+                    m ? "text-xs" : "text-sm"
+                  )}
+                >
+                  Ja, mein Zeitraum fällt in die Betriebsferien
+                </Label>
+              </div>
+            </RadioGroup>
+          </div>
+
+          {submitStatus.type === "error" && (
+            <div
+              className={cn(
+                "rounded-lg bg-red-50 text-red-800 border border-red-200",
+                m ? "p-2.5 text-xs sm:text-sm" : "p-4"
+              )}
+            >
+              {submitStatus.message}
+            </div>
+          )}
+
+          <div className={cn("flex flex-col-reverse sm:flex-row gap-3", m && "gap-2")}>
+            <Button
+              type="button"
+              variant="outline"
+              className={cn("w-full sm:w-auto", m && "h-10 text-sm")}
+              onClick={handleBack}
+              disabled={isSubmitting}
+            >
+              Zurück
+            </Button>
+            <Button
+              type="submit"
+              size={m ? "default" : "lg"}
+              className={cn(
+                "w-full sm:flex-1 bg-sage-600 hover:bg-sage-700 text-white disabled:opacity-50 disabled:cursor-not-allowed",
+                m && "h-10 text-sm"
+              )}
+              disabled={isSubmitting || ferienAntwort === ""}
+            >
+              {isSubmitting
+                ? "Wird gesendet..."
+                : ferienAntwort === "innerhalb"
+                  ? "Weiter zur Alternative"
+                  : "Anfrage absenden"}
+            </Button>
+          </div>
+        </>
+      )}
     </form>
   )
 

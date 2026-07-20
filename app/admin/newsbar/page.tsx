@@ -10,12 +10,13 @@ import { Switch } from '@/components/ui/switch'
 import { Trash2, Plus } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 import { authenticatedFetch } from '@/lib/authenticated-fetch'
-
-interface VacationDate {
-  id?: string
-  period: string
-  label: string
-}
+import {
+  formatVacationPeriod,
+  parseIsoDate,
+  resolveVacationBounds,
+  toIsoDate,
+  type VacationDate,
+} from '@/lib/vacation-dates'
 
 interface NewsBarSettings {
   id: string
@@ -47,7 +48,9 @@ export default function NewsBarPage() {
         setSettings(data.settings)
       }
       if (data.vacationDates) {
-        setVacationDates(data.vacationDates)
+        setVacationDates(
+          data.vacationDates.map((date: VacationDate) => normalizeLoadedVacationDate(date))
+        )
       }
     } catch (error) {
       console.error('Error loading data:', error)
@@ -93,16 +96,33 @@ export default function NewsBarPage() {
   }
 
   function addVacationDate() {
-    setVacationDates([...vacationDates, { period: '', label: '' }])
+    setVacationDates([
+      ...vacationDates,
+      { period: '', label: '', start_date: '', end_date: '' },
+    ])
   }
 
   function removeVacationDate(index: number) {
     setVacationDates(vacationDates.filter((_, i) => i !== index))
   }
 
-  function updateVacationDate(index: number, field: 'period' | 'label', value: string) {
+  function updateVacationDate(
+    index: number,
+    field: keyof VacationDate,
+    value: string
+  ) {
     const updated = [...vacationDates]
-    updated[index] = { ...updated[index], [field]: value }
+    const next = { ...updated[index], [field]: value }
+
+    if (field === 'start_date' || field === 'end_date') {
+      const start = parseIsoDate(next.start_date || '')
+      const end = parseIsoDate(next.end_date || '')
+      if (start && end && end >= start) {
+        next.period = formatVacationPeriod(start, end)
+      }
+    }
+
+    updated[index] = next
     setVacationDates(updated)
   }
 
@@ -225,16 +245,35 @@ export default function NewsBarPage() {
           ) : (
             <div className="space-y-4">
               {vacationDates.map((date, index) => (
-                <div key={index} className="flex gap-4 items-start p-4 border border-sage-200 rounded-lg">
-                  <div className="flex-1">
-                    <Label>Zeitraum</Label>
+                <div key={index} className="flex gap-4 items-start p-4 border border-sage-200 rounded-lg flex-wrap">
+                  <div className="flex-1 min-w-[140px]">
+                    <Label>Von *</Label>
+                    <Input
+                      type="date"
+                      value={date.start_date || ''}
+                      onChange={(e) => updateVacationDate(index, 'start_date', e.target.value)}
+                      required
+                    />
+                  </div>
+                  <div className="flex-1 min-w-[140px]">
+                    <Label>Bis *</Label>
+                    <Input
+                      type="date"
+                      value={date.end_date || ''}
+                      min={date.start_date || undefined}
+                      onChange={(e) => updateVacationDate(index, 'end_date', e.target.value)}
+                      required
+                    />
+                  </div>
+                  <div className="flex-1 min-w-[180px]">
+                    <Label>Anzeige (optional)</Label>
                     <Input
                       value={date.period}
                       onChange={(e) => updateVacationDate(index, 'period', e.target.value)}
-                      placeholder="z.B. 21.03.-31.03."
+                      placeholder="Wird aus den Daten erzeugt"
                     />
                   </div>
-                  <div className="flex-1">
+                  <div className="flex-1 min-w-[180px]">
                     <Label>Bezeichnung</Label>
                     <Input
                       value={date.label}
@@ -258,5 +297,23 @@ export default function NewsBarPage() {
       </Card>
     </div>
   )
+}
+
+function normalizeLoadedVacationDate(date: VacationDate): VacationDate {
+  if (date.start_date && date.end_date) {
+    return date
+  }
+
+  const bounds = resolveVacationBounds(date)
+  if (!bounds) {
+    return date
+  }
+
+  return {
+    ...date,
+    start_date: toIsoDate(bounds.start),
+    end_date: toIsoDate(bounds.end),
+    period: date.period?.trim() || formatVacationPeriod(bounds.start, bounds.end),
+  }
 }
 

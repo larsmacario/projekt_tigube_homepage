@@ -15,7 +15,12 @@ import {
   PET_TIERART_OPTIONS,
   PET_GESCHLECHT_OPTIONS,
   INTERVALL_OPTIONS,
+  KOMBI_INTERVALL_OPTIONS,
 } from '@/lib/pet-form-options'
+import { PetVaccinationSummary } from '@/components/portal/pet-vaccination-section'
+import { PetPhotoGallery } from '@/components/portal/pet-photo-gallery'
+import { PetRecognitionField } from '@/components/portal/pet-recognition-field'
+import { isDog } from '@/lib/pet-vaccination'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -30,6 +35,9 @@ import {
 const emptyPetForm = {
   name: '',
   tierart: '',
+  rasse: '',
+  farbe: '',
+  wiedererkennungsmerkmal: '',
   geschlecht: '',
   letzte_impfung: '',
   letzte_impfung_zusatz: '',
@@ -66,6 +74,9 @@ export function PetManager({ customerId, pets, onPetsChange }: PetManagerProps) 
     setFormData({
       name: pet.name || '',
       tierart: pet.tierart || '',
+      rasse: pet.rasse || '',
+      farbe: pet.farbe || '',
+      wiedererkennungsmerkmal: pet.wiedererkennungsmerkmal || '',
       geschlecht: pet.geschlecht || '',
       letzte_impfung: pet.letzte_impfung ? pet.letzte_impfung.split('T')[0] : '',
       letzte_impfung_zusatz: pet.letzte_impfung_zusatz ? pet.letzte_impfung_zusatz.split('T')[0] : '',
@@ -205,7 +216,34 @@ export function PetManager({ customerId, pets, onPetsChange }: PetManagerProps) 
                   </SelectContent>
                 </Select>
               </div>
+              <div>
+                <Label>Rasse</Label>
+                <Input
+                  value={formData.rasse}
+                  onChange={(e) => setFormData({ ...formData, rasse: e.target.value })}
+                  placeholder="z.B. Labrador, Mischling"
+                />
+              </div>
+              <div>
+                <Label>Farbe</Label>
+                <Input
+                  value={formData.farbe}
+                  onChange={(e) => setFormData({ ...formData, farbe: e.target.value })}
+                  placeholder="z.B. schwarz, braun-weiß"
+                />
+              </div>
             </div>
+
+            <PetRecognitionField
+              id="admin-pet-wiedererkennungsmerkmal"
+              value={formData.wiedererkennungsmerkmal}
+              onChange={(value) => setFormData({ ...formData, wiedererkennungsmerkmal: value })}
+            />
+
+            {editingId && (
+              <PetPhotoGallery petId={editingId} readOnly apiBase="admin" />
+            )}
+
             <div>
               <Label>Futtermenge</Label>
               <Textarea value={formData.futtermenge} onChange={(e) => setFormData({ ...formData, futtermenge: e.target.value })} rows={2} />
@@ -219,19 +257,21 @@ export function PetManager({ customerId, pets, onPetsChange }: PetManagerProps) 
               <Textarea value={formData.besonderheiten} onChange={(e) => setFormData({ ...formData, besonderheiten: e.target.value })} rows={2} />
             </div>
             <div className="border-t pt-4 space-y-4">
-              <h4 className="font-semibold text-sm text-sage-800">Intervalle</h4>
+              <h4 className="font-semibold text-sm text-sage-800">Intervalle & Vorsorge</h4>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <Label>Intervall Impfung</Label>
-                  <Select value={formData.intervall_impfung} onValueChange={(v) => setFormData({ ...formData, intervall_impfung: v })}>
-                    <SelectTrigger><SelectValue placeholder="Intervall wählen" /></SelectTrigger>
-                    <SelectContent>
-                      {INTERVALL_OPTIONS.map((opt) => (
-                        <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+                {!isDog(formData.tierart) && (
+                  <div>
+                    <Label>Intervall Impfung</Label>
+                    <Select value={formData.intervall_impfung} onValueChange={(v) => setFormData({ ...formData, intervall_impfung: v })}>
+                      <SelectTrigger><SelectValue placeholder="Intervall wählen" /></SelectTrigger>
+                      <SelectContent>
+                        {INTERVALL_OPTIONS.map((opt) => (
+                          <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
                 <div>
                   <Label>Intervall Entwurmung</Label>
                   <Select value={formData.intervall_entwurmung} onValueChange={(v) => setFormData({ ...formData, intervall_entwurmung: v })}>
@@ -243,15 +283,49 @@ export function PetManager({ customerId, pets, onPetsChange }: PetManagerProps) 
                     </SelectContent>
                   </Select>
                 </div>
-                <div>
-                  <Label>Letzte Impfung</Label>
-                  <Input type="date" value={formData.letzte_impfung} onChange={(e) => setFormData({ ...formData, letzte_impfung: e.target.value })} />
-                </div>
+                {!isDog(formData.tierart) && (
+                  <div>
+                    <Label>Letzte Impfung</Label>
+                    <Input type="date" value={formData.letzte_impfung} onChange={(e) => setFormData({ ...formData, letzte_impfung: e.target.value })} />
+                  </div>
+                )}
                 <div>
                   <Label>Letzte Entw./Stuhlpr.</Label>
                   <Input type="date" value={formData.letzte_stuhlprobe} onChange={(e) => setFormData({ ...formData, letzte_stuhlprobe: e.target.value })} />
                 </div>
               </div>
+
+              {isDog(formData.tierart) && (
+                <div className="rounded-lg border border-sage-200 bg-sage-50/50 p-4 space-y-4">
+                  <div>
+                    <p className="font-medium text-sage-900">Kombiimpfung (Hund)</p>
+                    <p className="text-sm text-sage-600 mt-1">
+                      Parvovirose, Leptospirose, Hepatitis, Staupe – Zwingerhusten sollte im Präparat enthalten sein.
+                    </p>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <Label>Datum Kombiimpfung</Label>
+                      <Input type="date" value={formData.letzte_impfung} onChange={(e) => setFormData({ ...formData, letzte_impfung: e.target.value })} />
+                    </div>
+                    <div>
+                      <Label>Intervall Kombiimpfung</Label>
+                      <Select value={formData.intervall_impfung} onValueChange={(v) => setFormData({ ...formData, intervall_impfung: v })}>
+                        <SelectTrigger><SelectValue placeholder="Intervall wählen" /></SelectTrigger>
+                        <SelectContent>
+                          {KOMBI_INTERVALL_OPTIONS.map((opt) => (
+                            <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label>Datum Zwingerhusten (jährlich)</Label>
+                      <Input type="date" value={formData.letzte_impfung_zusatz} onChange={(e) => setFormData({ ...formData, letzte_impfung_zusatz: e.target.value })} />
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
             <div className="flex gap-2">
               <Button onClick={savePet} disabled={saving}>{saving ? 'Speichern…' : 'Speichern'}</Button>
@@ -278,22 +352,19 @@ export function PetManager({ customerId, pets, onPetsChange }: PetManagerProps) 
                 <div className="grid grid-cols-2 gap-2 text-sm">
                   {pet.tierart && <div><span className="text-sage-500">Tierart:</span> {pet.tierart}</div>}
                   {pet.geschlecht && <div><span className="text-sage-500">Geschlecht:</span> {pet.geschlecht}</div>}
+                  {pet.rasse && <div><span className="text-sage-500">Rasse:</span> {pet.rasse}</div>}
+                  {pet.farbe && <div><span className="text-sage-500">Farbe:</span> {pet.farbe}</div>}
                   {pet.futtermenge && <div className="col-span-2"><span className="text-sage-500">Futtermenge:</span> {pet.futtermenge}</div>}
                   {pet.medikamente && <div className="col-span-2"><span className="text-sage-500">Medikamente:</span> {pet.medikamente}</div>}
                   {pet.besonderheiten && <div className="col-span-2"><span className="text-sage-500">Besonderheiten:</span> {pet.besonderheiten}</div>}
                 </div>
-                {(pet.intervall_impfung || pet.intervall_entwurmung || pet.letzte_impfung || pet.letzte_stuhlprobe) && (
+                {(pet.intervall_entwurmung || pet.letzte_impfung || pet.letzte_impfung_zusatz || pet.letzte_stuhlprobe) && (
                   <div className="border-t pt-3 mt-3 space-y-2 text-sm">
-                    <p className="text-xs font-semibold text-sage-600 uppercase tracking-wide">Intervalle</p>
+                    <p className="text-xs font-semibold text-sage-600 uppercase tracking-wide">Intervalle & Vorsorge</p>
+                    <PetVaccinationSummary pet={pet} />
                     <div className="grid grid-cols-2 gap-2">
-                      {pet.intervall_impfung && (
-                        <div><span className="text-sage-500">Intervall Impfung:</span> {pet.intervall_impfung}</div>
-                      )}
                       {pet.intervall_entwurmung && (
                         <div><span className="text-sage-500">Intervall Entwurmung:</span> {pet.intervall_entwurmung}</div>
-                      )}
-                      {pet.letzte_impfung && (
-                        <div><span className="text-sage-500">Letzte Impfung:</span> {new Date(pet.letzte_impfung).toLocaleDateString('de-DE')}</div>
                       )}
                       {pet.letzte_stuhlprobe && (
                         <div><span className="text-sage-500">Letzte Entw./Stuhlpr.:</span> {new Date(pet.letzte_stuhlprobe).toLocaleDateString('de-DE')}</div>

@@ -28,6 +28,7 @@ export default function LeadsPage() {
   const [activeViewId, setActiveViewId] = useState<string>(SYSTEM_DEFAULT_VIEW_ID)
   const [loading, setLoading] = useState(true)
   const [statusFilter, setStatusFilter] = useState<string>('all')
+  const [typeFilter, setTypeFilter] = useState<string>('all')
   const { toast } = useToast()
 
   const displayColumns = useMemo(
@@ -75,10 +76,15 @@ export default function LeadsPage() {
 
       await loadViews(nextCatalog)
 
-      const url =
-        statusFilter === 'all'
-          ? '/api/admin/leads'
-          : `/api/admin/leads?status=${statusFilter}`
+      const params = new URLSearchParams()
+      if (typeFilter !== 'all') {
+        params.set('type', typeFilter)
+      }
+      if (statusFilter !== 'all' && typeFilter !== 'lost') {
+        params.set('status', statusFilter)
+      }
+      const query = params.toString()
+      const url = query ? `/api/admin/leads?${query}` : '/api/admin/leads'
 
       const response = await authenticatedFetch(url)
       const data = await response.json()
@@ -97,7 +103,7 @@ export default function LeadsPage() {
 
   useEffect(() => {
     loadData()
-  }, [statusFilter])
+  }, [statusFilter, typeFilter])
 
   function handleActiveViewChange(viewId: string) {
     setActiveViewId(viewId)
@@ -203,22 +209,40 @@ export default function LeadsPage() {
           />
           <div className="flex flex-wrap gap-2">
             <Button
-              variant={statusFilter === 'all' ? 'default' : 'outline'}
-              onClick={() => setStatusFilter('all')}
+              variant={statusFilter === 'all' && typeFilter !== 'lost' ? 'default' : 'outline'}
+              onClick={() => {
+                setTypeFilter('all')
+                setStatusFilter('all')
+              }}
             >
               Alle
             </Button>
             <Button
-              variant={statusFilter === 'new' ? 'default' : 'outline'}
-              onClick={() => setStatusFilter('new')}
+              variant={statusFilter === 'new' && typeFilter !== 'lost' ? 'default' : 'outline'}
+              onClick={() => {
+                setTypeFilter('all')
+                setStatusFilter('new')
+              }}
             >
               Neu
             </Button>
             <Button
-              variant={statusFilter === 'contacted' ? 'default' : 'outline'}
-              onClick={() => setStatusFilter('contacted')}
+              variant={statusFilter === 'contacted' && typeFilter !== 'lost' ? 'default' : 'outline'}
+              onClick={() => {
+                setTypeFilter('all')
+                setStatusFilter('contacted')
+              }}
             >
               Kontaktiert
+            </Button>
+            <Button
+              variant={typeFilter === 'lost' ? 'default' : 'outline'}
+              onClick={() => {
+                setTypeFilter('lost')
+                setStatusFilter('all')
+              }}
+            >
+              Weitergeleitet
             </Button>
           </div>
         </div>

@@ -1,5 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerClient } from '@/lib/admin-auth'
+import {
+  formatVacationPeriod,
+  parseIsoDate,
+  resolveVacationBounds,
+  toIsoDate,
+  type VacationDate,
+} from '@/lib/vacation-dates'
 
 export async function GET(request: NextRequest) {
   try {
@@ -47,6 +54,35 @@ export async function PUT(request: NextRequest) {
 
     const { settings, vacationDates } = await request.json()
 
+    const normalizedVacationDates = (vacationDates || []).map(
+      (date: VacationDate) => normalizeVacationDate(date)
+    )
+
+    for (const date of normalizedVacationDates) {
+      if (!date.start_date || !date.end_date) {
+        return NextResponse.json(
+          { error: 'Bitte geben Sie für jede Ferienzeit Start- und Enddatum an.' },
+          { status: 400 }
+        )
+      }
+
+      const start = parseIsoDate(date.start_date)
+      const end = parseIsoDate(date.end_date)
+      if (!start || !end) {
+        return NextResponse.json(
+          { error: 'Ungültiges Datumsformat bei Ferienzeiten.' },
+          { status: 400 }
+        )
+      }
+
+      if (end < start) {
+        return NextResponse.json(
+          { error: 'Das Enddatum muss nach dem Startdatum liegen.' },
+          { status: 400 }
+        )
+      }
+    }
+
     // Update Einstellungen
     const { data: updatedSettings, error: settingsError } = await supabase
       .from('newsbar_settings')
@@ -73,14 +109,16 @@ export async function PUT(request: NextRequest) {
       .eq('settings_id', settings.id)
 
     // Füge neue Ferienzeiten ein
-    if (vacationDates && vacationDates.length > 0) {
+    if (normalizedVacationDates.length > 0) {
       const { error: datesError } = await supabase
         .from('newsbar_vacation_dates')
         .insert(
-          vacationDates.map((date: any, index: number) => ({
+          normalizedVacationDates.map((date: VacationDate, index: number) => ({
             settings_id: settings.id,
             period: date.period,
             label: date.label,
+            start_date: date.start_date,
+            end_date: date.end_date,
             sort_order: index,
           }))
         )
@@ -98,5 +136,32 @@ export async function PUT(request: NextRequest) {
     console.error('Error updating newsbar:', error)
     return NextResponse.json({ error: error.message }, { status: 500 })
   }
+}
+
+function normalizeVacationDate(date: VacationDate): VacationDate {
+  if (date.start_date && date.end_date) {
+    const start = parseIsoDate(date.start_date)
+    const end = parseIsoDate(date.end_date)
+    if (start && end) {
+      return {
+        ...date,
+        start_date: toIsoDate(start),
+        end_date: toIsoDate(end),
+        period: date.period?.trim() || formatVacationPeriod(start, end),
+      }
+    }
+  }
+
+  const bounds = resolveVacationBounds(date)
+  if (bounds) {
+    return {
+      ...date,
+      start_date: toIsoDate(bounds.start),
+      end_date: toIsoDate(bounds.end),
+      period: date.period?.trim() || formatVacationPeriod(bounds.start, bounds.end),
+    }
+  }
+
+  return date
 }
 

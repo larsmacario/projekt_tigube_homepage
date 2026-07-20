@@ -64,6 +64,9 @@ export const CUSTOMER_EDITABLE_FIELDS = [
 export const PET_EDITABLE_FIELDS = [
   'name',
   'tierart',
+  'rasse',
+  'farbe',
+  'wiedererkennungsmerkmal',
   'geschlecht',
   'letzte_impfung',
   'letzte_impfung_zusatz',

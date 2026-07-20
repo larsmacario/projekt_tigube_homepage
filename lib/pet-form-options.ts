@@ -17,6 +17,12 @@ export const INTERVALL_OPTIONS = [
   { value: 'alle_3_jahre', label: 'Alle 3 Jahre' },
 ] as const
 
+/** Intervall der Hunde-Kombiimpfung (Parvo, Lepto, Hepatitis, Staupe) */
+export const KOMBI_INTERVALL_OPTIONS = [
+  { value: 'jährlich', label: 'Jährlich' },
+  { value: 'alle_2_jahre', label: 'Alle 2 Jahre' },
+] as const
+
 export const DOCUMENT_TYPE_OPTIONS = [
   { value: 'impfpass', label: 'Impfpass' },
   { value: 'wurmtest', label: 'Wurmtest' },

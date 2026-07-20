@@ -17,6 +17,7 @@
     "@radix-ui/react-popover": "latest",
     "@radix-ui/react-radio-group": "latest",
     "@radix-ui/react-select": "latest",
+    "@radix-ui/react-separator": "^1.1.12",
     "@radix-ui/react-slot": "latest",
     "@radix-ui/react-switch": "latest",
     "@radix-ui/react-tabs": "latest",

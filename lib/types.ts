@@ -73,18 +73,57 @@ export interface Pet {
   customer_id: string
   name: string
   tierart: string | null
+  rasse: string | null
+  farbe: string | null
+  /** z. B. weiße Pfote links – hilft bei Mehrhundehaltung */
+  wiedererkennungsmerkmal: string | null
   geschlecht: string | null
+  /** Anzahl Fotos in der Galerie (aggregiert aus pet_photos) */
+  photo_count?: number
+  /** Kombiimpfung (Hund): Parvo, Lepto, Hepatitis, Staupe */
   letzte_impfung: string | null
+  /** Zwingerhusten (Hund), jährlich */
   letzte_impfung_zusatz: string | null
   futtermenge: string | null
   medikamente: string | null
   besonderheiten: string | null
+  /** Kombi-Intervall: jährlich | alle_2_jahre */
   intervall_impfung: string | null
   intervall_entwurmung: string | null
   letzte_stuhlprobe: string | null
   created_at: string
   updated_at: string
 }
+
+export interface PetPhoto {
+  id: string
+  pet_id: string
+  customer_id: string
+  file_path: string
+  file_name: string
+  file_size: number | null
+  mime_type: string | null
+  sort_order: number
+  created_at: string
+  updated_at: string
+  signedUrl?: string
+}
+
+export interface PetVaccinationReminderLog {
+  id: string
+  pet_id: string
+  vaccination_type: 'kombi' | 'zwingerhusten'
+  due_date: string
+  days_before: 28 | 14
+  sent_at: string
+  recipient_email: string
+}
+
+export type {
+  UpcomingVaccinationRow,
+  UpcomingVaccinationSummary,
+  UpcomingVaccinationStatus,
+} from '@/lib/pet-vaccination'
 
 export interface Document {
   id: string

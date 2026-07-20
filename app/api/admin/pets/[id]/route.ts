@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAdmin } from '@/lib/admin-auth'
 import { PET_EDITABLE_FIELDS, pickAllowedFields } from '@/lib/contact-editable-fields'
+import { deletePetPhotoStorageFiles } from '@/lib/portal-customer'
+import { normalizePetPayload, validatePetPayload } from '@/lib/pet-payload'
 
 export async function PUT(
   request: NextRequest,
@@ -12,9 +14,14 @@ export async function PUT(
       return NextResponse.json({ error: auth.error }, { status: auth.status })
     }
 
-    const updates = pickAllowedFields(await request.json(), PET_EDITABLE_FIELDS)
+    const updates = normalizePetPayload(pickAllowedFields(await request.json(), PET_EDITABLE_FIELDS))
     if (updates.name && typeof updates.name === 'string') {
       updates.name = updates.name.trim()
+    }
+
+    const validationError = validatePetPayload(updates)
+    if (validationError) {
+      return NextResponse.json({ error: validationError }, { status: 400 })
     }
 
     const { data, error } = await auth.client
@@ -47,6 +54,18 @@ export async function DELETE(
     const auth = await requireAdmin(request)
     if ('error' in auth) {
       return NextResponse.json({ error: auth.error }, { status: auth.status })
+    }
+
+    const { data: photos } = await auth.client
+      .from('pet_photos')
+      .select('file_path')
+      .eq('pet_id', params.id)
+
+    if (photos?.length) {
+      await deletePetPhotoStorageFiles(
+        auth.client,
+        photos.map((photo) => photo.file_path)
+      )
     }
 
     const { data, error } = await auth.client

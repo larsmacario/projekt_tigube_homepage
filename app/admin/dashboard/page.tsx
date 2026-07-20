@@ -2,10 +2,21 @@
 
 import { useEffect, useState } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import type { Contact } from '@/lib/types'
+import type { Contact, UpcomingVaccinationRow, UpcomingVaccinationSummary } from '@/lib/types'
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { authenticatedFetch } from '@/lib/authenticated-fetch'
+import {
+  UpcomingVaccinationSummaryCards,
+  UpcomingVaccinationsTable,
+} from '@/components/admin/upcoming-vaccinations-table'
+
+const EMPTY_VACCINATION_SUMMARY: UpcomingVaccinationSummary = {
+  overdue: 0,
+  dueSoon: 0,
+  upcoming: 0,
+  incomplete: 0,
+}
 
 export default function AdminDashboard() {
   const [stats, setStats] = useState({
@@ -15,6 +26,10 @@ export default function AdminDashboard() {
     total: 0,
   })
   const [recentLeads, setRecentLeads] = useState<Contact[]>([])
+  const [vaccinationRows, setVaccinationRows] = useState<UpcomingVaccinationRow[]>([])
+  const [vaccinationSummary, setVaccinationSummary] = useState<UpcomingVaccinationSummary>(
+    EMPTY_VACCINATION_SUMMARY
+  )
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -79,6 +94,16 @@ export default function AdminDashboard() {
           // Zeige alle neuen Leads (oder die neuesten 10)
           setRecentLeads(newLeads.slice(0, 10))
         }
+
+        const vaccinationResponse = await authenticatedFetch(
+          '/api/admin/vaccinations/upcoming?days=90&status=all&type=all',
+          { credentials: 'include' }
+        )
+        const vaccinationData = await vaccinationResponse.json()
+        if (vaccinationResponse.ok) {
+          setVaccinationRows(vaccinationData.rows || [])
+          setVaccinationSummary(vaccinationData.summary || EMPTY_VACCINATION_SUMMARY)
+        }
       } catch (error) {
         console.error('Error loading dashboard data:', error)
       } finally {
@@ -96,6 +121,10 @@ export default function AdminDashboard() {
       </div>
     )
   }
+
+  const previewVaccinationRows = vaccinationRows
+    .filter((row) => row.status === 'overdue' || row.status === 'due_soon')
+    .slice(0, 5)
 
   return (
     <div className="space-y-8">
@@ -192,6 +221,34 @@ export default function AdminDashboard() {
                 </div>
               ))}
             </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <div className="flex justify-between items-center gap-4">
+            <div>
+              <CardTitle>Anstehende Impfungen</CardTitle>
+              <CardDescription>
+                Überfällige und in Kürze fällige Hunde-Impfungen
+              </CardDescription>
+            </div>
+            <Link href="/admin/impfungen">
+              <Button variant="outline" className="border-sage-300 text-sage-700 hover:bg-sage-50">
+                Alle anzeigen
+              </Button>
+            </Link>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <UpcomingVaccinationSummaryCards summary={vaccinationSummary} />
+          {previewVaccinationRows.length === 0 ? (
+            <p className="text-sage-600 text-center py-6">
+              Keine überfälligen oder in 14 Tagen fälligen Impfungen
+            </p>
+          ) : (
+            <UpcomingVaccinationsTable rows={previewVaccinationRows} compact />
           )}
         </CardContent>
       </Card>

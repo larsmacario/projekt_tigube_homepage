@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { sendLeadEmails } from '@/lib/email'
+import { buildReferredLeadMessage } from '@/lib/vacation-dates'
 
 export const runtime = 'nodejs'
 
@@ -24,6 +25,7 @@ interface ContactFormData {
   intaktKastriert?: string
   alter?: string
   timestamp?: string
+  ferienKonflikt?: boolean
 }
 
 export async function POST(request: NextRequest) {
@@ -84,15 +86,20 @@ export async function POST(request: NextRequest) {
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     )
 
+    const ferienKonflikt = formData.ferienKonflikt === true
+    const storedMessage = ferienKonflikt
+      ? buildReferredLeadMessage(formData.message)
+      : formData.message
+
     const { data: lead, error: dbError } = await supabase.from('contacts').insert({
-      contact_type: 'lead',
+      contact_type: ferienKonflikt ? 'lost' : 'lead',
       nachname: formData.name,
       vorname: formData.vorname ?? null,
       email: formData.email,
       telefonnummer: formData.phone,
       service: formData.service,
       pet: formData.pet ?? null,
-      message: formData.message,
+      message: storedMessage,
       availability: formData.availability,
       datenschutz: formData.privacy,
       anzahl_tiere: formData.anzahlTiere ?? null,
@@ -106,7 +113,7 @@ export async function POST(request: NextRequest) {
       ip_address: request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || null,
       user_agent: request.headers.get('user-agent') || null,
       timestamp: formData.timestamp || new Date().toISOString(),
-      status: 'new',
+      status: ferienKonflikt ? null : 'new',
     }).select('id').single()
 
     if (dbError) {
@@ -124,14 +131,18 @@ export async function POST(request: NextRequest) {
       email: formData.email,
     })
 
-    const deliveries = await sendLeadEmails(formData)
+    const deliveries = await sendLeadEmails({
+      ...formData,
+      message: storedMessage,
+      ferienKonflikt,
+    })
     const { error: deliveryStatusError } = await supabase
       .from('contacts')
       .update({
         email_internal_status: deliveries.internal.status,
         email_internal_error: deliveries.internal.error,
-        email_confirmation_status: deliveries.confirmation.status,
-        email_confirmation_error: deliveries.confirmation.error,
+        email_confirmation_status: ferienKonflikt ? null : deliveries.confirmation.status,
+        email_confirmation_error: ferienKonflikt ? null : deliveries.confirmation.error,
       })
       .eq('id', lead.id)
 
@@ -139,7 +150,7 @@ export async function POST(request: NextRequest) {
       console.error('Supabase-Fehler beim Speichern des E-Mail-Status:', deliveryStatusError)
     }
 
-    if (deliveries.internal.status === 'failed' || deliveries.confirmation.status === 'failed') {
+    if (deliveries.internal.status === 'failed' || (!ferienKonflikt && deliveries.confirmation.status === 'failed')) {
       console.error('SMTP-Versand für Lead fehlgeschlagen:', {
         leadId: lead.id,
         internal: deliveries.internal.error,

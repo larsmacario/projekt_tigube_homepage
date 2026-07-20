@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAdmin } from '@/lib/admin-auth'
 import { PET_EDITABLE_FIELDS, pickAllowedFields } from '@/lib/contact-editable-fields'
+import { normalizePetPayload, validatePetPayload } from '@/lib/pet-payload'
 
 export async function GET(request: NextRequest) {
   try {
@@ -57,9 +58,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Kunde nicht gefunden' }, { status: 404 })
     }
 
-    const petData = pickAllowedFields(body, PET_EDITABLE_FIELDS)
+    const petData = normalizePetPayload(pickAllowedFields(body, PET_EDITABLE_FIELDS))
     if (!petData.name || typeof petData.name !== 'string' || !petData.name.trim()) {
       return NextResponse.json({ error: 'Name ist erforderlich' }, { status: 400 })
+    }
+
+    const validationError = validatePetPayload(petData)
+    if (validationError) {
+      return NextResponse.json({ error: validationError }, { status: 400 })
     }
 
     const { data, error } = await auth.client

@@ -1,4 +1,10 @@
+import fs from 'node:fs'
+import path from 'node:path'
 import nodemailer from 'nodemailer'
+
+const LEAD_CONFIRMATION_BANNER_CID = 'lead-confirmation-banner'
+const LEAD_CONFIRMATION_BANNER_ALT =
+  'tigube - tigube bringt Tierhalter:innen und Betreuungspersonen zusammen'
 
 export type LeadEmailData = {
   name: string
@@ -17,6 +23,7 @@ export type LeadEmailData = {
   urlaubBis?: string | null
   intaktKastriert?: string | null
   alter?: string | null
+  ferienKonflikt?: boolean
 }
 
 export type EmailDelivery = {
@@ -192,9 +199,27 @@ function optionalInternalDetails(data: LeadEmailData): string {
     .join('')}</ul>`
 }
 
+function getLeadConfirmationBannerAttachment() {
+  const filePath = path.join(process.cwd(), 'public/images/email-banner-kontakt.jpeg')
+
+  return {
+    filename: 'email-banner-kontakt.jpeg',
+    content: fs.readFileSync(filePath),
+    cid: LEAD_CONFIRMATION_BANNER_CID,
+    contentDisposition: 'inline' as const,
+    contentType: 'image/jpeg',
+  }
+}
+
+function leadConfirmationBannerHtml(): string {
+  return `<p style="margin-top:24px;"><img src="cid:${LEAD_CONFIRMATION_BANNER_CID}" alt="${escapeHtml(LEAD_CONFIRMATION_BANNER_ALT)}" width="600" style="max-width:100%;height:auto;display:block;" /></p>`
+}
+
 function internalText(data: LeadEmailData): string {
   return [
-    'Neue Lead-Anfrage',
+    data.ferienKonflikt
+      ? 'Lead-Anfrage – an tigube.de weitergeleitet (Betriebsferien-Konflikt)'
+      : 'Neue Lead-Anfrage',
     '',
     `Name: ${data.vorname || ''} ${data.name}`.trim(),
     `E-Mail: ${data.email}`,
@@ -242,16 +267,26 @@ export async function sendLeadEmails(data: LeadEmailData): Promise<LeadEmailDeli
 
   const fullName = [data.vorname, data.name].filter(Boolean).join(' ')
   const service = serviceLabel(data.service)
+  const internalSubject = data.ferienKonflikt
+    ? `Weitergeleitet an tigube.de: ${fullName || data.email}`
+    : `Neue Lead-Anfrage: ${fullName || data.email}`
+  const internalHeading = data.ferienKonflikt
+    ? 'Lead-Anfrage – an tigube.de weitergeleitet'
+    : 'Neue Lead-Anfrage'
+  const conflictNotice = data.ferienKonflikt
+    ? '<p><strong>Hinweis:</strong> Der Lead hat angegeben, dass der Betreuungszeitraum in die Betriebsferien fällt. Es wurde kein Bestätigungsmail versendet.</p>'
+    : ''
 
   const internal = await transporter
     .sendMail({
       from: config.from,
       to: config.to,
       replyTo: data.email,
-      subject: `Neue Lead-Anfrage: ${fullName || data.email}`,
+      subject: internalSubject,
       text: internalText(data),
       html: `
-        <h2>Neue Lead-Anfrage</h2>
+        <h2>${internalHeading}</h2>
+        ${conflictNotice}
         <h3>Kontaktdaten</h3>
         <ul>
           <li><strong>Name:</strong> ${escapeHtml(fullName)}</li>
@@ -271,6 +306,13 @@ export async function sendLeadEmails(data: LeadEmailData): Promise<LeadEmailDeli
       status: 'failed',
       error: error instanceof Error ? error.message : 'Interner SMTP-Fehler',
     }))
+
+  if (data.ferienKonflikt) {
+    return {
+      internal,
+      confirmation: { status: 'sent', error: null },
+    }
+  }
 
   const confirmation = await transporter
     .sendMail({
@@ -300,7 +342,9 @@ export async function sendLeadEmails(data: LeadEmailData): Promise<LeadEmailDeli
           <li><strong>Beste Erreichbarkeit:</strong> ${toHtml(data.availability)}</li>
         </ul>
         <p>Herzliche Grüße<br>Tamara und Gabriel von tierisch gut betreut GmbH</p>
+        ${leadConfirmationBannerHtml()}
       `,
+      attachments: [getLeadConfirmationBannerAttachment()],
     })
     .then((): EmailDelivery => ({ status: 'sent', error: null }))
     .catch((error: unknown): EmailDelivery => ({
@@ -379,6 +423,70 @@ export async function sendTransactionalContactEmail(
       status: 'failed',
       error: error instanceof Error ? error.message : 'Interner SMTP-Fehler',
       messageId: null,
+    }
+  }
+}
+
+export type VaccinationReminderEmailData = {
+  email: string
+  customerName: string
+  petName: string
+  vaccinationLabel: string
+  dueDateLabel: string
+  daysBefore: 28 | 14
+  portalUrl: string
+}
+
+export async function sendVaccinationReminderEmail(
+  data: VaccinationReminderEmailData
+): Promise<EmailDelivery> {
+  try {
+    const config = getSmtpConfig()
+    const transporter = nodemailer.createTransport({
+      host: config.host,
+      port: config.port,
+      secure: config.secure,
+      auth: { user: config.user, pass: config.password },
+    })
+
+    const greetingName = data.customerName || 'Tierhalter/in'
+    const weeksLabel = data.daysBefore === 28 ? '4 Wochen' : '2 Wochen'
+    const subject = `Impf-Erinnerung für ${data.petName}: ${data.vaccinationLabel}`
+
+    const text = [
+      `Hallo ${greetingName},`,
+      '',
+      `in ${weeksLabel} ist die ${data.vaccinationLabel} für ${data.petName} fällig (${data.dueDateLabel}).`,
+      'Bitte vereinbare rechtzeitig einen Termin beim Tierarzt und aktualisiere danach die Impfdaten im Kundenportal.',
+      '',
+      `Portal: ${data.portalUrl}`,
+      '',
+      'Herzliche Grüße',
+      'Tamara und Gabriel',
+      'tierisch gut betreut',
+    ].join('\n')
+
+    const html = `
+      <p>Hallo ${escapeHtml(greetingName)},</p>
+      <p>in <strong>${escapeHtml(weeksLabel)}</strong> ist die <strong>${escapeHtml(data.vaccinationLabel)}</strong> für <strong>${escapeHtml(data.petName)}</strong> fällig (${escapeHtml(data.dueDateLabel)}).</p>
+      <p>Bitte vereinbare rechtzeitig einen Termin beim Tierarzt und aktualisiere danach die Impfdaten im Kundenportal.</p>
+      <p><a href="${escapeHtml(data.portalUrl)}">Impfdaten im Portal aktualisieren</a></p>
+      <p>Herzliche Grüße<br>Tamara und Gabriel<br><strong>tierisch gut betreut</strong></p>
+    `
+
+    await transporter.sendMail({
+      from: config.from,
+      to: data.email,
+      subject,
+      text,
+      html,
+    })
+
+    return { status: 'sent', error: null }
+  } catch (error) {
+    return {
+      status: 'failed',
+      error: error instanceof Error ? error.message : 'Interner SMTP-Fehler',
     }
   }
 }

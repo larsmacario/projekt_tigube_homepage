@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerClient } from '@/lib/admin-auth'
+import { deletePetPhotoStorageFiles } from '@/lib/portal-customer'
+import { normalizePetPayload, validatePetPayload } from '@/lib/pet-payload'
 
 export async function PUT(
   request: NextRequest,
@@ -38,7 +40,11 @@ export async function PUT(
     }
 
     const petId = params.id
-    const updates = await request.json()
+    const updates = normalizePetPayload(await request.json())
+    const validationError = validatePetPayload(updates)
+    if (validationError) {
+      return NextResponse.json({ error: validationError }, { status: 400 })
+    }
 
     // Prüfe ob Pet zum User gehört
     const { data: customer } = await supabase
@@ -134,6 +140,19 @@ export async function DELETE(
       return NextResponse.json(
         { error: 'Kundenprofil nicht gefunden' },
         { status: 404 }
+      )
+    }
+
+    const { data: photos } = await supabase
+      .from('pet_photos')
+      .select('file_path')
+      .eq('pet_id', petId)
+      .eq('customer_id', customer.id)
+
+    if (photos?.length) {
+      await deletePetPhotoStorageFiles(
+        supabase,
+        photos.map((photo) => photo.file_path)
       )
     }
 

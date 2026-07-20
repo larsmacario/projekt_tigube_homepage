@@ -39,14 +39,22 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url)
     const status = searchParams.get('status')
+    const typeFilter = searchParams.get('type')
 
     let query = supabase
       .from('contacts')
       .select('*')
-      .eq('contact_type', 'lead')
       .order('created_at', { ascending: false })
 
-    if (status) {
+    if (typeFilter === 'lost') {
+      query = query.eq('contact_type', 'lost')
+    } else if (typeFilter === 'lead') {
+      query = query.eq('contact_type', 'lead')
+    } else {
+      query = query.in('contact_type', ['lead', 'lost'])
+    }
+
+    if (status && typeFilter !== 'lost') {
       query = query.eq('status', status)
     }
 

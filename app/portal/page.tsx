@@ -8,6 +8,8 @@ import { Badge } from '@/components/ui/badge'
 import Link from 'next/link'
 import type { Customer, Pet, Document, BookingRequest } from '@/lib/types'
 import { authenticatedFetch } from '@/lib/authenticated-fetch'
+import { getPetCompletenessIssues } from '@/lib/pet-vaccination'
+import { getPetsWithoutPhotos } from '@/lib/pet-photos'
 
 export default function PortalPage() {
   const [customer, setCustomer] = useState<Customer | null>(null)
@@ -65,6 +67,12 @@ export default function PortalPage() {
     ? '/portal/profile?onboarding=true&step=2'
     : '/portal/profile?onboarding=true&step=3'
 
+  const petsWithCompletenessIssues = pets.filter(
+    (pet) => getPetCompletenessIssues(pet, documents).length > 0
+  )
+  const hasCompletePetData = pets.length === 0 || petsWithCompletenessIssues.length === 0
+  const petsWithoutPhotos = getPetsWithoutPhotos(pets)
+
   return (
     <div className="space-y-8">
       <div>
@@ -73,6 +81,46 @@ export default function PortalPage() {
         </h1>
         <p className="mt-2 text-sage-600">Dein persönliches Kundenportal</p>
       </div>
+
+      {petsWithCompletenessIssues.length > 0 && (
+        <Card className="border-amber-300 bg-amber-50">
+          <CardHeader>
+            <CardTitle className="text-amber-800">Tierdaten ergänzen</CardTitle>
+            <CardDescription className="text-amber-700">
+              Für {petsWithCompletenessIssues.map((pet) => pet.name).join(', ')} fehlen noch
+              Angaben (Impfpass, Wurmtest, Entwurmungsdatum oder Impfdaten). Bitte ergänze die
+              Daten rechtzeitig vor dem nächsten Aufenthalt.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Link href="/portal/pets">
+              <Button className="bg-amber-600 hover:bg-amber-700">
+                Tierdaten nachtragen
+              </Button>
+            </Link>
+          </CardContent>
+        </Card>
+      )}
+
+      {petsWithoutPhotos.length > 0 && (
+        <Card className="border-amber-300 bg-amber-50">
+          <CardHeader>
+            <CardTitle className="text-amber-800">Tierfoto ergänzen</CardTitle>
+            <CardDescription className="text-amber-700">
+              Für {petsWithoutPhotos.map((pet) => pet.name).join(', ')} ist noch kein Foto
+              hinterlegt. Bitte lade mindestens ein Bild hoch – besonders bei mehreren Tieren
+              gleicher Rasse oder Farbe.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Link href="/portal/pets">
+              <Button className="bg-amber-600 hover:bg-amber-700">
+                Tierfoto hochladen
+              </Button>
+            </Link>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Onboarding-Hinweis */}
       {showOnboardingBanner && (
@@ -234,25 +282,19 @@ export default function PortalPage() {
                   Tiere hinzufügen
                 </span>
               </li>
-              <li className="flex items-center gap-3">
-                <span className={`w-6 h-6 rounded-full flex items-center justify-center text-white text-sm ${documents.some(d => d.document_type === 'impfpass') ? 'bg-green-500' : 'bg-sage-300'}`}>
-                  {documents.some(d => d.document_type === 'impfpass') ? '✓' : '3'}
-                </span>
-                <span className={documents.some(d => d.document_type === 'impfpass') ? 'text-sage-600 line-through' : 'text-sage-900'}>
-                  Impfpass hochladen
-                </span>
-              </li>
-              <li className="flex items-center gap-3">
-                <span className={`w-6 h-6 rounded-full flex items-center justify-center text-white text-sm ${documents.some(d => d.document_type === 'wurmtest') ? 'bg-green-500' : 'bg-sage-300'}`}>
-                  {documents.some(d => d.document_type === 'wurmtest') ? '✓' : '4'}
-                </span>
-                <span className={documents.some(d => d.document_type === 'wurmtest') ? 'text-sage-600 line-through' : 'text-sage-900'}>
-                  Wurmtest hochladen
-                </span>
-              </li>
+              {hasPets && (
+                <li className="flex items-center gap-3">
+                  <span className={`w-6 h-6 rounded-full flex items-center justify-center text-white text-sm ${hasCompletePetData ? 'bg-green-500' : 'bg-sage-300'}`}>
+                    {hasCompletePetData ? '✓' : '3'}
+                  </span>
+                  <span className={hasCompletePetData ? 'text-sage-600 line-through' : 'text-sage-900'}>
+                    Tierdaten ergänzen (Impfpass, Wurmtest, Entwurmung)
+                  </span>
+                </li>
+              )}
               <li className="flex items-center gap-3">
                 <span className={`w-6 h-6 rounded-full flex items-center justify-center text-white text-sm ${documents.some(d => d.document_type === 'vertrag') ? 'bg-green-500' : 'bg-sage-300'}`}>
-                  {documents.some(d => d.document_type === 'vertrag') ? '✓' : '5'}
+                  {documents.some(d => d.document_type === 'vertrag') ? '✓' : '4'}
                 </span>
                 <span className={documents.some(d => d.document_type === 'vertrag') ? 'text-sage-600 line-through' : 'text-sage-900'}>
                   Pflegevertrag unterzeichnen
@@ -377,9 +419,9 @@ export default function PortalPage() {
               <li className="flex items-start gap-2">
                 <span className="text-sage-600 mt-1">•</span>
                 <div>
-                  <p className="font-medium">Impfpass mit den jährlichen Impfungen</p>
+                  <p className="font-medium">Impfpass mit den erforderlichen Impfungen</p>
                   <p className="text-sm text-sage-600">
-                    Parvovirose, Leptospirose, Hepatitis, Staupe, Zwingerhusten, (Tollwut optional)
+                    Parvovirose, Leptospirose, Hepatitis, Staupe, Zwingerhusten
                   </p>
                 </div>
               </li>

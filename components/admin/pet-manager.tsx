@@ -32,6 +32,12 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog'
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 
 const emptyPetForm = {
   name: '',
@@ -62,6 +68,7 @@ export function PetManager({ customerId, pets, onPetsChange }: PetManagerProps) 
   const [editingId, setEditingId] = useState<string | null>(null)
   const [formData, setFormData] = useState(emptyPetForm)
   const [deleteId, setDeleteId] = useState<string | null>(null)
+  const [previewPhoto, setPreviewPhoto] = useState<{ name: string; url: string } | null>(null)
   const [saving, setSaving] = useState(false)
 
   function openCreate() {
@@ -347,7 +354,24 @@ export function PetManager({ customerId, pets, onPetsChange }: PetManagerProps) 
               <div key={pet.id} className="p-4 border border-sage-200 rounded-lg">
                 <div className="flex items-start justify-between mb-2 gap-3">
                   <div className="flex items-start gap-3 min-w-0">
-                    <PetAvatar name={pet.name} photoUrl={pet.primary_photo_url} />
+                    {pet.primary_photo_url ? (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setPreviewPhoto({ name: pet.name, url: pet.primary_photo_url! })
+                        }
+                        className="shrink-0 rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sage-400 focus-visible:ring-offset-2"
+                        aria-label={`Foto von ${pet.name} vergrößern`}
+                      >
+                        <PetAvatar
+                          name={pet.name}
+                          photoUrl={pet.primary_photo_url}
+                          className="cursor-pointer transition-opacity hover:opacity-90"
+                        />
+                      </button>
+                    ) : (
+                      <PetAvatar name={pet.name} photoUrl={pet.primary_photo_url} />
+                    )}
                     <h3 className="font-semibold text-lg">{pet.name}</h3>
                   </div>
                   <div className="flex gap-1">
@@ -389,6 +413,24 @@ export function PetManager({ customerId, pets, onPetsChange }: PetManagerProps) 
           !showForm && <p className="text-sage-600 text-center py-4">Keine Tiere registriert</p>
         )}
       </CardContent>
+
+      <Dialog
+        open={!!previewPhoto}
+        onOpenChange={(open) => !open && setPreviewPhoto(null)}
+      >
+        <DialogContent className="max-w-3xl gap-0 overflow-hidden p-0">
+          <DialogHeader className="border-b border-sage-200 px-4 py-3">
+            <DialogTitle>{previewPhoto?.name}</DialogTitle>
+          </DialogHeader>
+          {previewPhoto && (
+            <img
+              src={previewPhoto.url}
+              alt={`Foto von ${previewPhoto.name}`}
+              className="max-h-[75vh] w-full bg-sage-50 object-contain"
+            />
+          )}
+        </DialogContent>
+      </Dialog>
 
       <AlertDialog open={!!deleteId} onOpenChange={(open) => !open && setDeleteId(null)}>
         <AlertDialogContent>

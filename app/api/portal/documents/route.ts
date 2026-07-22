@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerClient } from '@/lib/admin-auth'
+import {
+  buildCustomerDocumentStoragePath,
+  CUSTOMER_DOCUMENTS_BUCKET,
+} from '@/lib/customer-documents'
 
 export async function GET(request: NextRequest) {
   try {
@@ -98,13 +102,11 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Upload zu Storage
-    const fileExt = file.name.split('.').pop()
-    const fileName = `${customer.id}/${documentType}/${Date.now()}.${fileExt}`
-    const filePath = `customer-documents/${fileName}`
+    const fileExt = file.name.split('.').pop() || 'bin'
+    const filePath = buildCustomerDocumentStoragePath(customer.id, documentType, fileExt)
 
     const { error: uploadError } = await supabase.storage
-      .from('customer-documents')
+      .from(CUSTOMER_DOCUMENTS_BUCKET)
       .upload(filePath, file)
 
     if (uploadError) {

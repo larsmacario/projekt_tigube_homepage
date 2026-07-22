@@ -7,6 +7,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 import { Badge } from '@/components/ui/badge'
 import Link from 'next/link'
 import type { Customer, Pet, Document, BookingRequest } from '@/lib/types'
+import { PetAvatar } from '@/components/pet-avatar'
 import { authenticatedFetch } from '@/lib/authenticated-fetch'
 import { getPetsWithDashboardMissingFields } from '@/lib/pet-vaccination'
 
@@ -198,9 +199,12 @@ export default function PortalPage() {
           </CardHeader>
           <CardContent>
             {pets.length > 0 ? (
-              <ul className="space-y-1 text-sm text-sage-600">
+              <ul className="space-y-2 text-sm text-sage-600">
                 {pets.slice(0, 3).map((pet) => (
-                  <li key={pet.id}>{pet.name} ({pet.tierart || 'unbekannt'})</li>
+                  <li key={pet.id} className="flex items-center gap-2">
+                    <PetAvatar name={pet.name} photoUrl={pet.primary_photo_url} size="sm" />
+                    <span>{pet.name} ({pet.tierart || 'unbekannt'})</span>
+                  </li>
                 ))}
                 {pets.length > 3 && <li>+ {pets.length - 3} weitere</li>}
               </ul>

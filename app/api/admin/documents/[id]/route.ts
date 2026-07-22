@@ -1,5 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAdmin } from '@/lib/admin-auth'
+import {
+  CUSTOMER_DOCUMENTS_BUCKET,
+  CUSTOMER_DOCUMENT_SIGNED_URL_TTL,
+  normalizeCustomerDocumentStoragePath,
+} from '@/lib/customer-documents'
 
 export async function GET(
   request: NextRequest,
@@ -22,9 +27,11 @@ export async function GET(
       return NextResponse.json({ error: 'Dokument nicht gefunden' }, { status: 404 })
     }
 
+    const storagePath = normalizeCustomerDocumentStoragePath(document.file_path)
+
     const { data: signedData, error: signedError } = await auth.client.storage
-      .from('customer-documents')
-      .createSignedUrl(document.file_path, 60)
+      .from(CUSTOMER_DOCUMENTS_BUCKET)
+      .createSignedUrl(storagePath, CUSTOMER_DOCUMENT_SIGNED_URL_TTL)
 
     if (signedError || !signedData) {
       throw signedError || new Error('Signed URL konnte nicht erstellt werden')
@@ -61,9 +68,11 @@ export async function DELETE(
       return NextResponse.json({ error: 'Dokument nicht gefunden' }, { status: 404 })
     }
 
+    const storagePath = normalizeCustomerDocumentStoragePath(document.file_path)
+
     const { error: storageError } = await auth.client.storage
-      .from('customer-documents')
-      .remove([document.file_path])
+      .from(CUSTOMER_DOCUMENTS_BUCKET)
+      .remove([storagePath])
 
     if (storageError) {
       console.error('Storage delete error:', storageError)

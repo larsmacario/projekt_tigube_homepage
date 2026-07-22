@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAdmin } from '@/lib/admin-auth'
+import { normalizePetsWithPhotos, PET_PHOTOS_SELECT } from '@/lib/pet-photos'
 import { PET_EDITABLE_FIELDS, pickAllowedFields } from '@/lib/contact-editable-fields'
 import { normalizePetPayload, validatePetPayload } from '@/lib/pet-payload'
 
@@ -17,13 +18,15 @@ export async function GET(request: NextRequest) {
 
     const { data, error } = await auth.client
       .from('pets')
-      .select('*')
+      .select(`*, ${PET_PHOTOS_SELECT}`)
       .eq('customer_id', customerId)
       .order('created_at', { ascending: false })
 
     if (error) throw error
 
-    return NextResponse.json({ pets: data || [] })
+    const pets = await normalizePetsWithPhotos(auth.client, data || [])
+
+    return NextResponse.json({ pets })
   } catch (error: any) {
     console.error('Error fetching admin pets:', error)
     return NextResponse.json(

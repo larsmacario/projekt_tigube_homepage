@@ -63,6 +63,9 @@ export interface Contact {
   newsletter_unsubscribed_at: string | null
   contract_signed?: boolean
   contract_signed_at?: string | null
+  contract_email_status?: 'sent' | 'failed' | null
+  contract_email_error?: string | null
+  contract_email_sent_at?: string | null
 }
 
 /** Alias — Kunden sind `contacts` mit contact_type customer */
@@ -80,6 +83,8 @@ export interface Pet {
   geschlecht: string | null
   /** Anzahl Fotos in der Galerie (aggregiert aus pet_photos) */
   photo_count?: number
+  /** Signierte URL des ersten Galerie-Fotos (Listen-Ansicht) */
+  primary_photo_url?: string | null
   /** Kombiimpfung (Hund): Parvo, Lepto, Hepatitis, Staupe */
   letzte_impfung: string | null
   /** Zwingerhusten (Hund), jährlich */

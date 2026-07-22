@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { useToast } from '@/hooks/use-toast'
 import { Plus, Trash2 } from 'lucide-react'
 import type { Customer, Pet, Document } from '@/lib/types'
+import { PetAvatar } from '@/components/pet-avatar'
 import { authenticatedFetch } from '@/lib/authenticated-fetch'
 import {
   PetVaccinationSection,
@@ -762,8 +763,11 @@ function ProfileContent() {
       doc.text('Unterschrift des Tierbesitzers (digital geleistet):', 20, textY)
       textY += 6
 
-      // Füge das Unterschriftsbild ein
-      doc.addImage(signatureImage, 'PNG', 20, textY, 60, 25)
+      // Füge das Unterschriftsbild ein (komprimiert, um PDF-Größe gering zu halten)
+      const { compressSignatureForPdf } = await import('@/lib/signature-image')
+      const compressedSignature = await compressSignatureForPdf(signatureImage)
+      const signatureFormat = compressedSignature.startsWith('data:image/jpeg') ? 'JPEG' : 'PNG'
+      doc.addImage(compressedSignature, signatureFormat, 20, textY, 60, 25)
       
       textY += 33
       doc.setFont('Helvetica', 'normal')
@@ -792,28 +796,24 @@ function ProfileContent() {
         throw new Error(uploadErr.error || 'Fehler beim Hochladen des Vertrags-PDFs')
       }
 
-      // 4. E-Mail versenden
-      const pdfBase64 = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader()
-        reader.onloadend = () => {
-          const base64String = (reader.result as string).split(',')[1]
-          resolve(base64String)
-        }
-        reader.onerror = reject
-        reader.readAsDataURL(pdfFile)
-      })
+      const uploadData = await uploadResponse.json()
+      const uploadedDocumentId = uploadData.document?.id as string | undefined
 
+      // 4. E-Mail versenden (PDF wird serverseitig aus Storage geladen)
       const mailResponse = await authenticatedFetch('/api/portal/contracts/send-email', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          pdfBase64,
-          fileName: 'Pflegevertrag.pdf'
-        })
+          documentId: uploadedDocumentId,
+        }),
       })
 
       if (!mailResponse.ok) {
-        console.error('Fehler beim E-Mail-Versand, fahren aber fort')
+        const mailErr = await mailResponse.json().catch(() => ({}))
+        throw new Error(
+          mailErr.error ||
+            'Der Vertrag wurde gespeichert, aber die E-Mail konnte nicht versendet werden. Bitte kontaktiere uns.'
+        )
       }
 
       // 5. Profil und Onboarding als abgeschlossen markieren
@@ -1742,17 +1742,20 @@ function ProfileContent() {
                 <div className="space-y-4">
                   {pets.map((pet) => (
                     <div key={pet.id} className="p-4 border border-sage-200 rounded-lg">
-                      <div className="flex items-start justify-between mb-3">
-                        <div>
-                          <p className="font-semibold text-lg">{pet.name}</p>
-                          <p className="text-sm text-sage-600">
-                            {[pet.tierart, pet.rasse, pet.farbe, pet.geschlecht].filter(Boolean).join(' • ')}
-                          </p>
-                          <PetMissingFieldsHint
-                            pet={pet}
-                            documents={documents}
-                            className="mt-2 text-sm text-amber-700"
-                          />
+                      <div className="flex items-start justify-between mb-3 gap-3">
+                        <div className="flex items-start gap-3 min-w-0">
+                          <PetAvatar name={pet.name} photoUrl={pet.primary_photo_url} />
+                          <div className="min-w-0">
+                            <p className="font-semibold text-lg">{pet.name}</p>
+                            <p className="text-sm text-sage-600">
+                              {[pet.tierart, pet.rasse, pet.farbe, pet.geschlecht].filter(Boolean).join(' • ')}
+                            </p>
+                            <PetMissingFieldsHint
+                              pet={pet}
+                              documents={documents}
+                              className="mt-2 text-sm text-amber-700"
+                            />
+                          </div>
                         </div>
                         <div className="flex gap-2">
                           <Button

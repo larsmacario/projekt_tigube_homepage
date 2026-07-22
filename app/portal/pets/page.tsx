@@ -11,6 +11,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { useToast } from '@/hooks/use-toast'
 import { Plus, Trash2 } from 'lucide-react'
 import type { Pet, Document } from '@/lib/types'
+import { PetAvatar } from '@/components/pet-avatar'
 import { authenticatedFetch } from '@/lib/authenticated-fetch'
 import {
   PetVaccinationSection,
@@ -650,17 +651,20 @@ export default function PetsPage() {
             <div className="space-y-4">
               {pets.map((pet) => (
                 <div key={pet.id} className="p-4 border border-sage-200 rounded-lg">
-                  <div className="flex items-start justify-between mb-3">
-                    <div>
-                      <p className="font-semibold text-lg">{pet.name}</p>
-                      <p className="text-sm text-sage-600">
-                        {[pet.tierart, pet.rasse, pet.farbe, pet.geschlecht].filter(Boolean).join(' • ')}
-                      </p>
-                      <PetMissingFieldsHint
-                        pet={pet}
-                        documents={documents}
-                        className="mt-2 text-sm text-amber-700"
-                      />
+                  <div className="flex items-start justify-between mb-3 gap-3">
+                    <div className="flex items-start gap-3 min-w-0">
+                      <PetAvatar name={pet.name} photoUrl={pet.primary_photo_url} />
+                      <div className="min-w-0">
+                        <p className="font-semibold text-lg">{pet.name}</p>
+                        <p className="text-sm text-sage-600">
+                          {[pet.tierart, pet.rasse, pet.farbe, pet.geschlecht].filter(Boolean).join(' • ')}
+                        </p>
+                        <PetMissingFieldsHint
+                          pet={pet}
+                          documents={documents}
+                          className="mt-2 text-sm text-amber-700"
+                        />
+                      </div>
                     </div>
                     <div className="flex gap-2">
                       <Button

@@ -1,22 +1,22 @@
 # Aktueller Stand
 
 ## Letzte Änderungen
-- Smarte Hunde-Impferfassung im Portal/Onboarding: Kombiimpfung (Datum + Intervall jährlich/2 Jahre) + separates Zwingerhusten-Datum; Soft-Pflicht mit Dashboard-Hinweis.
-- Impf-Erinnerungen per E-Mail (4 und 2 Wochen vor Fälligkeit), Log in `pet_vaccination_reminder_log`.
-- Cron über Supabase `pg_cron` + `pg_net` (Funktion `trigger_vaccination_reminders`), nicht Vercel Cron; Secrets `cron_secret` + `app_base_url` im Supabase Vault, `CRON_SECRET` zusätzlich in Vercel.
-- Admin-Impfübersicht: `/admin/impfungen` mit Tabelle/Filtern, API `/api/admin/vaccinations/upcoming`, Vorschau auf `/admin/dashboard`.
+- Vertrags-Mail nach Onboarding repariert: PDF wird serverseitig aus Storage geladen (kein Base64-Body mehr → Vercel-Limit umgangen).
+- Signatur-Kompression vor PDF-Einbettung; Mail-Fehler blockieren Onboarding-Abschluss.
+- DB-Felder `contract_email_status`, `contract_email_error`, `contract_email_sent_at`; Admin kann Vertrags-Mail erneut senden.
+- Nachversand an gabriel-haaga@gmx.de erfolgreich (SMTP lokal verifiziert).
 
 ## Fokus
+- Deploy auf Vercel; SMTP-Env-Vars in Production gegen `.env.local` prüfen.
 - Vault-Secrets und `CRON_SECRET` in Production prüfen/setzen.
-- Impf-Reminder und Admin-Impfübersicht manuell testen (überfällig, in 14 Tagen, unvollständige Daten).
 
 ## Nächste Schritte
+- Deploy; Vertrags-Mail-Flow mit neuem Onboarding testen.
 - Supabase Vault: `cron_secret` und `app_base_url` setzen; Vercel `CRON_SECRET` angleichen.
-- Deploy auf Vercel; Test: Hund anlegen, `/admin/impfungen`, Cron manuell via `SELECT public.trigger_vaccination_reminders();`
-- Offene CMS-Fixes deployen.
+- Impf-Reminder und Admin-Impfübersicht manuell testen.
 
 ## Offene Punkte
+- Vercel-Production: SMTP_* müssen gesetzt sein (lokal OK, Production separat prüfen vor Deploy).
 - Vault-Secrets für Impf-Cron müssen in Supabase gesetzt sein, sonst nur Warning-Log.
-- Supabase CLI meldet ggf. 403 für `migration list`/`repair`.
 - `public/images/tigube_logo_hund.jpg` fehlt im Repo.
 - ESLint nicht installiert (`npm run lint` schlägt fehl).

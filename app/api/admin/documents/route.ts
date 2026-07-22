@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAdmin } from '@/lib/admin-auth'
-
-const ALLOWED_DOCUMENT_TYPES = ['vertrag', 'impfpass', 'wurmtest'] as const
+import {
+  ALLOWED_CUSTOMER_DOCUMENT_TYPES,
+  buildCustomerDocumentStoragePath,
+  CUSTOMER_DOCUMENTS_BUCKET,
+} from '@/lib/customer-documents'
 
 export async function GET(request: NextRequest) {
   try {
@@ -53,7 +56,7 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    if (!ALLOWED_DOCUMENT_TYPES.includes(documentType as (typeof ALLOWED_DOCUMENT_TYPES)[number])) {
+    if (!ALLOWED_CUSTOMER_DOCUMENT_TYPES.includes(documentType as (typeof ALLOWED_CUSTOMER_DOCUMENT_TYPES)[number])) {
       return NextResponse.json({ error: 'Ungültiger Dokumenttyp' }, { status: 400 })
     }
 
@@ -69,12 +72,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Kunde nicht gefunden' }, { status: 404 })
     }
 
-    const fileExt = file.name.split('.').pop()
-    const fileName = `${customerId}/${documentType}/${Date.now()}.${fileExt}`
-    const filePath = `customer-documents/${fileName}`
+    const fileExt = file.name.split('.').pop() || 'bin'
+    const filePath = buildCustomerDocumentStoragePath(customerId, documentType, fileExt)
 
     const { error: uploadError } = await auth.client.storage
-      .from('customer-documents')
+      .from(CUSTOMER_DOCUMENTS_BUCKET)
       .upload(filePath, file)
 
     if (uploadError) throw uploadError

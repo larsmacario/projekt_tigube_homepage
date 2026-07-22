@@ -71,6 +71,7 @@ export default function CustomerDetailPage() {
   const [isEditing, setIsEditing] = useState(false)
   const [formData, setFormData] = useState<CustomerFormData | null>(null)
   const [savingContact, setSavingContact] = useState(false)
+  const [resendingContractEmail, setResendingContractEmail] = useState(false)
 
   const [groups, setGroups] = useState<any[]>([])
   const [defaultPrices, setDefaultPrices] = useState<any[]>([])
@@ -191,6 +192,44 @@ export default function CustomerDetailPage() {
       })
     } finally {
       setSavingPrices(false)
+    }
+  }
+
+  async function handleResendContractEmail() {
+    setResendingContractEmail(true)
+    try {
+      const response = await authenticatedFetch(
+        `/api/admin/customers/${customerId}/resend-contract-email`,
+        {
+          method: 'POST',
+          credentials: 'include',
+        }
+      )
+      const data = await response.json()
+
+      if (response.ok) {
+        toast({
+          title: 'Vertrags-Mail gesendet',
+          description: `Die Vertrags-Mail wurde an ${data.email} gesendet.`,
+        })
+        await loadCustomer()
+      } else {
+        toast({
+          title: 'Versand fehlgeschlagen',
+          description: data.error || 'Die Vertrags-Mail konnte nicht gesendet werden.',
+          variant: 'destructive',
+        })
+        await loadCustomer()
+      }
+    } catch (error) {
+      console.error('Error resending contract email:', error)
+      toast({
+        title: 'Fehler',
+        description: 'Die Vertrags-Mail konnte nicht gesendet werden.',
+        variant: 'destructive',
+      })
+    } finally {
+      setResendingContractEmail(false)
     }
   }
 
@@ -578,7 +617,7 @@ export default function CustomerDetailPage() {
             ) : null}
 
             <div className="border-t pt-4">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                 <div>
                   <p className="text-sm text-sage-500">Onboarding Status</p>
                   <Badge
@@ -600,6 +639,33 @@ export default function CustomerDetailPage() {
                     <p className="text-[10px] text-sage-500 mt-0.5">
                       {new Date(customer.contract_signed_at).toLocaleDateString('de-DE')}
                     </p>
+                  )}
+                </div>
+                <div>
+                  <p className="text-sm text-sage-500">Vertrags-Mail</p>
+                  <Badge
+                    variant={
+                      customer.contract_email_status === 'sent'
+                        ? 'default'
+                        : customer.contract_email_status === 'failed'
+                          ? 'destructive'
+                          : 'secondary'
+                    }
+                    className="mt-1"
+                  >
+                    {customer.contract_email_status === 'sent'
+                      ? 'Versendet'
+                      : customer.contract_email_status === 'failed'
+                        ? 'Fehlgeschlagen'
+                        : 'Kein Status'}
+                  </Badge>
+                  {customer.contract_email_sent_at && (
+                    <p className="text-[10px] text-sage-500 mt-0.5">
+                      {new Date(customer.contract_email_sent_at).toLocaleString('de-DE')}
+                    </p>
+                  )}
+                  {customer.contract_email_error && (
+                    <p className="text-[10px] text-red-600 mt-0.5">{customer.contract_email_error}</p>
                   )}
                 </div>
                 <div>
@@ -635,6 +701,18 @@ export default function CustomerDetailPage() {
                       Kopieren
                     </Button>
                   </div>
+                </div>
+              )}
+              {customer.contract_signed && (
+                <div className="mt-4">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={handleResendContractEmail}
+                    disabled={resendingContractEmail}
+                  >
+                    {resendingContractEmail ? 'Wird gesendet...' : 'Vertrags-Mail erneut senden'}
+                  </Button>
                 </div>
               )}
             </div>

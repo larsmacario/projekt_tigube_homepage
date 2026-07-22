@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerClient, getAdminDbClient } from '@/lib/admin-auth'
 import { CUSTOMER_EDITABLE_FIELDS, pickAllowedFields } from '@/lib/contact-editable-fields'
+import {
+  CUSTOMER_DOCUMENTS_BUCKET,
+  normalizeCustomerDocumentStoragePath,
+} from '@/lib/customer-documents'
+import { normalizePetsWithPhotos, PET_PHOTOS_SELECT } from '@/lib/pet-photos'
 
 export async function GET(
   request: NextRequest,
@@ -36,7 +41,7 @@ export async function GET(
     // Hole Customer mit allen verknüpften Daten
     const { data: customer, error: customerError } = await supabase
       .from('contacts')
-      .select('*, pets(*), documents(*)')
+      .select(`*, pets(*, ${PET_PHOTOS_SELECT}), documents(*)`)
       .eq('id', customerId)
       .eq('contact_type', 'customer')
       .single()
@@ -47,6 +52,9 @@ export async function GET(
         { status: 404 }
       )
     }
+
+    const pets = await normalizePetsWithPhotos(supabase, customer.pets || [])
+    const customerWithPets = { ...customer, pets }
 
     // Hole Onboarding-Token, falls vorhanden und Onboarding unvollständig
     let onboardingToken = null
@@ -70,7 +78,7 @@ export async function GET(
       }
     }
 
-    return NextResponse.json({ customer, onboardingToken })
+    return NextResponse.json({ customer: customerWithPets, onboardingToken })
   } catch (error: any) {
     console.error('Error:', error)
     return NextResponse.json({ error: error.message }, { status: 500 })
@@ -181,10 +189,13 @@ export async function DELETE(
       .eq('customer_id', customerId)
     if (documentsError) throw documentsError
 
-    const documentPaths = (documents || []).map((document) => document.file_path).filter(Boolean)
+    const documentPaths = (documents || [])
+      .map((document) => document.file_path)
+      .filter(Boolean)
+      .map((filePath) => normalizeCustomerDocumentStoragePath(filePath))
     if (documentPaths.length > 0) {
       const { error: storageError } = await adminSupabase.storage
-        .from('customer-documents')
+        .from(CUSTOMER_DOCUMENTS_BUCKET)
         .remove(documentPaths)
       if (storageError) throw storageError
     }

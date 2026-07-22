@@ -11,6 +11,7 @@ import { Pencil, Trash2, Plus } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 import { authenticatedFetch } from '@/lib/authenticated-fetch'
 import type { Pet } from '@/lib/types'
+import { PetAvatar } from '@/components/pet-avatar'
 import {
   PET_TIERART_OPTIONS,
   PET_GESCHLECHT_OPTIONS,
@@ -128,7 +129,13 @@ export function PetManager({ customerId, pets, onPetsChange }: PetManagerProps) 
       if (response.ok) {
         const data = await response.json()
         if (editingId) {
-          onPetsChange(pets.map((p) => (p.id === editingId ? data.pet : p)))
+          onPetsChange(
+            pets.map((p) =>
+              p.id === editingId
+                ? { ...p, ...data.pet, primary_photo_url: p.primary_photo_url ?? null }
+                : p
+            )
+          )
         } else {
           onPetsChange([data.pet, ...pets])
         }
@@ -338,8 +345,11 @@ export function PetManager({ customerId, pets, onPetsChange }: PetManagerProps) 
           <div className="space-y-4">
             {pets.map((pet) => (
               <div key={pet.id} className="p-4 border border-sage-200 rounded-lg">
-                <div className="flex items-start justify-between mb-2">
-                  <h3 className="font-semibold text-lg">{pet.name}</h3>
+                <div className="flex items-start justify-between mb-2 gap-3">
+                  <div className="flex items-start gap-3 min-w-0">
+                    <PetAvatar name={pet.name} photoUrl={pet.primary_photo_url} />
+                    <h3 className="font-semibold text-lg">{pet.name}</h3>
+                  </div>
                   <div className="flex gap-1">
                     <Button size="sm" variant="ghost" onClick={() => openEdit(pet)}>
                       <Pencil className="h-4 w-4" />

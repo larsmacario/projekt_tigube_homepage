@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerClient } from '@/lib/admin-auth'
-import { normalizePetWithPhotoCount } from '@/lib/pet-photos'
+import { normalizePetsWithPhotos, PET_PHOTOS_SELECT } from '@/lib/pet-photos'
 import { normalizePetPayload, validatePetPayload } from '@/lib/pet-payload'
 
 export async function GET(request: NextRequest) {
@@ -47,7 +47,7 @@ export async function GET(request: NextRequest) {
 
     const { data, error } = await supabase
       .from('pets')
-      .select('*, pet_photos(count)')
+      .select(`*, ${PET_PHOTOS_SELECT}`)
       .eq('customer_id', customer.id)
       .order('created_at', { ascending: false })
 
@@ -55,7 +55,7 @@ export async function GET(request: NextRequest) {
       throw error
     }
 
-    const pets = (data || []).map((pet) => normalizePetWithPhotoCount(pet))
+    const pets = await normalizePetsWithPhotos(supabase, data || [])
 
     return NextResponse.json({ pets })
   } catch (error: any) {

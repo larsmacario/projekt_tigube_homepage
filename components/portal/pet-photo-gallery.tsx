@@ -7,6 +7,8 @@ import { Button } from '@/components/ui/button'
 import { ImagePlus, Loader2, Trash2 } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 import { authenticatedFetch } from '@/lib/authenticated-fetch'
+import { compressImageForUpload } from '@/lib/compress-image'
+import { readApiResponse } from '@/lib/read-api-response'
 import { MAX_PET_PHOTOS, validatePetPhotoFile } from '@/lib/pet-photos'
 import type { PetPhoto } from '@/lib/types'
 
@@ -58,12 +60,12 @@ export function PetPhotoGallery({
       setLoading(true)
       try {
         const response = await authenticatedFetch(photosEndpoint!)
-        const data = await response.json()
-        if (!response.ok) {
-          throw new Error(data.error || 'Fotos konnten nicht geladen werden')
+        const { data, error } = await readApiResponse<{ photos?: PetPhoto[]; error?: string }>(response)
+        if (error) {
+          throw new Error(error)
         }
         if (!cancelled) {
-          const nextPhotos = data.photos || []
+          const nextPhotos = data?.photos || []
           setPhotos(nextPhotos)
           notifyPhotoCount(nextPhotos.length)
         }
@@ -100,16 +102,26 @@ export function PetPhotoGallery({
 
     setUploading(true)
     try {
+      const compressedFile = await compressImageForUpload(file)
+      const validationErrorAfterCompress = validatePetPhotoFile(compressedFile)
+      if (validationErrorAfterCompress) {
+        toast({ title: 'Fehler', description: validationErrorAfterCompress, variant: 'destructive' })
+        return
+      }
+
       const formData = new FormData()
-      formData.append('file', file)
+      formData.append('file', compressedFile)
 
       const response = await authenticatedFetch(`/api/portal/pets/${petId}/photos`, {
         method: 'POST',
         body: formData,
       })
-      const data = await response.json()
-      if (!response.ok) {
-        throw new Error(data.error || 'Upload fehlgeschlagen')
+      const { data, error } = await readApiResponse<{ photo?: PetPhoto; error?: string }>(response)
+      if (error) {
+        throw new Error(error)
+      }
+      if (!data?.photo) {
+        throw new Error('Upload fehlgeschlagen')
       }
 
       const nextPhotos = [...photos, data.photo]
@@ -136,9 +148,9 @@ export function PetPhotoGallery({
       const response = await authenticatedFetch(`/api/portal/pets/${petId}/photos/${photoId}`, {
         method: 'DELETE',
       })
-      const data = await response.json()
-      if (!response.ok) {
-        throw new Error(data.error || 'Löschen fehlgeschlagen')
+      const { error } = await readApiResponse(response)
+      if (error) {
+        throw new Error(error)
       }
 
       const nextPhotos = photos.filter((photo) => photo.id !== photoId)

@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { ImagePlus, Loader2, Trash2 } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 import { authenticatedFetch } from '@/lib/authenticated-fetch'
-import { compressImageForUpload } from '@/lib/compress-image'
+import { uploadPetPhotoDirect } from '@/lib/portal-pet-photo-upload'
 import { readApiResponse } from '@/lib/read-api-response'
 import { MAX_PET_PHOTOS, validatePetPhotoFile } from '@/lib/pet-photos'
 import type { PetPhoto } from '@/lib/types'
@@ -17,6 +17,33 @@ type PetPhotoGalleryProps = {
   readOnly?: boolean
   apiBase?: 'portal' | 'admin'
   onPhotoCountChange?: (count: number) => void
+}
+
+async function uploadPetPhotoViaApi(
+  petId: string,
+  file: File,
+  apiBase: 'portal' | 'admin'
+): Promise<PetPhoto> {
+  const formData = new FormData()
+  formData.append('file', file)
+
+  const endpoint =
+    apiBase === 'admin'
+      ? `/api/admin/pets/${petId}/photos`
+      : `/api/portal/pets/${petId}/photos`
+
+  const response = await authenticatedFetch(endpoint, {
+    method: 'POST',
+    body: formData,
+  })
+  const { data, error } = await readApiResponse<{ photo?: PetPhoto; error?: string }>(response)
+  if (error) {
+    throw new Error(error)
+  }
+  if (!data?.photo) {
+    throw new Error('Upload fehlgeschlagen')
+  }
+  return data.photo
 }
 
 export function PetPhotoGallery({
@@ -102,29 +129,12 @@ export function PetPhotoGallery({
 
     setUploading(true)
     try {
-      const compressedFile = await compressImageForUpload(file)
-      const validationErrorAfterCompress = validatePetPhotoFile(compressedFile)
-      if (validationErrorAfterCompress) {
-        toast({ title: 'Fehler', description: validationErrorAfterCompress, variant: 'destructive' })
-        return
-      }
+      const photo =
+        apiBase === 'portal'
+          ? await uploadPetPhotoDirect(petId, file)
+          : await uploadPetPhotoViaApi(petId, file, apiBase)
 
-      const formData = new FormData()
-      formData.append('file', compressedFile)
-
-      const response = await authenticatedFetch(`/api/portal/pets/${petId}/photos`, {
-        method: 'POST',
-        body: formData,
-      })
-      const { data, error } = await readApiResponse<{ photo?: PetPhoto; error?: string }>(response)
-      if (error) {
-        throw new Error(error)
-      }
-      if (!data?.photo) {
-        throw new Error('Upload fehlgeschlagen')
-      }
-
-      const nextPhotos = [...photos, data.photo]
+      const nextPhotos = [...photos, photo]
       setPhotos(nextPhotos)
       notifyPhotoCount(nextPhotos.length)
       toast({ title: 'Foto hochgeladen' })

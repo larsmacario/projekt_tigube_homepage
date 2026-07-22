@@ -17,12 +17,6 @@ const nextConfig = {
     ],
   },
   trailingSlash: false,
-  experimental: {
-    serverActions: {
-      bodySizeLimit: '4mb',
-    },
-    middlewareClientMaxBodySize: '4mb',
-  },
   async redirects() {
     return [
       {

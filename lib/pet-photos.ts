@@ -1,7 +1,7 @@
 export const PET_PHOTOS_BUCKET = 'pet-photos'
 export const MAX_PET_PHOTOS = 5
-/** Abgestimmt auf Vercel/Next.js Request-Limit (~4,5 MB inkl. Multipart-Overhead) */
-export const MAX_PET_PHOTO_BYTES = 4 * 1024 * 1024
+/** Entspricht dem Supabase-Bucket-Limit (pet-photos, 10 MB) */
+export const MAX_PET_PHOTO_BYTES = 10 * 1024 * 1024
 export const PET_PHOTO_SIGNED_URL_TTL = 3600
 
 export const ALLOWED_PET_PHOTO_MIME_TYPES = new Set([
@@ -34,7 +34,7 @@ export function validatePetPhotoFile(file: File): string | null {
     return 'Nur JPEG-, PNG- oder WebP-Bilder sind erlaubt.'
   }
   if (file.size > MAX_PET_PHOTO_BYTES) {
-    return 'Das Bild darf maximal 4 MB groß sein.'
+    return 'Das Bild darf maximal 10 MB groß sein.'
   }
   return null
 }

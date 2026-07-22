@@ -148,6 +148,52 @@ export function getPetCompletenessIssues(
   return issues
 }
 
+export type PetDashboardCompletenessInput = Pick<
+  Pet,
+  | 'id'
+  | 'name'
+  | 'tierart'
+  | 'letzte_impfung'
+  | 'intervall_impfung'
+  | 'letzte_impfung_zusatz'
+  | 'letzte_stuhlprobe'
+> & {
+  photo_count?: number
+}
+
+export function getPetDashboardMissingFields(
+  pet: PetDashboardCompletenessInput,
+  documents: Array<{ pet_id: string | null; document_type: string }>
+): string[] {
+  const missing = getPetCompletenessIssues(pet, documents)
+  if ((pet.photo_count ?? 0) === 0) {
+    missing.push('Tierfoto')
+  }
+  return missing
+}
+
+export function formatPetMissingFieldsList(
+  petName: string,
+  missingFields: string[]
+): string | null {
+  if (missingFields.length === 0) return null
+  return `${petName}: ${missingFields.join(', ')}`
+}
+
+export function getPetsWithDashboardMissingFields<
+  T extends PetDashboardCompletenessInput,
+>(
+  pets: T[],
+  documents: Array<{ pet_id: string | null; document_type: string }>
+): Array<{ pet: T; missingFields: string[] }> {
+  return pets
+    .map((pet) => ({
+      pet,
+      missingFields: getPetDashboardMissingFields(pet, documents),
+    }))
+    .filter((entry) => entry.missingFields.length > 0)
+}
+
 export function validatePetSaveRequired(formData: PetSaveFormData): string | null {
   if (!formData.name?.trim()) {
     return 'Name des Tieres ist erforderlich.'

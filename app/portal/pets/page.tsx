@@ -22,9 +22,10 @@ import {
   isDog,
   validatePetSaveRequired,
 } from '@/lib/pet-vaccination'
-import { getPetsWithoutPhotos } from '@/lib/pet-photos'
+import { getPetsWithDashboardMissingFields } from '@/lib/pet-vaccination'
 import { PetPhotoGallery } from '@/components/portal/pet-photo-gallery'
 import { PetRecognitionField } from '@/components/portal/pet-recognition-field'
+import { PetMissingFieldsHint } from '@/components/portal/pet-missing-fields-hint'
 
 export default function PetsPage() {
   const [pets, setPets] = useState<Pet[]>([])
@@ -330,7 +331,7 @@ export default function PetsPage() {
 
   const hasExistingImpfpass = editingPetId && documents.some(d => d.pet_id === editingPetId && d.document_type === 'impfpass')
   const hasExistingWurmtest = editingPetId && documents.some(d => d.pet_id === editingPetId && d.document_type === 'wurmtest')
-  const petsWithoutPhotos = getPetsWithoutPhotos(pets)
+  const petsWithMissingFields = getPetsWithDashboardMissingFields(pets, documents)
 
   return (
     <div className="space-y-6">
@@ -339,15 +340,24 @@ export default function PetsPage() {
         <p className="mt-2 text-sage-600">Verwalte deine Tiere</p>
       </div>
 
-      {petsWithoutPhotos.length > 0 && (
+      {petsWithMissingFields.length > 0 && (
         <Card className="border-amber-300 bg-amber-50">
           <CardHeader>
-            <CardTitle className="text-amber-800">Tierfoto fehlt</CardTitle>
+            <CardTitle className="text-amber-800">Fehlende Angaben</CardTitle>
             <CardDescription className="text-amber-700">
-              Für {petsWithoutPhotos.map((pet) => pet.name).join(', ')} ist noch kein Foto hinterlegt.
-              Bitte ergänze mindestens ein Bild zur sicheren Wiedererkennung.
+              Bitte ergänze die fehlenden Angaben für deine Tiere.
             </CardDescription>
           </CardHeader>
+          <CardContent>
+            <ul className="space-y-2">
+              {petsWithMissingFields.map(({ pet, missingFields }) => (
+                <li key={pet.id} className="text-sm text-amber-800">
+                  <span className="font-semibold">{pet.name}:</span>{' '}
+                  {missingFields.join(', ')}
+                </li>
+              ))}
+            </ul>
+          </CardContent>
         </Card>
       )}
 
@@ -646,6 +656,11 @@ export default function PetsPage() {
                       <p className="text-sm text-sage-600">
                         {[pet.tierart, pet.rasse, pet.farbe, pet.geschlecht].filter(Boolean).join(' • ')}
                       </p>
+                      <PetMissingFieldsHint
+                        pet={pet}
+                        documents={documents}
+                        className="mt-2 text-sm text-amber-700"
+                      />
                     </div>
                     <div className="flex gap-2">
                       <Button

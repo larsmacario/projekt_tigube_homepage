@@ -8,8 +8,7 @@ import { Badge } from '@/components/ui/badge'
 import Link from 'next/link'
 import type { Customer, Pet, Document, BookingRequest } from '@/lib/types'
 import { authenticatedFetch } from '@/lib/authenticated-fetch'
-import { getPetCompletenessIssues } from '@/lib/pet-vaccination'
-import { getPetsWithoutPhotos } from '@/lib/pet-photos'
+import { getPetsWithDashboardMissingFields } from '@/lib/pet-vaccination'
 
 export default function PortalPage() {
   const [customer, setCustomer] = useState<Customer | null>(null)
@@ -67,11 +66,8 @@ export default function PortalPage() {
     ? '/portal/profile?onboarding=true&step=2'
     : '/portal/profile?onboarding=true&step=3'
 
-  const petsWithCompletenessIssues = pets.filter(
-    (pet) => getPetCompletenessIssues(pet, documents).length > 0
-  )
-  const hasCompletePetData = pets.length === 0 || petsWithCompletenessIssues.length === 0
-  const petsWithoutPhotos = getPetsWithoutPhotos(pets)
+  const petsWithMissingFields = getPetsWithDashboardMissingFields(pets, documents)
+  const hasCompletePetData = pets.length === 0 || petsWithMissingFields.length === 0
 
   return (
     <div className="space-y-8">
@@ -82,40 +78,26 @@ export default function PortalPage() {
         <p className="mt-2 text-sage-600">Dein persönliches Kundenportal</p>
       </div>
 
-      {petsWithCompletenessIssues.length > 0 && (
+      {petsWithMissingFields.length > 0 && (
         <Card className="border-amber-300 bg-amber-50">
           <CardHeader>
             <CardTitle className="text-amber-800">Tierdaten ergänzen</CardTitle>
             <CardDescription className="text-amber-700">
-              Für {petsWithCompletenessIssues.map((pet) => pet.name).join(', ')} fehlen noch
-              Angaben (Impfpass, Wurmtest, Entwurmungsdatum oder Impfdaten). Bitte ergänze die
-              Daten rechtzeitig vor dem nächsten Aufenthalt.
+              Bitte ergänze die fehlenden Angaben rechtzeitig vor dem nächsten Aufenthalt.
             </CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-4">
+            <ul className="space-y-2">
+              {petsWithMissingFields.map(({ pet, missingFields }) => (
+                <li key={pet.id} className="text-sm text-amber-800">
+                  <span className="font-semibold">{pet.name}:</span>{' '}
+                  {missingFields.join(', ')}
+                </li>
+              ))}
+            </ul>
             <Link href="/portal/pets">
               <Button className="bg-amber-600 hover:bg-amber-700">
                 Tierdaten nachtragen
-              </Button>
-            </Link>
-          </CardContent>
-        </Card>
-      )}
-
-      {petsWithoutPhotos.length > 0 && (
-        <Card className="border-amber-300 bg-amber-50">
-          <CardHeader>
-            <CardTitle className="text-amber-800">Tierfoto ergänzen</CardTitle>
-            <CardDescription className="text-amber-700">
-              Für {petsWithoutPhotos.map((pet) => pet.name).join(', ')} ist noch kein Foto
-              hinterlegt. Bitte lade mindestens ein Bild hoch – besonders bei mehreren Tieren
-              gleicher Rasse oder Farbe.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Link href="/portal/pets">
-              <Button className="bg-amber-600 hover:bg-amber-700">
-                Tierfoto hochladen
               </Button>
             </Link>
           </CardContent>

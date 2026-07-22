@@ -24,6 +24,7 @@ import {
 } from '@/lib/pet-vaccination'
 import { PetPhotoGallery } from '@/components/portal/pet-photo-gallery'
 import { PetRecognitionField } from '@/components/portal/pet-recognition-field'
+import { PetMissingFieldsHint } from '@/components/portal/pet-missing-fields-hint'
 
 function ProfileContent() {
   const searchParams = useSearchParams()
@@ -1747,6 +1748,11 @@ function ProfileContent() {
                           <p className="text-sm text-sage-600">
                             {[pet.tierart, pet.rasse, pet.farbe, pet.geschlecht].filter(Boolean).join(' • ')}
                           </p>
+                          <PetMissingFieldsHint
+                            pet={pet}
+                            documents={documents}
+                            className="mt-2 text-sm text-amber-700"
+                          />
                         </div>
                         <div className="flex gap-2">
                           <Button

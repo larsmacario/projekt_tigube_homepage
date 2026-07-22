@@ -5,9 +5,10 @@ import { normalizePetPayload, validatePetPayload } from '@/lib/pet-payload'
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id: petId } = await params
     const { client: supabase, accessToken } = await getServerClient(request)
     
     if (!accessToken) {
@@ -39,7 +40,6 @@ export async function PUT(
       )
     }
 
-    const petId = params.id
     const updates = normalizePetPayload(await request.json())
     const validationError = validatePetPayload(updates)
     if (validationError) {
@@ -92,9 +92,10 @@ export async function PUT(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id: petId } = await params
     const { client: supabase, accessToken } = await getServerClient(request)
     
     if (!accessToken) {
@@ -125,8 +126,6 @@ export async function DELETE(
         { status: 401 }
       )
     }
-
-    const petId = params.id
 
     // Prüfe ob Pet zum User gehört
     const { data: customer } = await supabase

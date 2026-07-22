@@ -7,6 +7,7 @@ import {
   PET_PHOTOS_BUCKET,
   PET_PHOTO_SIGNED_URL_TTL,
   validatePetPhotoFile,
+  getPetPhotoUploadMimeType,
 } from '@/lib/pet-photos'
 import { assertPetOwnership, getPortalCustomer } from '@/lib/portal-customer'
 import type { PetPhoto } from '@/lib/types'
@@ -129,10 +130,11 @@ export async function POST(
 
     const fileExt = file.name.split('.').pop()?.toLowerCase() || 'jpg'
     const filePath = buildPetPhotoStoragePath(customerResult.customer.id, petId, fileExt)
+    const uploadMimeType = getPetPhotoUploadMimeType(file)
 
     const { error: uploadError } = await supabase.storage
       .from(PET_PHOTOS_BUCKET)
-      .upload(filePath, file, { contentType: file.type, upsert: false })
+      .upload(filePath, file, { contentType: uploadMimeType, upsert: false })
 
     if (uploadError) throw uploadError
 
@@ -144,7 +146,7 @@ export async function POST(
         file_path: filePath,
         file_name: file.name,
         file_size: file.size,
-        mime_type: file.type,
+        mime_type: uploadMimeType,
         sort_order: count ?? 0,
       })
       .select()

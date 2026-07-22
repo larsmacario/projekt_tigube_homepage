@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
@@ -25,10 +25,19 @@ export function PetPhotoGallery({
 }: PetPhotoGalleryProps) {
   const { toast } = useToast()
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const onPhotoCountChangeRef = useRef(onPhotoCountChange)
   const [photos, setPhotos] = useState<PetPhoto[]>([])
   const [loading, setLoading] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [deletingId, setDeletingId] = useState<string | null>(null)
+
+  useEffect(() => {
+    onPhotoCountChangeRef.current = onPhotoCountChange
+  }, [onPhotoCountChange])
+
+  const notifyPhotoCount = useCallback((count: number) => {
+    onPhotoCountChangeRef.current?.(count)
+  }, [])
 
   const photosEndpoint = petId
     ? apiBase === 'admin'
@@ -39,7 +48,7 @@ export function PetPhotoGallery({
   useEffect(() => {
     if (!photosEndpoint) {
       setPhotos([])
-      onPhotoCountChange?.(0)
+      notifyPhotoCount(0)
       return
     }
 
@@ -56,7 +65,7 @@ export function PetPhotoGallery({
         if (!cancelled) {
           const nextPhotos = data.photos || []
           setPhotos(nextPhotos)
-          onPhotoCountChange?.(nextPhotos.length)
+          notifyPhotoCount(nextPhotos.length)
         }
       } catch (error) {
         console.error('Error loading pet photos:', error)
@@ -69,7 +78,7 @@ export function PetPhotoGallery({
     return () => {
       cancelled = true
     }
-  }, [photosEndpoint, onPhotoCountChange])
+  }, [photosEndpoint, notifyPhotoCount])
 
   async function handleUpload(file: File) {
     if (!petId || readOnly) return
@@ -105,7 +114,7 @@ export function PetPhotoGallery({
 
       const nextPhotos = [...photos, data.photo]
       setPhotos(nextPhotos)
-      onPhotoCountChange?.(nextPhotos.length)
+      notifyPhotoCount(nextPhotos.length)
       toast({ title: 'Foto hochgeladen' })
     } catch (error) {
       toast({
@@ -134,7 +143,7 @@ export function PetPhotoGallery({
 
       const nextPhotos = photos.filter((photo) => photo.id !== photoId)
       setPhotos(nextPhotos)
-      onPhotoCountChange?.(nextPhotos.length)
+      notifyPhotoCount(nextPhotos.length)
       toast({ title: 'Foto gelöscht' })
     } catch (error) {
       toast({
@@ -165,7 +174,7 @@ export function PetPhotoGallery({
             <Input
               ref={fileInputRef}
               type="file"
-              accept="image/jpeg,image/png,image/webp"
+              accept="image/jpeg,image/png,image/webp,image/*"
               className="hidden"
               onChange={(event) => {
                 const file = event.target.files?.[0]

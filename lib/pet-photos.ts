@@ -9,14 +9,37 @@ export const ALLOWED_PET_PHOTO_MIME_TYPES = new Set([
   'image/webp',
 ])
 
+const EXTENSION_TO_MIME: Record<string, string> = {
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  png: 'image/png',
+  webp: 'image/webp',
+}
+
+function resolvePetPhotoMimeType(file: File): string | null {
+  if (file.type && ALLOWED_PET_PHOTO_MIME_TYPES.has(file.type)) {
+    return file.type
+  }
+
+  const extension = file.name.split('.').pop()?.toLowerCase()
+  if (!extension) return null
+
+  return EXTENSION_TO_MIME[extension] ?? null
+}
+
 export function validatePetPhotoFile(file: File): string | null {
-  if (!ALLOWED_PET_PHOTO_MIME_TYPES.has(file.type)) {
+  const mimeType = resolvePetPhotoMimeType(file)
+  if (!mimeType) {
     return 'Nur JPEG-, PNG- oder WebP-Bilder sind erlaubt.'
   }
   if (file.size > MAX_PET_PHOTO_BYTES) {
     return 'Das Bild darf maximal 10 MB groß sein.'
   }
   return null
+}
+
+export function getPetPhotoUploadMimeType(file: File): string {
+  return resolvePetPhotoMimeType(file) ?? 'image/jpeg'
 }
 
 export function buildPetPhotoStoragePath(

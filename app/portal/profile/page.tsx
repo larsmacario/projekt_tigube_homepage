@@ -942,6 +942,10 @@ function ProfileContent() {
       const petData = await response.json()
       const savedPetId = petData.pet?.id || editingPetId
 
+      if (!editingPetId && savedPetId) {
+        setEditingPetId(savedPetId)
+      }
+
       // Lade Dokumente hoch, falls vorhanden
       if (savedPetId) {
         const uploadPromises = []

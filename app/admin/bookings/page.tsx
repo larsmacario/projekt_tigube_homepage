@@ -18,7 +18,7 @@ import { useToast } from '@/hooks/use-toast'
 import { CalendarIcon, Trash2 } from 'lucide-react'
 import { format } from 'date-fns'
 import { de } from 'date-fns/locale'
-import type { BookingRequest, CapacitySetting, CapacityOverride } from '@/lib/types'
+import type { BookingRequest, CapacitySetting, CapacityOverride, ServiceType } from '@/lib/types'
 import { authenticatedFetch } from '@/lib/authenticated-fetch'
 
 export default function AdminBookingsPage() {
@@ -107,13 +107,13 @@ export default function AdminBookingsPage() {
     Object.keys(bookingsByDate).forEach(dateStr => {
       Object.keys(bookingsByDate[dateStr]).forEach(serviceType => {
         const override = capacityOverrides.find(
-          o => o.date === dateStr && (o.service_type === serviceType || (!o.service_type && !serviceType))
+          o => o.date === dateStr && o.service_type === (serviceType as ServiceType | null)
         )
         const setting = capacitySettings.find(
-          s => (s.service_type === serviceType || (!s.service_type && !serviceType))
+          s => s.service_type === (serviceType as ServiceType | null)
         )
 
-        const max = override?.capacity || setting?.default_capacity || 0
+        const max = override ? override.capacity : (setting?.default_capacity ?? 0)
         const current = bookingsByDate[dateStr][serviceType].length
 
         data.push({
@@ -210,7 +210,7 @@ export default function AdminBookingsPage() {
   }
 
   async function handleAddOverride() {
-    if (!overrideForm.date || !overrideForm.capacity) {
+    if (!overrideForm.date || overrideForm.capacity === '') {
       toast({
         title: 'Fehler',
         description: 'Bitte fülle alle Pflichtfelder aus',
@@ -809,8 +809,8 @@ export default function AdminBookingsPage() {
                           type="number"
                           value={overrideForm.capacity}
                           onChange={(e) => setOverrideForm({ ...overrideForm, capacity: e.target.value })}
-                          min="1"
-                          placeholder="z.B. 5"
+                          min="0"
+                          placeholder="0 = geschlossen"
                         />
                       </div>
                       <div>
@@ -855,7 +855,8 @@ export default function AdminBookingsPage() {
                             })}
                           </p>
                           <p className="text-sm text-sage-600">
-                            {getCapacityServiceLabel(override.service_type)}: {override.capacity}
+                            {getCapacityServiceLabel(override.service_type)}:{' '}
+                            {override.capacity === 0 ? 'Geschlossen' : override.capacity}
                           </p>
                           {override.reason && (
                             <p className="text-sm text-sage-500 mt-1">{override.reason}</p>

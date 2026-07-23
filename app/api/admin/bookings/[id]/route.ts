@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerClient } from '@/lib/admin-auth'
+import { validateBookingAvailabilityForRange } from '@/lib/booking-availability-server'
+import type { ServiceType } from '@/lib/types'
 
 async function checkAdminAuth(supabase: any, accessToken: string | undefined) {
   if (!accessToken) {
@@ -49,6 +51,36 @@ export async function PATCH(
         { error: 'Ungültiger Status' },
         { status: 400 }
       )
+    }
+
+    const { data: existingBooking, error: existingError } = await supabase
+      .from('bookings')
+      .select('id, service_type, start_date, end_date, status')
+      .eq('id', bookingId)
+      .single()
+
+    if (existingError || !existingBooking) {
+      return NextResponse.json(
+        { error: 'Buchung nicht gefunden' },
+        { status: 404 }
+      )
+    }
+
+    if (status === 'approved') {
+      const availability = await validateBookingAvailabilityForRange({
+        serviceType: existingBooking.service_type as ServiceType,
+        startDate: existingBooking.start_date,
+        endDate: existingBooking.end_date,
+        excludeBookingId: existingBooking.id,
+        checkCapacity: true,
+      })
+
+      if (!availability.valid) {
+        return NextResponse.json(
+          { error: availability.error || 'Die Buchung kann nicht genehmigt werden.' },
+          { status: 409 }
+        )
+      }
     }
 
     const updateData: any = {

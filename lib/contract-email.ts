@@ -119,7 +119,7 @@ export async function sendStoredContractEmail(
     email: options.email,
     name: options.name,
     pdfBuffer,
-    fileName: document.file_name || 'Pflegevertrag.pdf',
+    fileName: document.file_name || 'Betreuungsvertrag.pdf',
   })
 
   await updateContractEmailStatus(supabase, options.customerId, delivery)

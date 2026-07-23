@@ -113,7 +113,7 @@ export default function CapacityPage() {
   }
 
   async function handleAddOverride() {
-    if (!overrideForm.date || !overrideForm.capacity) {
+    if (!overrideForm.date || overrideForm.capacity === '') {
       toast({
         title: 'Fehler',
         description: 'Bitte fülle alle Pflichtfelder aus',
@@ -401,8 +401,8 @@ export default function CapacityPage() {
                       type="number"
                       value={overrideForm.capacity}
                       onChange={(e) => setOverrideForm({ ...overrideForm, capacity: e.target.value })}
-                      min="1"
-                      placeholder="z.B. 5"
+                      min="0"
+                      placeholder="0 = geschlossen"
                     />
                   </div>
                   <div>
@@ -447,7 +447,8 @@ export default function CapacityPage() {
                         })}
                       </p>
                       <p className="text-sm text-sage-600">
-                        {getServiceLabel(override.service_type)}: {override.capacity}
+                        {getServiceLabel(override.service_type)}:{' '}
+                        {override.capacity === 0 ? 'Geschlossen' : override.capacity}
                       </p>
                       {override.reason && (
                         <p className="text-sm text-sage-500 mt-1">{override.reason}</p>

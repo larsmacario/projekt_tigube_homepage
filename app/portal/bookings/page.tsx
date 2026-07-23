@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -18,6 +18,13 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { CalendarIcon } from 'lucide-react'
 import { format } from 'date-fns'
 import { de } from 'date-fns/locale'
+import { toIsoDate } from '@/lib/vacation-dates'
+import { isDateInVacationPeriods, iterateIsoDateRange } from '@/lib/booking-availability'
+
+interface PortalAvailability {
+  vacationPeriods: Array<{ start_date: string; end_date: string; label: string }>
+  closedDates: string[]
+}
 
 export default function BookingsPage() {
   const [bookings, setBookings] = useState<BookingRequest[]>([])
@@ -35,10 +42,59 @@ export default function BookingsPage() {
     end_date: undefined as Date | undefined,
     message: '',
   })
+  const [availability, setAvailability] = useState<PortalAvailability>({
+    vacationPeriods: [],
+    closedDates: [],
+  })
+
+  const isDateUnavailable = useCallback((date: Date) => {
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    if (date < today) {
+      return true
+    }
+
+    const isoDate = toIsoDate(date)
+
+    if (availability.closedDates.includes(isoDate)) {
+      return true
+    }
+
+    return isDateInVacationPeriods(isoDate, availability.vacationPeriods)
+  }, [availability])
 
   useEffect(() => {
     loadData()
   }, [])
+
+  useEffect(() => {
+    if (!formData.service_type) {
+      setAvailability({ vacationPeriods: [], closedDates: [] })
+      return
+    }
+
+    async function loadAvailability() {
+      try {
+        const response = await authenticatedFetch(
+          `/api/portal/bookings/availability?service_type=${formData.service_type}`
+        )
+
+        if (!response.ok) {
+          return
+        }
+
+        const data = await response.json()
+        setAvailability({
+          vacationPeriods: data.vacationPeriods || [],
+          closedDates: data.closedDates || [],
+        })
+      } catch (error) {
+        console.error('Error loading availability:', error)
+      }
+    }
+
+    loadAvailability()
+  }, [formData.service_type])
 
   async function loadData() {
     try {
@@ -80,6 +136,24 @@ export default function BookingsPage() {
       toast({
         title: 'Fehler',
         description: 'Enddatum muss nach Startdatum liegen',
+        variant: 'destructive',
+      })
+      return
+    }
+
+    const startIso = toIsoDate(formData.start_date)
+    const endIso = toIsoDate(formData.end_date)
+    const hasBlockedDayInRange = iterateIsoDateRange(startIso, endIso).some((date) => {
+      if (availability.closedDates.includes(date)) {
+        return true
+      }
+      return isDateInVacationPeriods(date, availability.vacationPeriods)
+    })
+
+    if (hasBlockedDayInRange) {
+      toast({
+        title: 'Fehler',
+        description: 'Der gewählte Zeitraum ist wegen Betriebsferien oder Schließtagen nicht verfügbar.',
         variant: 'destructive',
       })
       return
@@ -244,6 +318,20 @@ export default function BookingsPage() {
                 </Select>
               </div>
 
+              {formData.service_type && availability.vacationPeriods.length > 0 && (
+                <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+                  <p className="font-medium">Betriebsferien</p>
+                  <ul className="mt-1 list-disc pl-5">
+                    {availability.vacationPeriods.map((period) => (
+                      <li key={`${period.start_date}-${period.end_date}`}>
+                        {period.label}: {new Date(period.start_date).toLocaleDateString('de-DE')} –{' '}
+                        {new Date(period.end_date).toLocaleDateString('de-DE')}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label>Startdatum *</Label>
@@ -266,7 +354,7 @@ export default function BookingsPage() {
                         mode="single"
                         selected={formData.start_date}
                         onSelect={(date) => setFormData({ ...formData, start_date: date })}
-                        disabled={(date) => date < new Date()}
+                        disabled={isDateUnavailable}
                         initialFocus
                       />
                     </PopoverContent>
@@ -294,7 +382,13 @@ export default function BookingsPage() {
                         mode="single"
                         selected={formData.end_date}
                         onSelect={(date) => setFormData({ ...formData, end_date: date })}
-                        disabled={(date) => date < (formData.start_date || new Date())}
+                        disabled={(date) => {
+                          const minDate = formData.start_date || new Date()
+                          if (date < minDate) {
+                            return true
+                          }
+                          return isDateUnavailable(date)
+                        }}
                         initialFocus
                       />
                     </PopoverContent>

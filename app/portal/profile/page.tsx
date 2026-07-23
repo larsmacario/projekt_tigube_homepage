@@ -33,7 +33,7 @@ function ProfileContent() {
   const isOnboarding = searchParams.get('onboarding') === 'true'
   const stepParam = searchParams.get('step')
   
-  // Schritt 1 = Persönliche Daten, Schritt 2 = Tier/e + Tierinformationen, Schritt 3 = Pflegevertrag
+  // Schritt 1 = Persönliche Daten, Schritt 2 = Tier/e + Tierinformationen, Schritt 3 = Betreuungsvertrag
   const [step, setStep] = useState<1 | 2 | 3>(stepParam === '3' ? 3 : stepParam === '2' ? 2 : 1)
   
   // Debug: Log onboarding status
@@ -78,7 +78,7 @@ function ProfileContent() {
     letzte_stuhlprobe: '',
   })
 
-  // Schritt 3: Pflegevertrag und Signatur
+  // Schritt 3: Betreuungsvertrag und Signatur
   const [signatureImage, setSignatureImage] = useState<string | null>(null)
   const [mobileSessionId, setMobileSessionId] = useState<string | null>(null)
   const [isPolling, setIsPolling] = useState(false)
@@ -398,7 +398,7 @@ function ProfileContent() {
     if (!signatureImage) {
       toast({
         title: 'Fehler',
-        description: 'Bitte unterzeichne den Pflegevertrag.',
+        description: 'Bitte unterzeichne den Betreuungsvertrag.',
         variant: 'destructive',
       })
       return
@@ -423,7 +423,7 @@ function ProfileContent() {
       // --- SEITE 1: STAMMDATEN & VERTRAGSPARTNER ---
       doc.setFont('Helvetica', 'bold')
       doc.setFontSize(22)
-      doc.text('PFLEGEVERTRAG', 20, 25)
+      doc.text('BETREUUNGSVERTRAG', 20, 25)
       doc.setFontSize(14)
       doc.text('für den Hundeurlaub in der Pension', 20, 33)
       doc.setFont('Helvetica', 'bold')
@@ -779,7 +779,7 @@ function ProfileContent() {
 
       // 2. In File konvertieren
       const pdfBlob = doc.output('blob')
-      const pdfFile = new File([pdfBlob], 'Pflegevertrag.pdf', { type: 'application/pdf' })
+      const pdfFile = new File([pdfBlob], 'Betreuungsvertrag.pdf', { type: 'application/pdf' })
 
       // 3. In Storage hochladen & Dokumenteintrag erstellen
       const uploadFormData = new FormData()
@@ -830,7 +830,7 @@ function ProfileContent() {
       if (profileResponse.ok) {
         toast({
           title: 'Onboarding abgeschlossen!',
-          description: 'Der Pflegevertrag wurde erfolgreich unterzeichnet.',
+          description: 'Der Betreuungsvertrag wurde erfolgreich unterzeichnet.',
         })
         router.push('/portal')
       } else {
@@ -1295,7 +1295,7 @@ function ProfileContent() {
                 </div>
                 <div className="text-center">
                   <p className={`text-xs md:text-sm font-semibold ${step >= 3 ? 'text-sage-900' : 'text-gray-400'}`}>
-                    Pflegevertrag
+                    Betreuungsvertrag
                   </p>
                   {step === 3 && (
                     <p className="text-[10px] md:text-xs text-sage-600 mt-1">Aktueller Schritt</p>
@@ -1310,7 +1310,7 @@ function ProfileContent() {
       <div>
         <h1 className="text-3xl font-bold text-sage-900">
           {isOnboarding 
-            ? (step === 1 ? 'Schritt 1: Persönliche Daten' : step === 2 ? 'Schritt 2: Tier/e & Informationen' : 'Schritt 3: Pflegevertrag unterzeichnen')
+            ? (step === 1 ? 'Schritt 1: Persönliche Daten' : step === 2 ? 'Schritt 2: Tier/e & Informationen' : 'Schritt 3: Betreuungsvertrag unterzeichnen')
             : 'Mein Profil'}
         </h1>
         <p className="mt-2 text-sage-600">
@@ -1319,7 +1319,7 @@ function ProfileContent() {
                 ? 'Bitte fülle deine persönlichen Daten aus.'
                 : step === 2
                 ? 'Lege deine Tier/e an und ergänze die Tierinformationen.'
-                : 'Lies den Pflegevertrag sorgfältig durch und unterzeichne ihn digital.')
+                : 'Lies den Betreuungsvertrag sorgfältig durch und unterzeichne ihn digital.')
             : 'Verwalte deine persönlichen Daten'}
         </p>
       </div>
@@ -1856,12 +1856,12 @@ function ProfileContent() {
         </div>
       )}
 
-      {/* Schritt 3: Pflegevertrag */}
+      {/* Schritt 3: Betreuungsvertrag */}
       {step === 3 && (
         <div className="space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle>PFLEGEVERTRAG für den Hundeurlaub in der Pension</CardTitle>
+              <CardTitle>BETREUUNGSVERTRAG für den Hundeurlaub in der Pension</CardTitle>
               <CardDescription>
                 Bitte lies den Vertrag aufmerksam durch. Du kannst direkt hier unterschreiben oder den QR-Code nutzen, um bequem auf deinem Smartphone zu signieren.
               </CardDescription>

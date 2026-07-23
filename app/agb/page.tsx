@@ -9,17 +9,17 @@ export const dynamic = 'force-dynamic'
 
 export async function generateMetadata(): Promise<Metadata> {
   const data = await getCMSContent('agb')
-  const title = data?.title || "Pflegevertrag"
+  const title = data?.title || "Betreuungsvertrag"
   
   return {
     title: `${title} & AGB - Tierisch Gut Betreut`,
-    description: "Allgemeine Geschäftsbedingungen und Pflegevertrag für die Tier- und Hundebetreuung bei der tierisch gut betreut GmbH.",
+    description: "Allgemeine Geschäftsbedingungen und Betreuungsvertrag für die Tier- und Hundebetreuung bei der tierisch gut betreut GmbH.",
     alternates: {
       canonical: "/agb",
     },
     openGraph: {
       title: `${title} & AGB - Tierisch Gut Betreut`,
-      description: "Allgemeine Geschäftsbedingungen und Pflegevertrag für die Tier- und Hundebetreuung bei der tierisch gut betreut GmbH.",
+      description: "Allgemeine Geschäftsbedingungen und Betreuungsvertrag für die Tier- und Hundebetreuung bei der tierisch gut betreut GmbH.",
       url: "/agb",
     }
   }

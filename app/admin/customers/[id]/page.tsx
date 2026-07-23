@@ -628,7 +628,7 @@ export default function CustomerDetailPage() {
                   </Badge>
                 </div>
                 <div>
-                  <p className="text-sm text-sage-500">Pflegevertrag</p>
+                  <p className="text-sm text-sage-500">Betreuungsvertrag</p>
                   <Badge
                     variant={customer.contract_signed ? 'default' : 'destructive'}
                     className="mt-1"

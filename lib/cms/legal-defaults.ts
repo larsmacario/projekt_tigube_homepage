@@ -134,7 +134,7 @@ export const agbHtml = `<p><strong>tierisch gut betreut Gesellschaft mit beschr√
 export const LEGAL_DEFAULTS = {
   impressum: { title: 'Impressum', content: impressumHtml },
   datenschutz: { title: 'Datenschutzerkl√§rung', content: datenschutzHtml },
-  agb: { title: 'Pflegevertrag', content: agbHtml },
+  agb: { title: 'Betreuungsvertrag', content: agbHtml },
 } as const
 
 export type LegalPageKey = keyof typeof LEGAL_DEFAULTS

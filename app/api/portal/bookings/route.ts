@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerClient } from '@/lib/admin-auth'
+import { validateBookingAvailabilityForRange } from '@/lib/booking-availability-server'
+import type { ServiceType } from '@/lib/types'
 
 export async function GET(request: NextRequest) {
   try {
@@ -161,6 +163,20 @@ export async function POST(request: NextRequest) {
     if (new Date(end_date) < new Date(start_date)) {
       return NextResponse.json(
         { error: 'Enddatum muss nach Startdatum liegen' },
+        { status: 400 }
+      )
+    }
+
+    const availability = await validateBookingAvailabilityForRange({
+      serviceType: service_type as ServiceType,
+      startDate: start_date,
+      endDate: end_date,
+      checkCapacity: false,
+    })
+
+    if (!availability.valid) {
+      return NextResponse.json(
+        { error: availability.error || 'Der gewählte Zeitraum ist nicht verfügbar.' },
         { status: 400 }
       )
     }

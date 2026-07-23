@@ -101,9 +101,9 @@ export async function sendContractEmail(data: {
     await transporter.sendMail({
       from: config.from,
       to: [data.email, config.to], // An den Kunden und an das Admin-Team
-      subject: 'Dein unterzeichneter Pflegevertrag - tierisch gut betreut',
-      text: `Hallo ${data.name},\n\nvielen Dank für das Ausfüllen deiner Daten und die Unterzeichnung des Pflegevertrags.\n\nIm Anhang findest du deinen unterzeichneten Pflegevertrag als PDF-Dokument für deine Unterlagen.\n\nHerzliche Grüße\nTamara und Gabriel\ntierisch gut betreut`,
-      html: `<p>Hallo ${escapeHtml(data.name)},</p><p>vielen Dank für das Ausfüllen deiner Daten und die Unterzeichnung des Pflegevertrags.</p><p>Im Anhang findest du deinen unterzeichneten Pflegevertrag als PDF-Dokument für deine Unterlagen.</p><p>Herzliche Grüße<br>Tamara und Gabriel<br><strong>tierisch gut betreut</strong></p>`,
+      subject: 'Dein unterzeichneter Betreuungsvertrag - tierisch gut betreut',
+      text: `Hallo ${data.name},\n\nvielen Dank für das Ausfüllen deiner Daten und die Unterzeichnung des Betreuungsvertrags.\n\nIm Anhang findest du deinen unterzeichneten Betreuungsvertrag als PDF-Dokument für deine Unterlagen.\n\nHerzliche Grüße\nTamara und Gabriel\ntierisch gut betreut`,
+      html: `<p>Hallo ${escapeHtml(data.name)},</p><p>vielen Dank für das Ausfüllen deiner Daten und die Unterzeichnung des Betreuungsvertrags.</p><p>Im Anhang findest du deinen unterzeichneten Betreuungsvertrag als PDF-Dokument für deine Unterlagen.</p><p>Herzliche Grüße<br>Tamara und Gabriel<br><strong>tierisch gut betreut</strong></p>`,
       attachments: [
         {
           filename: data.fileName,

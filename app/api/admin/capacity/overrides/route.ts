@@ -83,7 +83,7 @@ export async function POST(request: NextRequest) {
 
     const { date, service_type, capacity, reason } = await request.json()
 
-    if (!date || !capacity || capacity < 1) {
+    if (date === undefined || date === null || Number.isNaN(Number(capacity)) || capacity < 0) {
       return NextResponse.json(
         { error: 'Pflichtfelder fehlen oder ungültig' },
         { status: 400 }

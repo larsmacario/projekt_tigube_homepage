@@ -241,7 +241,7 @@ VALUES
   }'::jsonb),
 
   ('agb', '{
-    "title": "Pflegevertrag",
+    "title": "Betreuungsvertrag",
     "content": ""
   }'::jsonb),
 

@@ -1,18 +1,20 @@
 # Aktueller Stand
 
 ## Letzte Änderungen
-- Vertrags-Mail nach Onboarding: PDF serverseitig aus Storage (`lib/contract-email.ts`), kein Base64 mehr; Signatur-Kompression; Versandstatus auf `contacts`; Admin-Nachversand unter Kundendetail.
-- SevDesk Phase 1: Vault-Key, `sevdesk_settings`, `/admin/einstellungen`, `lib/sevdesk.ts` (Migration auf Remote).
+- Portal-Buchungswizard (4 Schritte): Kostenschätzung, Zusatzleistungen pro Tier, Mengen-Vorschlag am Zeitraum (`lib/booking-extra-quantity.ts`), Override durch Kunde.
+- Nach Buchungsanfrage: SMTP an `SMTP_TO` (info@…) und Bestätigung an Kunden-E-Mail (`sendBookingRequestEmails`, `lib/booking-request-email.ts`, `/api/portal/bookings`).
+- Migration `extra_feeding_quantity_hint` auf Remote angewendet (Fütterung: „1 Fütterung pro Tag“ in Preisbeschreibung).
+- Öffentliche Website: WhatsApp entfernt; Migration `20260724280000_remove_whatsapp_from_cms.sql` – auf Remote noch prüfen/anwenden.
 
 ## Fokus
-- Deploy (Vertrags-Mail-Fix + SevDesk); SMTP_* in Vercel Production mit `.env.local` abgleichen.
-- SevDesk mit echtem API-Token testen; Rechnungen aus Buchungen vorbereiten.
+- Deploy; Buchungsflow + E-Mail-Versand in Staging/Production mit SMTP testen.
+- CMS-WhatsApp-Migration und Live-Seiten prüfen.
 
 ## Nächste Schritte
-- Nach Deploy: Onboarding Schritt 3 (Vertrag + Mail) und Admin „Vertrags-Mail erneut senden“ testen.
-- SevDesk-Rechnungen aus bestätigten Buchungen/`booking_line_items` (Kontakt-Mapping).
-- Vault `cron_secret` / `app_base_url` und Vercel `CRON_SECRET` prüfen.
+- Test: Portal-Anfrage → zwei Mails (intern + Kunde); Logs bei SMTP-Fehler.
+- Migration `20260724280000` auf Remote, falls noch offen.
+- SevDesk, Vertrags-Mail, Cron-Secrets wie zuvor.
 
 ## Offene Punkte
-- Gabriel-Nachversand lokal erfolgreich; GMX/Admin-Zustellung in Production nach Deploy bestätigen.
-- Live-Test SevDesk nur mit Nutzer-Key; `tigube_logo_hund.jpg` fehlt; `npm run lint` ohne ESLint.
+- Kundenportal ggf. noch „Stornierung … WhatsApp“ in Portal-CMS/Fallback.
+- SMTP in Production; `tigube_logo_hund.jpg`; ESLint fehlt für `npm run lint`.

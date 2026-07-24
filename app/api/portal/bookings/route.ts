@@ -16,6 +16,43 @@ import {
 } from '@/lib/booking-extras-server'
 import { randomUUID } from 'crypto'
 
+import { buildBookingRequestEmailContent } from '@/lib/booking-request-email'
+import { sendBookingRequestEmails } from '@/lib/email'
+
+export const runtime = 'nodejs'
+
+async function notifyBookingRequestByEmail(
+  customer: { email: string; vorname: string | null; nachname: string },
+  message: string | null,
+  bookings: unknown[],
+  lineItems?: Array<{ label: string; quantity: number; unit?: string | null }>
+) {
+  if (!customer.email?.trim()) {
+    console.warn('Buchungsanfrage ohne Kunden-E-Mail – kein Versand')
+    return
+  }
+
+  const customerName =
+    [customer.vorname, customer.nachname].filter(Boolean).join(' ') || 'Kunde'
+
+  const content = buildBookingRequestEmailContent({
+    customerName,
+    customerEmail: customer.email.trim(),
+    message,
+    bookings: bookings as Parameters<typeof buildBookingRequestEmailContent>[0]['bookings'],
+    lineItems,
+  })
+
+  const deliveries = await sendBookingRequestEmails(content)
+
+  if (deliveries.internal.status === 'failed' || deliveries.confirmation.status === 'failed') {
+    console.error('SMTP für Buchungsanfrage fehlgeschlagen:', {
+      internal: deliveries.internal.error,
+      confirmation: deliveries.confirmation.error,
+    })
+  }
+}
+
 export async function GET(request: NextRequest) {
   try {
     const { client: supabase, accessToken } = await getServerClient(request)
@@ -155,7 +192,7 @@ export async function POST(request: NextRequest) {
     // Hole Customer-ID
     const { data: customer } = await supabase
       .from('contacts')
-      .select('id, customer_group_id')
+      .select('id, customer_group_id, email, vorname, nachname')
       .eq('user_id', userData.id)
       .eq('contact_type', 'customer')
       .single()
@@ -379,12 +416,26 @@ export async function POST(request: NextRequest) {
             throw lineError
           }
 
+          await notifyBookingRequestByEmail(
+            customer,
+            message || null,
+            createdBookings,
+            lineItems || []
+          )
+
           return NextResponse.json({
             request_group_id: requestGroupId,
             bookings: createdBookings,
             line_items: lineItems || [],
           })
         }
+
+        await notifyBookingRequestByEmail(
+          customer,
+          message || null,
+          createdBookings,
+          lineItemsToInsert.length > 0 ? lineItemsToInsert : undefined
+        )
 
         return NextResponse.json({
           request_group_id: requestGroupId,
@@ -472,6 +523,8 @@ export async function POST(request: NextRequest) {
     if (error) {
       throw error
     }
+
+    await notifyBookingRequestByEmail(customer, message || null, [data])
 
     return NextResponse.json({ booking: data })
   } catch (error: any) {

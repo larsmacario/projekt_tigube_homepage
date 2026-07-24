@@ -1,6 +1,5 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Phone, Mail, MapPin, MessageCircle, Clock } from "lucide-react"
+import { Phone, Mail, MapPin, Clock } from "lucide-react"
 import { ContactForm } from "@/components/contact-form"
 
 interface ContactProps {
@@ -11,7 +10,6 @@ interface ContactProps {
     contactEmail?: string
     contactLocation?: string
     contactAvailability?: string
-    contactWhatsAppUrl?: string
   } | null
 }
 
@@ -23,7 +21,6 @@ export function Contact({ data }: ContactProps) {
   const email = data?.contactEmail || "info@tierischgutbetreut.de"
   const location = data?.contactLocation || "78345 Moos"
   const availability = data?.contactAvailability || "Mo-So: 8:00-20:00 Uhr"
-  const whatsappUrl = data?.contactWhatsAppUrl || "https://wa.me/491754685977"
 
   return (
     <section id="kontakt" className="py-16 lg:py-24 bg-sage-50">
@@ -79,24 +76,6 @@ export function Contact({ data }: ContactProps) {
                 </div>
               </CardContent>
             </Card>
-
-            <Card className="border-sage-200 bg-sage-600 text-white">
-              <CardContent className="p-6">
-                <MessageCircle className="h-8 w-8 mb-4" />
-                <h3 className="font-raleway text-lg font-bold mb-2">WhatsApp Kontakt</h3>
-                <p className="text-sage-100 mb-4">
-                  Für schnelle Fragen erreichen Sie uns auch über WhatsApp.
-                </p>
-                <a href={whatsappUrl} target="_blank" rel="noopener noreferrer">
-                  <Button
-                    variant="outline"
-                    className="bg-transparent border-white text-white hover:bg-white hover:text-sage-600"
-                  >
-                    WhatsApp öffnen
-                  </Button>
-                </a>
-              </CardContent>
-            </Card>
           </div>
 
           <div className="lg:col-span-2">
@@ -107,4 +86,3 @@ export function Contact({ data }: ContactProps) {
     </section>
   )
 }
-

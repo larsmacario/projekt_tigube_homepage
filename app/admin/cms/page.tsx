@@ -47,7 +47,6 @@ interface HomepageData {
   contactEmail?: string
   contactLocation?: string
   contactAvailability?: string
-  contactWhatsAppUrl?: string
 }
 
 interface DogPensionData {
@@ -78,7 +77,6 @@ interface DogPensionData {
   warningBoxSummary?: string
   contactCtaTitle?: string
   contactCtaSubtitle?: string
-  contactCtaWhatsAppUrl?: string
   contactCtaInfo?: string
 }
 
@@ -109,7 +107,6 @@ interface CatCareData {
   warningBoxSummary?: string
   contactCtaTitle?: string
   contactCtaSubtitle?: string
-  contactCtaWhatsAppUrl?: string
   contactCtaInfo?: string
 }
 
@@ -551,10 +548,6 @@ export default function CMSPage() {
                   <div className="space-y-2">
                     <Label>Erreichbarkeit</Label>
                     <Input value={hData.contactAvailability || ''} onChange={(e) => updateData('homepage', 'contactAvailability', e.target.value)} />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>WhatsApp Link</Label>
-                    <Input value={hData.contactWhatsAppUrl || ''} onChange={(e) => updateData('homepage', 'contactWhatsAppUrl', e.target.value)} />
                   </div>
                 </div>
               </div>

@@ -117,7 +117,7 @@ export const agbHtml = `<p><strong>tierisch gut betreut Gesellschaft mit beschr�
 <li><strong>14 - 7 Tage vor Check-In:</strong> 50% Rückerstattung</li>
 <li><strong>6 Tage und weniger vor Check-In:</strong> keine Rückerstattung</li>
 </ul>
-<p>Absagen werden jeweils bis 18h berücksichtigt - auch dann, wenn sie an einem Sonn-/Feiertag oder in unserem Urlaub getätigt werden. Die Stornierung muss grundsätzlich in schriftlicher Form per Mail oder WhatsApp erfolgen.</p>
+<p>Absagen werden jeweils bis 18h berücksichtigt - auch dann, wenn sie an einem Sonn-/Feiertag oder in unserem Urlaub getätigt werden. Die Stornierung muss grundsätzlich in schriftlicher Form per E-Mail oder über das <a href="/#kontakt">Kontaktformular auf der Startseite</a> erfolgen.</p>
 <p>Bei frühzeitiger Abholung gibt es keine Rückerstattung der gebuchten Tage. Dies gilt auch, wenn ein Hund später als zum vereinbarten Datum in Betreuung gebracht wird.</p>
 <h2>Datenschutz</h2>
 <p><strong>Nutzung personenbezogener Daten, Fotos und Videos</strong></p>

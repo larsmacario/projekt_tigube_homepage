@@ -19,7 +19,7 @@ Website und Verwaltungsportal für einen Tierbetreuungsservice. Das CRM verwalte
 - Hunde-Impfdaten in `pets`: `letzte_impfung` (Kombi), `intervall_impfung`, `letzte_impfung_zusatz` (Zwingerhusten); Logik in `lib/pet-vaccination.ts`.
 - Impf-Erinnerungen: täglicher Supabase-Cron ruft Next.js-Route `/api/cron/vaccination-reminders` auf; Versand-Log in `pet_vaccination_reminder_log`.
 - Admin-Impfübersicht unter `/admin/impfungen` via `/api/admin/vaccinations/upcoming`.
-- Kundenportal: Mehr-Tier-Buchungsanfragen unter `/portal/bookings` (Wizard, Verfügbarkeit, gruppierte `bookings` + optionale `booking_line_items` für Zusatzleistungen/Rechnungsvorbereitung).
+- Kundenportal: Mehr-Tier-Buchungsanfragen unter `/portal/bookings` (Wizard, Verfügbarkeit, gruppierte `bookings` + optionale `booking_line_items` für Zusatzleistungen/Rechnungsvorbereitung). Nach POST versendet `/api/portal/bookings` per SMTP intern (`SMTP_TO`) und Bestätigung an die Kunden-E-Mail (`lib/booking-request-email.ts`).
 - SevDesk (Rechnungen): API-Key verschlüsselt im Supabase Vault; Status in `sevdesk_settings`; Verwaltung `/admin/einstellungen`; HTTP-Client `lib/sevdesk.ts`; `prices.sevdesk_article_id` für Artikel-Mapping. Automatische Rechnungserstellung aus Buchungen folgt separat.
 - Pflegevertrag nach Onboarding: PDF in `customer-documents`, Versand über `/api/portal/contracts/send-email` und `lib/contract-email.ts` (Storage-Download); Status `contract_email_*` auf `contacts`; Admin `/api/admin/customers/[id]/resend-contract-email`.
 - Preis-Katalog: `prices` + Overrides in `customer_prices` / `group_prices` (optional Sonderpreis und Rabatt €/%); effektive Anzeige über `lib/price-override.ts` und `/api/prices` (Kunde schlägt Gruppe).
@@ -29,4 +29,5 @@ Website und Verwaltungsportal für einen Tierbetreuungsservice. Das CRM verwalte
 - Auth-Konten und CRM-Kontakte sind getrennte Datensätze.
 - Datenbankänderungen werden als SQL-Migrationen unter `supabase/migrations` versioniert.
 - Ausfallsichere Fallbacks: Alle CMS-unterstützten Seiten greifen bei fehlenden Daten auf originale, statische Inhalte zurück.
+- Öffentliche Website: keine WhatsApp-Kanäle; Anfragen und Stornierungshinweise verweisen auf E-Mail und Kontaktformular (`/#kontakt` auf der Startseite).
 - Geplante Jobs laufen über Supabase `pg_cron`/`pg_net`, nicht über Vercel Cron; Secrets im Supabase Vault.

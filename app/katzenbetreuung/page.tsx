@@ -13,10 +13,10 @@ import {
   CheckCircle,
   Car,
   Pill,
-  Key,
-  MessageCircle
+  Key
 } from "lucide-react"
 import Image from "next/image"
+import Link from "next/link"
 import { getCMSContent } from "@/lib/cms"
 import type { Metadata } from "next"
 
@@ -151,8 +151,7 @@ export default async function KatzenbetreuungPage() {
 
   const ctaTitle = data?.contactCtaTitle || "Deine Samtpfote verdient die beste Betreuung"
   const ctaSubtitle = data?.contactCtaSubtitle || "Vereinbare jetzt ein unverbindliches Erstgespräch und lass uns gemeinsam die perfekte Betreuung für Deine Katze planen."
-  const ctaWhatsApp = data?.contactCtaWhatsAppUrl || "https://wa.me/4917672404561"
-  const ctaInfo = data?.contactCtaInfo || "Kontakt: 0176-724 045 61 (WhatsApp/Anruf) • info@tierischgutbetreut.de"
+  const ctaInfo = data?.contactCtaInfo || "Kontakt: 0176-724 045 61 (Telefon) • info@tierischgutbetreut.de"
 
   return (
     <main className="pt-16">
@@ -379,19 +378,12 @@ export default async function KatzenbetreuungPage() {
             {ctaSubtitle}
           </p>
           <div className="flex justify-center">
-            <Button 
-              size="lg" 
-              className="bg-green-600 text-white hover:bg-green-700"
+            <Button
+              size="lg"
+              className="bg-white text-sage-700 hover:bg-sage-50"
               asChild
             >
-              <a 
-                href={ctaWhatsApp} 
-                target="_blank" 
-                rel="noopener noreferrer"
-              >
-                <MessageCircle className="h-5 w-5 mr-2" />
-                WhatsApp schreiben
-              </a>
+              <Link href="/#kontakt">Unverbindlich anfragen</Link>
             </Button>
           </div>
           <div className="mt-8 pt-8 border-t border-sage-500">

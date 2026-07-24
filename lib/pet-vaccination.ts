@@ -116,6 +116,7 @@ export type PetSaveFormData = Pick<
   | 'intervall_impfung'
   | 'letzte_impfung_zusatz'
   | 'letzte_stuhlprobe'
+  | 'naechste_stuhlprobe'
 >
 
 export function getPetCompletenessIssues(
@@ -127,6 +128,7 @@ export function getPetCompletenessIssues(
     | 'intervall_impfung'
     | 'letzte_impfung_zusatz'
     | 'letzte_stuhlprobe'
+    | 'naechste_stuhlprobe'
   >,
   documents: Array<{ pet_id: string | null; document_type: string }>
 ): string[] {
@@ -138,7 +140,7 @@ export function getPetCompletenessIssues(
   if (!petHasWurmtest(pet.id, documents)) {
     issues.push('Wurmtest')
   }
-  if (!pet.letzte_stuhlprobe) {
+  if (!pet.letzte_stuhlprobe && !pet.naechste_stuhlprobe) {
     issues.push('Entwurmungsdatum')
   }
   if (isDog(pet.tierart)) {
@@ -202,18 +204,6 @@ export function validatePetSaveRequired(formData: PetSaveFormData): string | nul
     return 'Tierart ist erforderlich.'
   }
 
-  const dateError = validateVaccinationDates({
-    tierart: formData.tierart,
-    letzte_impfung: formData.letzte_impfung,
-    letzte_impfung_zusatz: formData.letzte_impfung_zusatz,
-  })
-  if (dateError) return dateError
-
-  const today = getTodayDateOnly()
-  if (formData.letzte_stuhlprobe && formData.letzte_stuhlprobe > today) {
-    return 'Das Datum der letzten Entwurmung/Stuhlprobe darf nicht in der Zukunft liegen.'
-  }
-
   return null
 }
 
@@ -223,8 +213,9 @@ export function getPetSaveWarnings(input: {
   editingPetId?: string | null
   impfpassFile?: File | null
   wurmtestFile?: File | null
+  photoCount?: number
 }): string[] {
-  const { formData, documents, editingPetId, impfpassFile, wurmtestFile } = input
+  const { formData, documents, editingPetId, impfpassFile, wurmtestFile, photoCount } = input
   const missing: string[] = []
 
   const hasExistingImpfpass =
@@ -234,9 +225,21 @@ export function getPetSaveWarnings(input: {
 
   if (!impfpassFile && !hasExistingImpfpass) missing.push('Impfpass')
   if (!wurmtestFile && !hasExistingWurmtest) missing.push('Wurmtest')
-  if (!formData.letzte_stuhlprobe) missing.push('Entwurmungsdatum')
+  if (!formData.letzte_stuhlprobe && !formData.naechste_stuhlprobe) missing.push('Entwurmungsdatum')
+  if ((photoCount ?? 0) === 0) missing.push('Tierfoto')
   if (isDog(formData.tierart)) {
     missing.push(...getMissingDogVaccinationFields(formData))
+  }
+
+  const today = getTodayDateOnly()
+  const dateError = validateVaccinationDates({
+    tierart: formData.tierart,
+    letzte_impfung: formData.letzte_impfung,
+    letzte_impfung_zusatz: formData.letzte_impfung_zusatz,
+  })
+  if (dateError) missing.push(dateError.replace(/\.$/, ''))
+  if (formData.letzte_stuhlprobe && formData.letzte_stuhlprobe > today) {
+    missing.push('Entwurmungsdatum (liegt in der Zukunft)')
   }
 
   return missing

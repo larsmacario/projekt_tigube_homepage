@@ -4,12 +4,12 @@ import { useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Download, FileText, Trash2, Upload } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 import { authenticatedFetch } from '@/lib/authenticated-fetch'
 import type { Document, Pet } from '@/lib/types'
 import { DOCUMENT_TYPE_OPTIONS } from '@/lib/pet-form-options'
+import { CollapsibleAdminCard } from '@/components/admin/collapsible-admin-card'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -26,13 +26,20 @@ interface DocumentManagerProps {
   documents: Document[]
   pets: Pet[]
   onDocumentsChange: (documents: Document[]) => void
+  defaultExpanded?: boolean
 }
 
 function getDocumentTypeLabel(type: string) {
   return DOCUMENT_TYPE_OPTIONS.find((o) => o.value === type)?.label || type
 }
 
-export function DocumentManager({ customerId, documents, pets, onDocumentsChange }: DocumentManagerProps) {
+export function DocumentManager({
+  customerId,
+  documents,
+  pets,
+  onDocumentsChange,
+  defaultExpanded = false,
+}: DocumentManagerProps) {
   const { toast } = useToast()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [uploadForm, setUploadForm] = useState({ document_type: '', pet_id: '' })
@@ -120,11 +127,12 @@ export function DocumentManager({ customerId, documents, pets, onDocumentsChange
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Dokumente ({documents.length})</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-5">
+    <>
+      <CollapsibleAdminCard
+        title={`Dokumente (${documents.length})`}
+        defaultExpanded={defaultExpanded}
+      >
+        <div className="space-y-5">
         <div className="rounded-lg border border-sage-200 bg-sage-50/60 p-4 space-y-4">
           <p className="text-sm font-semibold text-sage-900">Dokument hochladen</p>
 
@@ -236,7 +244,8 @@ export function DocumentManager({ customerId, documents, pets, onDocumentsChange
         ) : (
           <p className="py-6 text-center text-sm text-sage-600">Keine Dokumente hochgeladen</p>
         )}
-      </CardContent>
+        </div>
+      </CollapsibleAdminCard>
 
       <AlertDialog open={!!deleteId} onOpenChange={(open) => !open && setDeleteId(null)}>
         <AlertDialogContent>
@@ -250,6 +259,6 @@ export function DocumentManager({ customerId, documents, pets, onDocumentsChange
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </Card>
+    </>
   )
 }

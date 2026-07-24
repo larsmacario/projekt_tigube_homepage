@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerClient } from '@/lib/admin-auth'
-import { validateBookingAvailabilityForRange } from '@/lib/booking-availability-server'
+import { validateBookingAvailabilityForRange, validateBookingAvailabilityForDateListServer } from '@/lib/booking-availability-server'
 import type { ServiceType } from '@/lib/types'
 
 async function checkAdminAuth(supabase: any, accessToken: string | undefined) {
@@ -55,7 +55,9 @@ export async function PATCH(
 
     const { data: existingBooking, error: existingError } = await supabase
       .from('bookings')
-      .select('id, service_type, start_date, end_date, status')
+      .select(
+        'id, service_type, start_date, end_date, status, day_care_mode, selected_dates, day_care_weekdays'
+      )
       .eq('id', bookingId)
       .single()
 
@@ -67,13 +69,39 @@ export async function PATCH(
     }
 
     if (status === 'approved') {
-      const availability = await validateBookingAvailabilityForRange({
-        serviceType: existingBooking.service_type as ServiceType,
-        startDate: existingBooking.start_date,
-        endDate: existingBooking.end_date,
-        excludeBookingId: existingBooking.id,
-        checkCapacity: true,
-      })
+      let availability
+
+      if (
+        existingBooking.service_type === 'tagesbetreuung' &&
+        existingBooking.day_care_mode === 'once' &&
+        existingBooking.selected_dates?.length
+      ) {
+        availability = await validateBookingAvailabilityForDateListServer(
+          'tagesbetreuung',
+          existingBooking.selected_dates,
+          true,
+          existingBooking.id
+        )
+      } else if (
+        existingBooking.service_type === 'tagesbetreuung' &&
+        existingBooking.day_care_mode === 'recurring'
+      ) {
+        availability = await validateBookingAvailabilityForRange({
+          serviceType: 'tagesbetreuung',
+          startDate: existingBooking.start_date,
+          endDate: existingBooking.start_date,
+          excludeBookingId: existingBooking.id,
+          checkCapacity: true,
+        })
+      } else {
+        availability = await validateBookingAvailabilityForRange({
+          serviceType: existingBooking.service_type as ServiceType,
+          startDate: existingBooking.start_date,
+          endDate: existingBooking.end_date || existingBooking.start_date,
+          excludeBookingId: existingBooking.id,
+          checkCapacity: true,
+        })
+      }
 
       if (!availability.valid) {
         return NextResponse.json(

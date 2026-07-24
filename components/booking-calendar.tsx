@@ -8,9 +8,17 @@ import { Card, CardContent } from '@/components/ui/card'
 import { CapacityIndicator } from '@/components/capacity-indicator'
 import type { BookingRequest, CalendarDay } from '@/lib/types'
 import { cn } from '@/lib/utils'
+import { isDateInVacationPeriods } from '@/lib/booking-availability'
+import { toIsoDate } from '@/lib/vacation-dates'
 
 interface BookingCalendarProps {
   bookings: BookingRequest[]
+  vacationPeriods?: Array<{
+    start_date: string
+    end_date: string
+    label: string
+  }>
+  closedDates?: string[]
   capacityData?: Array<{
     date: string
     current: number
@@ -25,6 +33,8 @@ interface BookingCalendarProps {
 
 export function BookingCalendar({
   bookings,
+  vacationPeriods = [],
+  closedDates = [],
   capacityData = [],
   view: initialView = 'month',
   onSelectDate,
@@ -225,19 +235,39 @@ export function BookingCalendar({
         </div>
 
         <div className="grid grid-cols-7 gap-2">
-          {weekDays.map((day, idx) => (
-            <Card
-              key={idx}
-              className={cn(
-                'cursor-pointer hover:border-sage-400 transition-colors',
-                day.date.toDateString() === new Date().toDateString() && 'border-sage-600 border-2'
-              )}
-              onClick={() => onSelectDate?.(day.date)}
-            >
+          {weekDays.map((day, idx) => {
+            const dateStr = toIsoDate(day.date)
+            const isVacation = isDateInVacationPeriods(dateStr, vacationPeriods)
+            const isClosed = !isVacation && closedDates.includes(dateStr)
+
+            return (
+              <Card
+                key={idx}
+                className={cn(
+                  'transition-colors',
+                  !isVacation && !isClosed && 'cursor-pointer hover:border-sage-400',
+                  isVacation && 'border-amber-300 bg-amber-100',
+                  isClosed && 'border-sage-300 bg-sage-200',
+                  day.date.toDateString() === new Date().toDateString() && 'border-sage-600 border-2'
+                )}
+                onClick={() => {
+                  if (!isVacation && !isClosed) onSelectDate?.(day.date)
+                }}
+              >
               <CardContent className="p-3">
                 <div className="text-center mb-2">
                   <p className="text-sm font-semibold text-sage-600">{weekDayNames[idx]}</p>
                   <p className="text-lg font-bold text-sage-900">{day.date.getDate()}</p>
+                  {isVacation && (
+                    <p className="mt-1 text-xs font-bold text-amber-900">
+                      Betriebsferien
+                    </p>
+                  )}
+                  {isClosed && (
+                    <p className="mt-1 text-xs font-bold text-sage-700">
+                      Geschlossen
+                    </p>
+                  )}
                 </div>
                 
                 {isAdmin && day.capacity.max > 0 && (
@@ -278,8 +308,9 @@ export function BookingCalendar({
                   )}
                 </div>
               </CardContent>
-            </Card>
-          ))}
+              </Card>
+            )
+          })}
         </div>
       </div>
     )
@@ -335,16 +366,24 @@ export function BookingCalendar({
         {monthDays.map((day, idx) => {
           const isCurrentMonth = day.date.getMonth() === currentDate.getMonth()
           const isToday = day.date.toDateString() === new Date().toDateString()
+          const dateStr = toIsoDate(day.date)
+          const isVacation = isDateInVacationPeriods(dateStr, vacationPeriods)
+          const isClosed = !isVacation && closedDates.includes(dateStr)
           
           return (
             <Card
               key={idx}
               className={cn(
-                'min-h-[100px] cursor-pointer hover:border-sage-400 transition-colors',
+                'min-h-[100px] transition-colors',
+                !isVacation && !isClosed && 'cursor-pointer hover:border-sage-400',
                 !isCurrentMonth && 'opacity-40',
+                isVacation && 'border-amber-300 bg-amber-100 opacity-100',
+                isClosed && 'border-sage-300 bg-sage-200 opacity-100',
                 isToday && 'border-sage-600 border-2'
               )}
-              onClick={() => onSelectDate?.(day.date)}
+              onClick={() => {
+                if (!isVacation && !isClosed) onSelectDate?.(day.date)
+              }}
             >
               <CardContent className="p-2">
                 <p className={cn(
@@ -353,6 +392,17 @@ export function BookingCalendar({
                 )}>
                   {day.date.getDate()}
                 </p>
+
+                {isVacation && (
+                  <div className="mb-2 rounded border border-amber-300 bg-amber-200 px-1.5 py-1 text-center text-xs font-bold text-amber-950">
+                    Betriebsferien
+                  </div>
+                )}
+                {isClosed && (
+                  <div className="mb-2 rounded border border-sage-300 bg-sage-300 px-1.5 py-1 text-center text-xs font-bold text-sage-900">
+                    Geschlossen
+                  </div>
+                )}
                 
                 {isAdmin && day.capacity.max > 0 && (
                   <CapacityIndicator

@@ -20,6 +20,8 @@ import { format } from 'date-fns'
 import { de } from 'date-fns/locale'
 import type { BookingRequest, CapacitySetting, CapacityOverride, ServiceType } from '@/lib/types'
 import { authenticatedFetch } from '@/lib/authenticated-fetch'
+import { expandBookingOccupiedDates, formatDayCareBookingSummary } from '@/lib/day-care-booking'
+import { BookingLineItemsPanel } from '@/components/admin/booking-line-items-panel'
 
 export default function AdminBookingsPage() {
   const [bookings, setBookings] = useState<BookingRequest[]>([])
@@ -88,11 +90,7 @@ export default function AdminBookingsPage() {
     bookings
       .filter(b => b.status === 'approved')
       .forEach(booking => {
-        const start = new Date(booking.start_date)
-        const end = new Date(booking.end_date)
-        
-        for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-          const dateStr = d.toISOString().split('T')[0]
+        for (const dateStr of expandBookingOccupiedDates(booking)) {
           if (!bookingsByDate[dateStr]) {
             bookingsByDate[dateStr] = {}
           }
@@ -524,9 +522,18 @@ export default function AdminBookingsPage() {
                 <div>
                   <Label>Zeitraum</Label>
                   <p className="font-medium">
-                    {new Date(selectedBooking.start_date).toLocaleDateString('de-DE')} - {new Date(selectedBooking.end_date).toLocaleDateString('de-DE')}
+                    {new Date(selectedBooking.start_date).toLocaleDateString('de-DE')} –{' '}
+                    {selectedBooking.end_date
+                      ? new Date(selectedBooking.end_date).toLocaleDateString('de-DE')
+                      : 'laufend'}
                   </p>
                 </div>
+                {formatDayCareBookingSummary(selectedBooking) && (
+                  <div className="sm:col-span-2">
+                    <Label>Tagesbetreuung</Label>
+                    <p className="font-medium">{formatDayCareBookingSummary(selectedBooking)}</p>
+                  </div>
+                )}
                 <div>
                   <Label>Status</Label>
                   <Badge className={getStatusColor(selectedBooking.status)}>
@@ -564,6 +571,8 @@ export default function AdminBookingsPage() {
                   />
                 </div>
               )}
+
+              <BookingLineItemsPanel bookingId={selectedBooking.id} />
 
               {selectedBooking.status === 'pending' && (
                 <div className="flex justify-end gap-2">

@@ -1,29 +1,123 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
-import { Input } from '@/components/ui/input'
-import { Textarea } from '@/components/ui/textarea'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { BookingCalendar } from '@/components/booking-calendar'
+import { PortalBookingWizard } from '@/components/portal/portal-booking-wizard'
 import { useToast } from '@/hooks/use-toast'
-import type { BookingRequest, Pet, ServiceType } from '@/lib/types'
+import type { BookingRequest, Pet } from '@/lib/types'
 import { authenticatedFetch } from '@/lib/authenticated-fetch'
-import { Calendar } from '@/components/ui/calendar'
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { CalendarIcon } from 'lucide-react'
-import { format } from 'date-fns'
-import { de } from 'date-fns/locale'
-import { toIsoDate } from '@/lib/vacation-dates'
-import { isDateInVacationPeriods, iterateIsoDateRange } from '@/lib/booking-availability'
+import { readApiResponse } from '@/lib/read-api-response'
+import { startOfDay, toIsoDate } from '@/lib/vacation-dates'
+import { getVacationPeriodsInRange } from '@/lib/booking-availability'
+import type { VacationDate } from '@/lib/vacation-dates'
+import {
+  groupBookingsForDisplay,
+  type BookingRequestGroup,
+} from '@/lib/booking-request-groups'
+import { formatDayCareBookingSummary } from '@/lib/day-care-booking'
 
 interface PortalAvailability {
   vacationPeriods: Array<{ start_date: string; end_date: string; label: string }>
   closedDates: string[]
+}
+
+function getServiceLabel(serviceType: string) {
+  switch (serviceType) {
+    case 'hundepension':
+      return 'Urlaubsbetreuung'
+    case 'katzenbetreuung':
+      return 'Katzenbetreuung'
+    case 'tagesbetreuung':
+      return 'Tagesbetreuung'
+    default:
+      return serviceType
+  }
+}
+
+function getStatusColor(status: string) {
+  switch (status) {
+    case 'approved':
+      return 'bg-green-100 text-green-800 border-green-300'
+    case 'rejected':
+      return 'bg-red-100 text-red-800 border-red-300'
+    case 'pending':
+      return 'bg-yellow-100 text-yellow-800 border-yellow-300'
+    default:
+      return 'bg-sage-100 text-sage-800 border-sage-300'
+  }
+}
+
+function getStatusLabel(status: string) {
+  switch (status) {
+    case 'approved':
+      return 'Genehmigt'
+    case 'rejected':
+      return 'Abgelehnt'
+    case 'pending':
+      return 'Ausstehend'
+    default:
+      return status
+  }
+}
+
+function groupPetSummary(group: BookingRequestGroup): string {
+  return group.bookings
+    .map((b) => `${b.pet?.name || 'Unbekannt'} · ${getServiceLabel(b.service_type)}`)
+    .join(' · ')
+}
+
+function BookingGroupCard({
+  group,
+  muted,
+  onSelect,
+}: {
+  group: BookingRequestGroup
+  muted?: boolean
+  onSelect: (booking: BookingRequest) => void
+}) {
+  return (
+    <div
+      className={`cursor-pointer rounded-lg border border-sage-200 p-4 hover:bg-sage-50 ${muted ? 'opacity-75' : ''}`}
+      onClick={() => onSelect(group.bookings[0])}
+    >
+      <div className="flex items-start justify-between gap-2">
+        <div>
+          <p className="font-semibold text-sage-900">
+            {group.bookings.length > 1 ? 'Gruppenanfrage' : group.bookings[0].pet?.name || 'Unbekannt'}
+          </p>
+          <p className="text-sm text-sage-600">{groupPetSummary(group)}</p>
+          <p className="mt-1 text-sm text-sage-600">
+            {new Date(group.start_date).toLocaleDateString('de-DE')} –{' '}
+            {group.end_date
+              ? new Date(group.end_date).toLocaleDateString('de-DE')
+              : 'laufend'}
+          </p>
+          {group.bookings.map((b) => {
+            const dc = formatDayCareBookingSummary(b)
+            if (!dc) return null
+            return (
+              <p key={b.id} className="text-xs text-sage-600">
+                {dc}
+              </p>
+            )
+          })}
+        </div>
+        <Badge className={getStatusColor(group.status)}>{getStatusLabel(group.status)}</Badge>
+      </div>
+    </div>
+  )
 }
 
 export default function BookingsPage() {
@@ -34,67 +128,55 @@ export default function BookingsPage() {
   const [selectedBooking, setSelectedBooking] = useState<BookingRequest | null>(null)
   const { toast } = useToast()
 
-  // Form state
-  const [formData, setFormData] = useState({
-    pet_id: '',
-    service_type: '' as ServiceType | '',
-    start_date: undefined as Date | undefined,
-    end_date: undefined as Date | undefined,
-    message: '',
-  })
   const [availability, setAvailability] = useState<PortalAvailability>({
     vacationPeriods: [],
     closedDates: [],
   })
 
-  const isDateUnavailable = useCallback((date: Date) => {
-    const today = new Date()
-    today.setHours(0, 0, 0, 0)
-    if (date < today) {
-      return true
+  const today = useMemo(() => startOfDay(new Date()), [])
+
+  async function loadAvailability() {
+    try {
+      const todayIso = toIsoDate(today)
+      const defaultEnd = new Date(today)
+      defaultEnd.setFullYear(defaultEnd.getFullYear() + 1)
+      const rangeEnd = toIsoDate(defaultEnd)
+
+      const response = await authenticatedFetch(
+        `/api/portal/bookings/availability?from_date=${todayIso}&to_date=${rangeEnd}`
+      )
+
+      const { data, error } = await readApiResponse<{
+        vacationPeriods?: PortalAvailability['vacationPeriods']
+        closedDates?: string[]
+        error?: string
+      }>(response)
+
+      let vacationPeriods = data?.vacationPeriods || []
+      const closedDates = data?.closedDates || []
+
+      if (vacationPeriods.length === 0) {
+        const newsbarRes = await fetch('/api/newsbar')
+        const newsbarJson = await newsbarRes.json().catch(() => ({}))
+        const rawDates = (newsbarJson.vacationDates || []) as VacationDate[]
+        vacationPeriods = getVacationPeriodsInRange(rawDates, todayIso, rangeEnd)
+      }
+
+      if (error && vacationPeriods.length === 0 && closedDates.length === 0) {
+        console.error('Error loading availability:', error)
+        return
+      }
+
+      setAvailability({ vacationPeriods, closedDates })
+    } catch (error) {
+      console.error('Error loading availability:', error)
     }
-
-    const isoDate = toIsoDate(date)
-
-    if (availability.closedDates.includes(isoDate)) {
-      return true
-    }
-
-    return isDateInVacationPeriods(isoDate, availability.vacationPeriods)
-  }, [availability])
+  }
 
   useEffect(() => {
     loadData()
-  }, [])
-
-  useEffect(() => {
-    if (!formData.service_type) {
-      setAvailability({ vacationPeriods: [], closedDates: [] })
-      return
-    }
-
-    async function loadAvailability() {
-      try {
-        const response = await authenticatedFetch(
-          `/api/portal/bookings/availability?service_type=${formData.service_type}`
-        )
-
-        if (!response.ok) {
-          return
-        }
-
-        const data = await response.json()
-        setAvailability({
-          vacationPeriods: data.vacationPeriods || [],
-          closedDates: data.closedDates || [],
-        })
-      } catch (error) {
-        console.error('Error loading availability:', error)
-      }
-    }
-
     loadAvailability()
-  }, [formData.service_type])
+  }, [])
 
   async function loadData() {
     try {
@@ -103,18 +185,21 @@ export default function BookingsPage() {
         authenticatedFetch('/api/portal/pets'),
       ])
 
-      const [bookingsData, petsData] = await Promise.all([
-        bookingsRes.json(),
-        petsRes.json(),
-      ])
+      const bookingsResult = await readApiResponse<{ bookings?: BookingRequest[]; error?: string }>(
+        bookingsRes
+      )
+      const petsResult = await readApiResponse<{ pets?: Pet[]; error?: string }>(petsRes)
 
-      setBookings(bookingsData.bookings || [])
-      setPets(petsData.pets || [])
+      if (bookingsResult.error) throw new Error(bookingsResult.error)
+      if (petsResult.error) throw new Error(petsResult.error)
+
+      setBookings(bookingsResult.data?.bookings || [])
+      setPets(petsResult.data?.pets || [])
     } catch (error) {
       console.error('Error loading data:', error)
       toast({
         title: 'Fehler',
-        description: 'Fehler beim Laden der Daten',
+        description: error instanceof Error ? error.message : 'Fehler beim Laden der Daten',
         variant: 'destructive',
       })
     } finally {
@@ -122,139 +207,39 @@ export default function BookingsPage() {
     }
   }
 
-  async function handleSubmit() {
-    if (!formData.pet_id || !formData.service_type || !formData.start_date || !formData.end_date) {
-      toast({
-        title: 'Fehler',
-        description: 'Bitte fülle alle Pflichtfelder aus',
-        variant: 'destructive',
-      })
-      return
-    }
-
-    if (formData.end_date < formData.start_date) {
-      toast({
-        title: 'Fehler',
-        description: 'Enddatum muss nach Startdatum liegen',
-        variant: 'destructive',
-      })
-      return
-    }
-
-    const startIso = toIsoDate(formData.start_date)
-    const endIso = toIsoDate(formData.end_date)
-    const hasBlockedDayInRange = iterateIsoDateRange(startIso, endIso).some((date) => {
-      if (availability.closedDates.includes(date)) {
-        return true
-      }
-      return isDateInVacationPeriods(date, availability.vacationPeriods)
-    })
-
-    if (hasBlockedDayInRange) {
-      toast({
-        title: 'Fehler',
-        description: 'Der gewählte Zeitraum ist wegen Betriebsferien oder Schließtagen nicht verfügbar.',
-        variant: 'destructive',
-      })
-      return
-    }
-
-    try {
-      const response = await authenticatedFetch('/api/portal/bookings', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          pet_id: formData.pet_id,
-          service_type: formData.service_type,
-          start_date: formData.start_date.toISOString().split('T')[0],
-          end_date: formData.end_date.toISOString().split('T')[0],
-          message: formData.message || null,
-        }),
-      })
-
-      if (!response.ok) {
-        const error = await response.json()
-        throw new Error(error.error || 'Fehler beim Erstellen der Anfrage')
-      }
-
-      const data = await response.json()
-      setBookings([data.booking, ...bookings])
-      setIsDialogOpen(false)
-      setFormData({
-        pet_id: '',
-        service_type: '' as ServiceType | '',
-        start_date: undefined,
-        end_date: undefined,
-        message: '',
-      })
-      toast({
-        title: 'Erfolg',
-        description: 'Buchungsanfrage wurde erfolgreich erstellt',
-      })
-    } catch (error: any) {
-      toast({
-        title: 'Fehler',
-        description: error.message || 'Fehler beim Erstellen der Anfrage',
-        variant: 'destructive',
-      })
-    }
+  function handleWizardSuccess(created: BookingRequest[]) {
+    setBookings([...created, ...bookings])
+    setIsDialogOpen(false)
   }
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'approved':
-        return 'bg-green-100 text-green-800 border-green-300'
-      case 'rejected':
-        return 'bg-red-100 text-red-800 border-red-300'
-      case 'pending':
-        return 'bg-yellow-100 text-yellow-800 border-yellow-300'
-      default:
-        return 'bg-sage-100 text-sage-800 border-sage-300'
-    }
-  }
+  const grouped = useMemo(() => groupBookingsForDisplay(bookings), [bookings])
 
-  const getStatusLabel = (status: string) => {
-    switch (status) {
-      case 'approved':
-        return 'Genehmigt'
-      case 'rejected':
-        return 'Abgelehnt'
-      case 'pending':
-        return 'Ausstehend'
-      default:
-        return status
-    }
-  }
+  const now = new Date()
+  const futureGroups = grouped.filter((g) => new Date(g.start_date) > now)
+  const currentGroups = grouped.filter((g) => {
+    const start = new Date(g.start_date)
+    const end = g.end_date ? new Date(g.end_date) : null
+    return start <= now && (!end || end >= now)
+  })
+  const pastGroups = grouped.filter(
+    (g) => g.end_date && new Date(g.end_date) < now
+  )
 
-  const getServiceLabel = (serviceType: string) => {
-    switch (serviceType) {
-      case 'hundepension':
-        return 'Urlaubsbetreuung'
-      case 'katzenbetreuung':
-        return 'Katzenbetreuung'
-      case 'tagesbetreuung':
-        return 'Tagesbetreuung'
-      default:
-        return serviceType
-    }
-  }
+  const selectedGroup = selectedBooking
+    ? grouped.find(
+        (g) =>
+          g.bookings.some((b) => b.id === selectedBooking.id) ||
+          g.key === selectedBooking.id
+      )
+    : null
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-sage-600"></div>
+      <div className="flex min-h-[400px] items-center justify-center">
+        <div className="h-12 w-12 animate-spin rounded-full border-b-2 border-sage-600" />
       </div>
     )
   }
-
-  const pastBookings = bookings.filter(b => new Date(b.end_date) < new Date())
-  const currentBookings = bookings.filter(b => {
-    const today = new Date()
-    const start = new Date(b.start_date)
-    const end = new Date(b.end_date)
-    return start <= today && end >= today
-  })
-  const futureBookings = bookings.filter(b => new Date(b.start_date) > new Date())
 
   return (
     <div className="space-y-6">
@@ -265,211 +250,59 @@ export default function BookingsPage() {
         </div>
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogTrigger asChild>
-            <Button className="bg-sage-600 hover:bg-sage-700">
-              Neue Anfrage
-            </Button>
+            <Button className="bg-sage-600 hover:bg-sage-700">Neue Anfrage</Button>
           </DialogTrigger>
-          <DialogContent className="max-w-2xl">
-            <DialogHeader>
+          <DialogContent className="flex h-[min(720px,90vh)] max-h-[90vh] max-w-3xl flex-col overflow-hidden">
+            <DialogHeader className="shrink-0">
               <DialogTitle>Neue Buchungsanfrage</DialogTitle>
               <DialogDescription>
-                Stelle eine neue Anfrage für die Betreuung deines Tieres
+                Tier und Leistung, Zeitraum und optionale Zusatzleistungen
               </DialogDescription>
             </DialogHeader>
-            <div className="space-y-4">
-              <div>
-                <Label htmlFor="pet">Tier *</Label>
-                <Select
-                  value={formData.pet_id}
-                  onValueChange={(value) => setFormData({ ...formData, pet_id: value })}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Tier auswählen" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {pets.map(pet => (
-                      <SelectItem key={pet.id} value={pet.id}>
-                        {pet.name} ({pet.tierart || 'unbekannt'})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {pets.length === 0 && (
-                  <p className="text-sm text-sage-600 mt-1">
-                    Bitte füge zuerst ein Tier in deinem Profil hinzu.
-                  </p>
-                )}
-              </div>
-
-              <div>
-                <Label htmlFor="service_type">Service *</Label>
-                <Select
-                  value={formData.service_type}
-                  onValueChange={(value) => setFormData({ ...formData, service_type: value as ServiceType })}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Service auswählen" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="hundepension">Urlaubsbetreuung</SelectItem>
-                    <SelectItem value="katzenbetreuung">Katzenbetreuung</SelectItem>
-                    <SelectItem value="tagesbetreuung">Tagesbetreuung</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {formData.service_type && availability.vacationPeriods.length > 0 && (
-                <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
-                  <p className="font-medium">Betriebsferien</p>
-                  <ul className="mt-1 list-disc pl-5">
-                    {availability.vacationPeriods.map((period) => (
-                      <li key={`${period.start_date}-${period.end_date}`}>
-                        {period.label}: {new Date(period.start_date).toLocaleDateString('de-DE')} –{' '}
-                        {new Date(period.end_date).toLocaleDateString('de-DE')}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label>Startdatum *</Label>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button
-                        variant="outline"
-                        className="w-full justify-start text-left font-normal"
-                      >
-                        <CalendarIcon className="mr-2 h-4 w-4" />
-                        {formData.start_date ? (
-                          format(formData.start_date, 'PPP', { locale: de })
-                        ) : (
-                          <span>Datum wählen</span>
-                        )}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0">
-                      <Calendar
-                        mode="single"
-                        selected={formData.start_date}
-                        onSelect={(date) => setFormData({ ...formData, start_date: date })}
-                        disabled={isDateUnavailable}
-                        initialFocus
-                      />
-                    </PopoverContent>
-                  </Popover>
-                </div>
-
-                <div>
-                  <Label>Enddatum *</Label>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button
-                        variant="outline"
-                        className="w-full justify-start text-left font-normal"
-                      >
-                        <CalendarIcon className="mr-2 h-4 w-4" />
-                        {formData.end_date ? (
-                          format(formData.end_date, 'PPP', { locale: de })
-                        ) : (
-                          <span>Datum wählen</span>
-                        )}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0">
-                      <Calendar
-                        mode="single"
-                        selected={formData.end_date}
-                        onSelect={(date) => setFormData({ ...formData, end_date: date })}
-                        disabled={(date) => {
-                          const minDate = formData.start_date || new Date()
-                          if (date < minDate) {
-                            return true
-                          }
-                          return isDateUnavailable(date)
-                        }}
-                        initialFocus
-                      />
-                    </PopoverContent>
-                  </Popover>
-                </div>
-              </div>
-
-              <div>
-                <Label htmlFor="message">Nachricht (optional)</Label>
-                <Textarea
-                  id="message"
-                  value={formData.message}
-                  onChange={(e) => setFormData({ ...formData, message: e.target.value })}
-                  placeholder="Zusätzliche Informationen..."
-                  rows={4}
-                />
-              </div>
-
-              <div className="flex justify-end gap-2">
-                <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
-                  Abbrechen
-                </Button>
-                <Button onClick={handleSubmit} disabled={pets.length === 0}>
-                  Anfrage stellen
-                </Button>
-              </div>
-            </div>
+            <PortalBookingWizard
+              pets={pets}
+              onSuccess={handleWizardSuccess}
+              onCancel={() => setIsDialogOpen(false)}
+            />
           </DialogContent>
         </Dialog>
       </div>
 
-      {/* Kalender */}
       <Card>
         <CardHeader>
           <CardTitle>Kalender</CardTitle>
-          <CardDescription>Übersicht deiner Buchungen</CardDescription>
+          <CardDescription>
+            Übersicht deiner Buchungen. Amber markierte Tage sind Betriebsferien und nicht buchbar.
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <BookingCalendar
             bookings={bookings}
+            vacationPeriods={availability.vacationPeriods}
+            closedDates={availability.closedDates}
             onSelectBooking={(booking) => setSelectedBooking(booking)}
           />
         </CardContent>
       </Card>
 
-      {/* Buchungsliste mit Tabs */}
       <div className="space-y-4">
         <Card>
           <CardHeader>
             <CardTitle>Zukünftige Buchungen</CardTitle>
           </CardHeader>
           <CardContent>
-            {futureBookings.length > 0 ? (
+            {futureGroups.length > 0 ? (
               <div className="space-y-3">
-                {futureBookings.map(booking => (
-                  <div
-                    key={booking.id}
-                    className="p-4 border border-sage-200 rounded-lg hover:bg-sage-50 cursor-pointer"
-                    onClick={() => setSelectedBooking(booking)}
-                  >
-                    <div className="flex items-start justify-between">
-                      <div>
-                        <p className="font-semibold text-sage-900">
-                          {booking.pet?.name || 'Unbekannt'}
-                        </p>
-                        <p className="text-sm text-sage-600">
-                          {getServiceLabel(booking.service_type)}
-                        </p>
-                        <p className="text-sm text-sage-600 mt-1">
-                          {new Date(booking.start_date).toLocaleDateString('de-DE')} - {new Date(booking.end_date).toLocaleDateString('de-DE')}
-                        </p>
-                      </div>
-                      <Badge className={getStatusColor(booking.status)}>
-                        {getStatusLabel(booking.status)}
-                      </Badge>
-                    </div>
-                  </div>
+                {futureGroups.map((group) => (
+                  <BookingGroupCard
+                    key={group.key}
+                    group={group}
+                    onSelect={setSelectedBooking}
+                  />
                 ))}
               </div>
             ) : (
-              <p className="text-sage-600 text-center py-4">Keine zukünftigen Buchungen</p>
+              <p className="py-4 text-center text-sage-600">Keine zukünftigen Buchungen</p>
             )}
           </CardContent>
         </Card>
@@ -479,35 +312,18 @@ export default function BookingsPage() {
             <CardTitle>Aktuelle Buchungen</CardTitle>
           </CardHeader>
           <CardContent>
-            {currentBookings.length > 0 ? (
+            {currentGroups.length > 0 ? (
               <div className="space-y-3">
-                {currentBookings.map(booking => (
-                  <div
-                    key={booking.id}
-                    className="p-4 border border-sage-200 rounded-lg hover:bg-sage-50 cursor-pointer"
-                    onClick={() => setSelectedBooking(booking)}
-                  >
-                    <div className="flex items-start justify-between">
-                      <div>
-                        <p className="font-semibold text-sage-900">
-                          {booking.pet?.name || 'Unbekannt'}
-                        </p>
-                        <p className="text-sm text-sage-600">
-                          {getServiceLabel(booking.service_type)}
-                        </p>
-                        <p className="text-sm text-sage-600 mt-1">
-                          {new Date(booking.start_date).toLocaleDateString('de-DE')} - {new Date(booking.end_date).toLocaleDateString('de-DE')}
-                        </p>
-                      </div>
-                      <Badge className={getStatusColor(booking.status)}>
-                        {getStatusLabel(booking.status)}
-                      </Badge>
-                    </div>
-                  </div>
+                {currentGroups.map((group) => (
+                  <BookingGroupCard
+                    key={group.key}
+                    group={group}
+                    onSelect={setSelectedBooking}
+                  />
                 ))}
               </div>
             ) : (
-              <p className="text-sage-600 text-center py-4">Keine aktuellen Buchungen</p>
+              <p className="py-4 text-center text-sage-600">Keine aktuellen Buchungen</p>
             )}
           </CardContent>
         </Card>
@@ -517,41 +333,24 @@ export default function BookingsPage() {
             <CardTitle>Vergangene Buchungen</CardTitle>
           </CardHeader>
           <CardContent>
-            {pastBookings.length > 0 ? (
+            {pastGroups.length > 0 ? (
               <div className="space-y-3">
-                {pastBookings.map(booking => (
-                  <div
-                    key={booking.id}
-                    className="p-4 border border-sage-200 rounded-lg hover:bg-sage-50 cursor-pointer opacity-75"
-                    onClick={() => setSelectedBooking(booking)}
-                  >
-                    <div className="flex items-start justify-between">
-                      <div>
-                        <p className="font-semibold text-sage-900">
-                          {booking.pet?.name || 'Unbekannt'}
-                        </p>
-                        <p className="text-sm text-sage-600">
-                          {getServiceLabel(booking.service_type)}
-                        </p>
-                        <p className="text-sm text-sage-600 mt-1">
-                          {new Date(booking.start_date).toLocaleDateString('de-DE')} - {new Date(booking.end_date).toLocaleDateString('de-DE')}
-                        </p>
-                      </div>
-                      <Badge className={getStatusColor(booking.status)}>
-                        {getStatusLabel(booking.status)}
-                      </Badge>
-                    </div>
-                  </div>
+                {pastGroups.map((group) => (
+                  <BookingGroupCard
+                    key={group.key}
+                    group={group}
+                    muted
+                    onSelect={setSelectedBooking}
+                  />
                 ))}
               </div>
             ) : (
-              <p className="text-sage-600 text-center py-4">Keine vergangenen Buchungen</p>
+              <p className="py-4 text-center text-sage-600">Keine vergangenen Buchungen</p>
             )}
           </CardContent>
         </Card>
       </div>
 
-      {/* Booking Detail Dialog */}
       {selectedBooking && (
         <Dialog open={!!selectedBooking} onOpenChange={() => setSelectedBooking(null)}>
           <DialogContent>
@@ -559,20 +358,44 @@ export default function BookingsPage() {
               <DialogTitle>Buchungsdetails</DialogTitle>
             </DialogHeader>
             <div className="space-y-4">
-              <div>
-                <Label>Tier</Label>
-                <p className="font-medium">{selectedBooking.pet?.name || 'Unbekannt'}</p>
-              </div>
-              <div>
-                <Label>Service</Label>
-                <p className="font-medium">{getServiceLabel(selectedBooking.service_type)}</p>
-              </div>
+              {selectedGroup && selectedGroup.bookings.length > 1 ? (
+                <div>
+                  <Label>Tiere & Leistungen</Label>
+                  <ul className="mt-1 list-inside list-disc text-sage-800">
+                    {selectedGroup.bookings.map((b) => (
+                      <li key={b.id}>
+                        {b.pet?.name}: {getServiceLabel(b.service_type)}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : (
+                <>
+                  <div>
+                    <Label>Tier</Label>
+                    <p className="font-medium">{selectedBooking.pet?.name || 'Unbekannt'}</p>
+                  </div>
+                  <div>
+                    <Label>Service</Label>
+                    <p className="font-medium">{getServiceLabel(selectedBooking.service_type)}</p>
+                  </div>
+                </>
+              )}
               <div>
                 <Label>Zeitraum</Label>
                 <p className="font-medium">
-                  {new Date(selectedBooking.start_date).toLocaleDateString('de-DE')} - {new Date(selectedBooking.end_date).toLocaleDateString('de-DE')}
+                  {new Date(selectedBooking.start_date).toLocaleDateString('de-DE')} –{' '}
+                  {selectedBooking.end_date
+                    ? new Date(selectedBooking.end_date).toLocaleDateString('de-DE')
+                    : 'laufend'}
                 </p>
               </div>
+              {formatDayCareBookingSummary(selectedBooking) && (
+                <div>
+                  <Label>Tagesbetreuung</Label>
+                  <p className="text-sage-700">{formatDayCareBookingSummary(selectedBooking)}</p>
+                </div>
+              )}
               <div>
                 <Label>Status</Label>
                 <Badge className={getStatusColor(selectedBooking.status)}>
@@ -598,4 +421,3 @@ export default function BookingsPage() {
     </div>
   )
 }
-

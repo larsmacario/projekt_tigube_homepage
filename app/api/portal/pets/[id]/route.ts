@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerClient } from '@/lib/admin-auth'
+import { PET_EDITABLE_FIELDS, pickAllowedFields } from '@/lib/contact-editable-fields'
 import { deletePetPhotoStorageFiles } from '@/lib/portal-customer'
 import { normalizePetPayload, validatePetPayload } from '@/lib/pet-payload'
+import { getPortalCustomer, assertPetOwnership } from '@/lib/portal-customer'
 
 export async function PUT(
   request: NextRequest,
@@ -27,50 +29,48 @@ export async function PUT(
       )
     }
 
-    const { data: userData } = await supabase
-      .from('users')
-      .select('*')
-      .eq('id', authUser.id)
-      .single()
-
-    if (!userData) {
+    const customerResult = await getPortalCustomer(supabase, authUser.id)
+    if ('error' in customerResult) {
       return NextResponse.json(
-        { error: 'User-Daten nicht gefunden' },
-        { status: 401 }
+        { error: customerResult.error },
+        { status: customerResult.status }
       )
     }
 
-    const updates = normalizePetPayload(await request.json())
+    let body: Record<string, unknown>
+    try {
+      body = await request.json()
+    } catch {
+      return NextResponse.json({ error: 'Ungültiger Anfrage-Body' }, { status: 400 })
+    }
+
+    const updates = normalizePetPayload(
+      pickAllowedFields(body, PET_EDITABLE_FIELDS)
+    )
     const validationError = validatePetPayload(updates)
     if (validationError) {
       return NextResponse.json({ error: validationError }, { status: 400 })
     }
 
-    // Prüfe ob Pet zum User gehört
-    const { data: customer } = await supabase
-      .from('contacts')
-      .select('id')
-      .eq('user_id', userData.id)
-      .eq('contact_type', 'customer')
-      .single()
-
-    if (!customer) {
-      return NextResponse.json(
-        { error: 'Kundenprofil nicht gefunden' },
-        { status: 404 }
-      )
+    const ownership = await assertPetOwnership(supabase, petId, customerResult.customer.id)
+    if ('error' in ownership) {
+      return NextResponse.json({ error: ownership.error }, { status: ownership.status })
     }
 
     const { data, error } = await supabase
       .from('pets')
       .update(updates)
       .eq('id', petId)
-      .eq('customer_id', customer.id)
+      .eq('customer_id', customerResult.customer.id)
       .select()
       .single()
 
     if (error) {
-      throw error
+      console.error('Error updating pet:', error)
+      return NextResponse.json(
+        { error: error.message || 'Fehler beim Aktualisieren des Tieres' },
+        { status: 500 }
+      )
     }
 
     if (!data) {

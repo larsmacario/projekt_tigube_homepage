@@ -2,14 +2,13 @@
 
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { ArrowLeft, Trash2, ChevronDown, ChevronRight, Pencil, Check, X } from 'lucide-react'
+import { ArrowLeft, Trash2, Pencil, Check, X } from 'lucide-react'
 import Link from 'next/link'
 import type { Customer, Pet, Document, BookingRequest, ContactNote } from '@/lib/types'
 import { PropertyEditor } from '@/components/admin/property-editor'
@@ -21,6 +20,16 @@ import { TransactionalEmailPanel } from '@/components/admin/transactional-email-
 import { useToast } from '@/hooks/use-toast'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog'
 import { authenticatedFetch } from '@/lib/authenticated-fetch'
+import { CollapsibleAdminCard } from '@/components/admin/collapsible-admin-card'
+import {
+  emptyPriceOverrideForm,
+  formToOverrideRow,
+  overrideRowToForm,
+  PriceOverrideEditorRow,
+  type PriceOverrideFormState,
+} from '@/components/admin/price-override-editor'
+import type { PriceOverrideRow } from '@/lib/price-override'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 
 type CustomerFormData = {
   vorname: string
@@ -28,6 +37,10 @@ type CustomerFormData = {
   email: string
   telefonnummer: string
   telefon_2: string
+  strasse: string
+  hausnummer: string
+  plz: string
+  ort: string
   kundennummer: string
   notfall_kontakt_name: string
   notfallnummer: string
@@ -45,6 +58,10 @@ function customerToFormData(customer: Customer): CustomerFormData {
     email: customer.email || '',
     telefonnummer: customer.telefonnummer || '',
     telefon_2: customer.telefon_2 || '',
+    strasse: customer.strasse || '',
+    hausnummer: customer.hausnummer || '',
+    plz: customer.plz || '',
+    ort: customer.ort || '',
     kundennummer: customer.kundennummer || '',
     notfall_kontakt_name: customer.notfall_kontakt_name || '',
     notfallnummer: customer.notfallnummer || '',
@@ -76,9 +93,9 @@ export default function CustomerDetailPage() {
   const [groups, setGroups] = useState<any[]>([])
   const [defaultPrices, setDefaultPrices] = useState<any[]>([])
   const [categories, setCategories] = useState<any[]>([])
-  const [customerPrices, setCustomerPrices] = useState<Record<string, number>>({})
+  const [customerPriceForms, setCustomerPriceForms] = useState<Record<string, PriceOverrideFormState>>({})
+  const [groupPriceOverrides, setGroupPriceOverrides] = useState<Record<string, PriceOverrideRow>>({})
   const [savingPrices, setSavingPrices] = useState(false)
-  const [pricesExpanded, setPricesExpanded] = useState(false)
 
   useEffect(() => {
     if (customerId) {
@@ -105,17 +122,45 @@ export default function CustomerDetailPage() {
       setCategories(defaultPricesData.categories || [])
 
       const customerPricesData = await customerPricesRes.json()
-      const overridesMap: Record<string, number> = {}
+      const formsMap: Record<string, PriceOverrideFormState> = {}
       if (customerPricesData.overrides) {
-        customerPricesData.overrides.forEach((o: any) => {
-          overridesMap[o.price_id] = o.price
+        customerPricesData.overrides.forEach((o: PriceOverrideRow) => {
+          formsMap[o.price_id] = overrideRowToForm(o)
         })
       }
-      setCustomerPrices(overridesMap)
+      setCustomerPriceForms(formsMap)
     } catch (error) {
       console.error('Error loading groups or prices:', error)
     }
   }
+
+  async function loadGroupPriceOverrides(groupId: string | null) {
+    if (!groupId) {
+      setGroupPriceOverrides({})
+      return
+    }
+    try {
+      const groupPricesRes = await authenticatedFetch(
+        `/api/admin/group-prices?group_id=${groupId}`
+      )
+      const groupPricesData = await groupPricesRes.json()
+      const groupMap: Record<string, PriceOverrideRow> = {}
+      if (groupPricesData.overrides) {
+        groupPricesData.overrides.forEach((o: PriceOverrideRow) => {
+          groupMap[o.price_id] = o
+        })
+      }
+      setGroupPriceOverrides(groupMap)
+    } catch (error) {
+      console.error('Error loading group price overrides:', error)
+    }
+  }
+
+  useEffect(() => {
+    if (customer) {
+      loadGroupPriceOverrides(customer.customer_group_id ?? null)
+    }
+  }, [customer?.id, customer?.customer_group_id])
 
   async function handleGroupChange(value: string) {
     const groupId = value === 'none' ? null : value
@@ -129,6 +174,7 @@ export default function CustomerDetailPage() {
 
       if (response.ok) {
         setCustomer(prev => prev ? { ...prev, customer_group_id: groupId } : null)
+        await loadGroupPriceOverrides(groupId)
         toast({
           title: 'Erfolg',
           description: 'Kundengruppe erfolgreich aktualisiert',
@@ -154,12 +200,9 @@ export default function CustomerDetailPage() {
   async function handleSavePrices() {
     setSavingPrices(true)
     try {
-      const overrides = Object.entries(customerPrices)
-        .filter(([_, price]) => price !== undefined && price !== null && !isNaN(price))
-        .map(([price_id, price]) => ({
-          price_id,
-          price,
-        }))
+      const overrides = Object.entries(customerPriceForms)
+        .map(([price_id, form]) => formToOverrideRow(price_id, form))
+        .filter(Boolean)
 
       const response = await authenticatedFetch('/api/admin/customer-prices', {
         method: 'PUT',
@@ -233,16 +276,21 @@ export default function CustomerDetailPage() {
     }
   }
 
-  function updateCustomerPrice(priceId: string, val: string) {
-    setCustomerPrices(prev => {
-      const updated = { ...prev }
-      if (val === '') {
+  function updateCustomerPriceForm(priceId: string, next: PriceOverrideFormState) {
+    setCustomerPriceForms(prev => {
+      const isEmpty =
+        next.price === '' && next.discount_type === '' && next.discount_value === ''
+      if (isEmpty) {
+        const updated = { ...prev }
         delete updated[priceId]
-      } else {
-        updated[priceId] = parseFloat(val)
+        return updated
       }
-      return updated
+      return { ...prev, [priceId]: next }
     })
+  }
+
+  function getCustomerPriceForm(priceId: string): PriceOverrideFormState {
+    return customerPriceForms[priceId] ?? emptyPriceOverrideForm()
   }
 
   async function loadCustomer() {
@@ -427,28 +475,30 @@ export default function CustomerDetailPage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
           {/* Persönliche Daten */}
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between">
-            <CardTitle>Persönliche Daten</CardTitle>
-            {!isEditing ? (
-              <Button size="sm" variant="outline" onClick={() => setIsEditing(true)}>
-                <Pencil className="h-4 w-4 mr-1" />
-                Bearbeiten
-              </Button>
-            ) : (
-              <div className="flex gap-2">
-                <Button size="sm" onClick={saveContactDetails} disabled={savingContact}>
-                  <Check className="h-4 w-4 mr-1" />
-                  {savingContact ? 'Speichern…' : 'Speichern'}
+          <CollapsibleAdminCard
+            title="Persönliche Daten"
+            defaultExpanded={false}
+            headerActions={
+              !isEditing ? (
+                <Button size="sm" variant="outline" onClick={() => setIsEditing(true)}>
+                  <Pencil className="h-4 w-4 mr-1" />
+                  Bearbeiten
                 </Button>
-                <Button size="sm" variant="outline" onClick={cancelEdit} disabled={savingContact}>
-                  <X className="h-4 w-4 mr-1" />
-                  Abbrechen
-                </Button>
-              </div>
-            )}
-          </CardHeader>
-          <CardContent className="space-y-4">
+              ) : (
+                <div className="flex gap-2">
+                  <Button size="sm" onClick={saveContactDetails} disabled={savingContact}>
+                    <Check className="h-4 w-4 mr-1" />
+                    {savingContact ? 'Speichern…' : 'Speichern'}
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={cancelEdit} disabled={savingContact}>
+                    <X className="h-4 w-4 mr-1" />
+                    Abbrechen
+                  </Button>
+                </div>
+              )
+            }
+          >
+          <div className="space-y-4">
             {formData && isEditing ? (
               <>
                 <div className="grid grid-cols-2 gap-4">
@@ -489,6 +539,27 @@ export default function CustomerDetailPage() {
                   <div>
                     <Label>2. Telefon</Label>
                     <Input value={formData.telefon_2} onChange={(e) => setFormData({ ...formData, telefon_2: e.target.value })} />
+                  </div>
+                </div>
+                <div className="border-t pt-4">
+                  <h3 className="font-semibold mb-3">Anschrift</h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <Label>Straße</Label>
+                      <Input value={formData.strasse} onChange={(e) => setFormData({ ...formData, strasse: e.target.value })} />
+                    </div>
+                    <div>
+                      <Label>Hausnummer</Label>
+                      <Input value={formData.hausnummer} onChange={(e) => setFormData({ ...formData, hausnummer: e.target.value })} />
+                    </div>
+                    <div>
+                      <Label>PLZ</Label>
+                      <Input value={formData.plz} onChange={(e) => setFormData({ ...formData, plz: e.target.value })} />
+                    </div>
+                    <div>
+                      <Label>Ort</Label>
+                      <Input value={formData.ort} onChange={(e) => setFormData({ ...formData, ort: e.target.value })} />
+                    </div>
                   </div>
                 </div>
                 <div className="border-t pt-4">
@@ -586,6 +657,27 @@ export default function CustomerDetailPage() {
                   <div>
                     <p className="text-sm text-sage-500">2. Telefon</p>
                     <p className="font-medium">{formData.telefon_2 || '-'}</p>
+                  </div>
+                </div>
+                <div className="border-t pt-4">
+                  <h3 className="font-semibold mb-3">Anschrift</h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-sm text-sage-500">Straße</p>
+                      <p className="font-medium">{formData.strasse || '-'}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-sage-500">Hausnummer</p>
+                      <p className="font-medium">{formData.hausnummer || '-'}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-sage-500">PLZ</p>
+                      <p className="font-medium">{formData.plz || '-'}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-sage-500">Ort</p>
+                      <p className="font-medium">{formData.ort || '-'}</p>
+                    </div>
                   </div>
                 </div>
                 <div className="border-t pt-4">
@@ -721,70 +813,73 @@ export default function CustomerDetailPage() {
               <p>Erstellt: {new Date(customer.created_at).toLocaleString('de-DE')}</p>
               <p>Aktualisiert: {new Date(customer.updated_at).toLocaleString('de-DE')}</p>
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </CollapsibleAdminCard>
 
         {/* Eigenschaften */}
-        <PropertyEditor entityType="customer" entityId={customerId} />
+        <PropertyEditor entityType="customer" entityId={customerId} defaultExpanded={false} />
+
+        <TransactionalEmailPanel
+          contactId={customerId}
+          recipientEmail={customer.email}
+          recipientName={[customer.vorname, customer.nachname].filter(Boolean).join(' ') || customer.email}
+          defaultExpanded={false}
+        />
+
+        <PetManager
+          customerId={customerId}
+          pets={customer.pets || []}
+          onPetsChange={(pets) => setCustomer((prev) => prev ? { ...prev, pets } : prev)}
+          defaultExpanded={false}
+        />
+
+        <DocumentManager
+          customerId={customerId}
+          documents={customer.documents || []}
+          pets={customer.pets || []}
+          onDocumentsChange={(documents) => setCustomer((prev) => prev ? { ...prev, documents } : prev)}
+          defaultExpanded={false}
+        />
 
         {/* Individuelle Preise */}
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between cursor-pointer select-none" onClick={() => setPricesExpanded(!pricesExpanded)}>
-            <div className="flex items-center gap-2">
-              {pricesExpanded ? <ChevronDown className="h-5 w-5 text-sage-500" /> : <ChevronRight className="h-5 w-5 text-sage-500" />}
-              <CardTitle>Individuelle Preise</CardTitle>
-            </div>
-            {pricesExpanded && (
-              <Button
-                size="sm"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  handleSavePrices()
-                }}
-                disabled={savingPrices}
-                className="bg-sage-600 hover:bg-sage-700"
-              >
-                {savingPrices ? 'Wird gespeichert...' : 'Preise speichern'}
-              </Button>
-            )}
-          </CardHeader>
-          {pricesExpanded && (
-            <CardContent className="space-y-4">
-              <p className="text-sm text-sage-600">
-                Überschreibe hier den Standard- oder Gruppenpreis für diesen Kunden. Leere Felder bedeuten, dass der Standard- bzw. Gruppenpreis gilt.
-              </p>
-              <div className="space-y-4">
-                {defaultPrices.filter(p => p.price_type !== 'text').map((price) => (
-                  <div key={price.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-3 border border-sage-100 rounded-lg">
-                    <div>
-                      <p className="font-semibold text-sage-900">{price.name}</p>
-                      <p className="text-xs text-sage-500">Kategorie: {categories.find(c => c.id === price.category_id)?.name || 'Allgemein'} (Standard: {price.price}€ {price.unit})</p>
-                    </div>
-                    <div className="flex items-center gap-2 max-w-[200px]">
-                      <Input
-                        type="number"
-                        step="0.01"
-                        placeholder="Standard"
-                        value={customerPrices[price.id] !== undefined ? customerPrices[price.id] : ''}
-                        onChange={(e) => updateCustomerPrice(price.id, e.target.value)}
-                        className="h-9 bg-white"
-                      />
-                      <span className="text-sage-700">€</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          )}
-        </Card>
+        <CollapsibleAdminCard
+          title="Individuelle Preise"
+          defaultExpanded={false}
+          headerActions={
+            <Button
+              size="sm"
+              onClick={handleSavePrices}
+              disabled={savingPrices}
+              className="bg-sage-600 hover:bg-sage-700"
+            >
+              {savingPrices ? 'Wird gespeichert...' : 'Preise speichern'}
+            </Button>
+          }
+        >
+          <p className="text-sm text-sage-600">
+            Optional Sonderpreis und/oder Rabatt pro Posten. Leere Felder bedeuten Standard- bzw. Gruppenpreis.
+          </p>
+          <div className="space-y-4 mt-4">
+            {defaultPrices.filter(p => p.price_type !== 'text').map((price) => (
+              <PriceOverrideEditorRow
+                key={price.id}
+                catalogPrice={price}
+                categoryName={categories.find(c => c.id === price.category_id)?.name || 'Allgemein'}
+                form={getCustomerPriceForm(price.id)}
+                onChange={(next) => updateCustomerPriceForm(price.id, next)}
+                groupOverride={groupPriceOverrides[price.id] ?? null}
+              />
+            ))}
+          </div>
+        </CollapsibleAdminCard>
 
         {/* Gefahrenbereich */}
-        <Card className="border-destructive/40">
-          <CardHeader>
-            <CardTitle className="text-destructive">Gefahrenbereich</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <AlertDialog>
+        <CollapsibleAdminCard
+          title={<CardTitle className="text-destructive">Gefahrenbereich</CardTitle>}
+          defaultExpanded={false}
+          className="border-destructive/40"
+        >
+          <AlertDialog>
               <AlertDialogTrigger asChild>
                 <Button variant="destructive" disabled={isDeleting}>
                   <Trash2 className="mr-2 h-4 w-4" />
@@ -806,18 +901,10 @@ export default function CustomerDetailPage() {
                 </AlertDialogFooter>
               </AlertDialogContent>
             </AlertDialog>
-          </CardContent>
-        </Card>
+        </CollapsibleAdminCard>
       </div>
 
-      {/* Notizen & Tiere & Dokumente */}
       <div className="space-y-6">
-          <TransactionalEmailPanel
-            contactId={customerId}
-            recipientEmail={customer.email}
-            recipientName={[customer.vorname, customer.nachname].filter(Boolean).join(' ') || customer.email}
-          />
-          {/* Notizen */}
           <Card>
             <CardHeader>
               <CardTitle>Notizen</CardTitle>
@@ -831,20 +918,6 @@ export default function CustomerDetailPage() {
             </CardContent>
           </Card>
 
-          <PetManager
-            customerId={customerId}
-            pets={customer.pets || []}
-            onPetsChange={(pets) => setCustomer((prev) => prev ? { ...prev, pets } : prev)}
-          />
-
-          <DocumentManager
-            customerId={customerId}
-            documents={customer.documents || []}
-            pets={customer.pets || []}
-            onDocumentsChange={(documents) => setCustomer((prev) => prev ? { ...prev, documents } : prev)}
-          />
-
-          {/* Buchungen */}
           <Card>
             <CardHeader>
               <CardTitle>Buchungen ({bookings.length})</CardTitle>

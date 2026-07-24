@@ -1,7 +1,6 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -10,11 +9,14 @@ import { CheckCircle2, Loader2, Mail, XCircle } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 import type { ContactEmail } from '@/lib/types'
 import { authenticatedFetch } from '@/lib/authenticated-fetch'
+import { CollapsibleAdminCard } from '@/components/admin/collapsible-admin-card'
+import { CardTitle } from '@/components/ui/card'
 
 type TransactionalEmailPanelProps = {
   contactId: string
   recipientEmail: string
   recipientName: string
+  defaultExpanded?: boolean
 }
 
 function formatSender(email: ContactEmail): string | null {
@@ -34,6 +36,7 @@ export function TransactionalEmailPanel({
   contactId,
   recipientEmail,
   recipientName,
+  defaultExpanded = true,
 }: TransactionalEmailPanelProps) {
   const { toast } = useToast()
   const [emails, setEmails] = useState<ContactEmail[]>([])
@@ -127,18 +130,22 @@ export function TransactionalEmailPanel({
   }
 
   return (
-    <Card>
-      <CardHeader>
+    <CollapsibleAdminCard
+      defaultExpanded={defaultExpanded}
+      title={
         <CardTitle className="flex items-center gap-2">
           <Mail className="h-5 w-5" />
           E-Mail an {recipientName}
         </CardTitle>
-        <p className="text-sm text-sage-600">{recipientEmail}</p>
-        <p className="text-xs text-sage-500">
-          Persönlicher Einzelversand — für Massenversand siehe „E-Mails“ im Menü.
-        </p>
-      </CardHeader>
-      <CardContent className="space-y-6">
+      }
+    >
+      <div className="space-y-6">
+        <div className="space-y-1 pb-2">
+          <p className="text-sm text-sage-600">{recipientEmail}</p>
+          <p className="text-xs text-sage-500">
+            Persönlicher Einzelversand — für Massenversand siehe „E-Mails“ im Menü.
+          </p>
+        </div>
         <div className="space-y-3">
           <div className="space-y-2">
             <Label htmlFor={`transactional-email-subject-${contactId}`}>Betreff</Label>
@@ -225,8 +232,8 @@ export function TransactionalEmailPanel({
             </div>
           )}
         </div>
-      </CardContent>
-    </Card>
+      </div>
+    </CollapsibleAdminCard>
   )
 }
 

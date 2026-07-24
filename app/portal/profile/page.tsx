@@ -23,9 +23,15 @@ import {
   isDog,
   validatePetSaveRequired,
 } from '@/lib/pet-vaccination'
-import { PetPhotoGallery } from '@/components/portal/pet-photo-gallery'
+import { PetPhotoGallery, type PetPhotoGalleryHandle } from '@/components/portal/pet-photo-gallery'
 import { PetRecognitionField } from '@/components/portal/pet-recognition-field'
+import { PetDewormingDateField } from '@/components/portal/pet-deworming-date-field'
 import { PetMissingFieldsHint } from '@/components/portal/pet-missing-fields-hint'
+import { readApiResponse } from '@/lib/read-api-response'
+import {
+  formatCustomerAddress,
+  isCustomerProfileComplete,
+} from '@/lib/customer-profile-complete'
 
 function ProfileContent() {
   const searchParams = useSearchParams()
@@ -54,6 +60,10 @@ function ProfileContent() {
     vorname: '',
     telefonnummer: '',
     telefon_2: '',
+    strasse: '',
+    hausnummer: '',
+    plz: '',
+    ort: '',
     notfall_kontakt_name: '',
     notfallnummer: '',
     datenschutz: false,
@@ -76,6 +86,7 @@ function ProfileContent() {
     intervall_impfung: '',
     intervall_entwurmung: '',
     letzte_stuhlprobe: '',
+    naechste_stuhlprobe: '',
   })
 
   // Schritt 3: Betreuungsvertrag und Signatur
@@ -91,6 +102,8 @@ function ProfileContent() {
   const [impfpassFile, setImpfpassFile] = useState<File | null>(null)
   const [wurmtestFile, setWurmtestFile] = useState<File | null>(null)
   const [formPhotoCount, setFormPhotoCount] = useState(0)
+  const petPhotoGalleryRef = useRef<PetPhotoGalleryHandle>(null)
+  const [photoGalleryKey, setPhotoGalleryKey] = useState('new-pet')
 
   useEffect(() => {
     console.log('Component mounted, loading profile...')
@@ -107,6 +120,23 @@ function ProfileContent() {
       loadPets()
     }
   }, [step, customer])
+
+  useEffect(() => {
+    if (loading || step !== 3) return
+    const profileCheck = customer ?? personalData
+    if (!isCustomerProfileComplete(profileCheck as Customer)) {
+      toast({
+        title: 'Profil unvollständig',
+        description:
+          'Bitte ergänze zuerst deine persönlichen Daten inkl. Anschrift (Schritt 1), bevor du den Vertrag unterzeichnest.',
+        variant: 'destructive',
+      })
+      setStep(1)
+      router.replace(
+        isOnboarding ? '/portal/profile?onboarding=true&step=1' : '/portal/profile'
+      )
+    }
+  }, [step, loading, customer, personalData, isOnboarding, router, toast])
 
   async function loadProfile() {
     try {
@@ -143,6 +173,10 @@ function ProfileContent() {
           vorname: data.customer.vorname || '',
           telefonnummer: data.customer.telefonnummer || '',
           telefon_2: data.customer.telefon_2 || '',
+          strasse: data.customer.strasse || '',
+          hausnummer: data.customer.hausnummer || '',
+          plz: data.customer.plz || '',
+          ort: data.customer.ort || '',
           notfall_kontakt_name: data.customer.notfall_kontakt_name || '',
           notfallnummer: data.customer.notfallnummer || '',
           datenschutz: data.customer.datenschutz || false,
@@ -184,13 +218,19 @@ function ProfileContent() {
   async function loadPets() {
     try {
       const response = await authenticatedFetch('/api/portal/pets')
-      const data = await response.json()
-      setPets(data.pets || [])
+      const { data, error } = await readApiResponse<{ pets?: Pet[] }>(response)
+      if (error) {
+        console.error('Error loading pets:', error)
+        return
+      }
+      setPets(data?.pets || [])
 
       const docsResponse = await authenticatedFetch('/api/portal/documents')
       if (docsResponse.ok) {
-        const docsData = await docsResponse.json()
-        setDocuments(docsData.documents || [])
+        const docsResult = await readApiResponse<{ documents?: Document[] }>(docsResponse)
+        if (!docsResult.error) {
+          setDocuments(docsResult.data?.documents || [])
+        }
       }
     } catch (error) {
       console.error('Error loading pets:', error)
@@ -406,6 +446,46 @@ function ProfileContent() {
 
     setSaving(true)
     try {
+      const profileRes = await authenticatedFetch('/api/portal/profile')
+      const profileJson = await profileRes.json().catch(() => ({}))
+      const latest = profileJson.customer as Customer | null
+      const pdfPersonal = latest
+        ? {
+            vorname: latest.vorname || '',
+            nachname: latest.nachname || '',
+            strasse: latest.strasse || '',
+            hausnummer: latest.hausnummer || '',
+            plz: latest.plz || '',
+            ort: latest.ort || '',
+            telefonnummer: latest.telefonnummer || '',
+            email: latest.email || '',
+            notfall_kontakt_name: latest.notfall_kontakt_name || '',
+            notfallnummer: latest.notfallnummer || '',
+          }
+        : {
+            vorname: personalData.vorname,
+            nachname: personalData.nachname,
+            strasse: personalData.strasse,
+            hausnummer: personalData.hausnummer,
+            plz: personalData.plz,
+            ort: personalData.ort,
+            telefonnummer: personalData.telefonnummer,
+            email: personalData.email,
+            notfall_kontakt_name: personalData.notfall_kontakt_name,
+            notfallnummer: personalData.notfallnummer,
+          }
+
+      if (!isCustomerProfileComplete(latest ?? (personalData as Customer))) {
+        toast({
+          title: 'Profil unvollständig',
+          description: 'Bitte ergänze deine Anschrift in Schritt 1, bevor du den Vertrag unterzeichnest.',
+          variant: 'destructive',
+        })
+        setStep(1)
+        router.push('/portal/profile?onboarding=true&step=1')
+        return
+      }
+
       // 1. PDF generieren
       const { jsPDF } = await import('jspdf')
       const doc = new jsPDF()
@@ -439,10 +519,14 @@ function ProfileContent() {
       doc.text('Auftraggeber (Tierhalter):', 20, 60)
       doc.setFont('Helvetica', 'normal')
       doc.setFontSize(10)
-      doc.text(`Name: ${personalData.vorname || ''} ${personalData.nachname || ''}`, 20, 67)
-      doc.text(`Anschrift: ${personalData.strasse || ''} ${personalData.hausnummer || ''}, ${personalData.plz || ''} ${personalData.ort || ''}`, 20, 74)
-      doc.text(`Telefon: ${personalData.telefonnummer || ''}`, 20, 81)
-      doc.text(`E-Mail: ${personalData.email || ''}`, 20, 88)
+      doc.text(`Name: ${pdfPersonal.vorname || ''} ${pdfPersonal.nachname || ''}`, 20, 67)
+      doc.text(
+        `Anschrift: ${pdfPersonal.strasse || ''} ${pdfPersonal.hausnummer || ''}, ${pdfPersonal.plz || ''} ${pdfPersonal.ort || ''}`,
+        20,
+        74
+      )
+      doc.text(`Telefon: ${pdfPersonal.telefonnummer || ''}`, 20, 81)
+      doc.text(`E-Mail: ${pdfPersonal.email || ''}`, 20, 88)
 
       // Betreute Hunde
       doc.setFont('Helvetica', 'bold')
@@ -493,7 +577,7 @@ function ProfileContent() {
       doc.setFont('Helvetica', 'normal')
       doc.setFontSize(9)
       yOffset += 6
-      doc.text(`Name: ${personalData.notfall_kontakt_name || '-'} | Telefonnummer: ${personalData.notfallnummer || '-'}`, 20, yOffset)
+      doc.text(`Name: ${pdfPersonal.notfall_kontakt_name || '-'} | Telefonnummer: ${pdfPersonal.notfallnummer || '-'}`, 20, yOffset)
       
       yOffset += 12
       doc.setFont('Helvetica', 'bold')
@@ -906,6 +990,7 @@ function ProfileContent() {
         editingPetId,
         impfpassFile,
         wurmtestFile,
+        photoCount: formPhotoCount,
       })
     )
     if (saveWarning) {
@@ -917,6 +1002,7 @@ function ProfileContent() {
 
     try {
       setUploadingDocuments(true)
+      const wasEditing = !!editingPetId
       
       const url = editingPetId 
         ? `/api/portal/pets/${editingPetId}`
@@ -929,23 +1015,23 @@ function ProfileContent() {
         body: JSON.stringify(petFormData),
       })
 
-      if (!response.ok) {
-        const error = await response.json()
+      const { data: petData, error: saveApiError } = await readApiResponse<{
+        pet?: Pet
+        error?: string
+      }>(response)
+
+      if (saveApiError || !petData?.pet) {
         toast({
           title: 'Fehler',
-          description: error.error || 'Fehler beim Speichern',
+          description: saveApiError || 'Fehler beim Speichern',
           variant: 'destructive',
         })
         setUploadingDocuments(false)
         return
       }
 
-      const petData = await response.json()
-      const savedPetId = petData.pet?.id || editingPetId
-
-      if (!editingPetId && savedPetId) {
-        setEditingPetId(savedPetId)
-      }
+      const savedPetId = petData.pet.id || editingPetId
+      let photoCount = formPhotoCount
 
       // Lade Dokumente hoch, falls vorhanden
       if (savedPetId) {
@@ -994,45 +1080,57 @@ function ProfileContent() {
         }
 
         await Promise.all(uploadPromises)
+
+        if (petPhotoGalleryRef.current) {
+          try {
+            photoCount = await petPhotoGalleryRef.current.flushPendingUploads(savedPetId)
+            setFormPhotoCount(photoCount)
+          } catch {
+            // Fehlertoast kommt aus der Galerie
+          }
+        }
+
+        if (!editingPetId) {
+          setEditingPetId(savedPetId)
+        }
       }
 
       await loadPets()
 
-      const missingPhoto = (petData.pet?.photo_count ?? formPhotoCount) === 0
+      const missingPhoto = photoCount === 0
+
+      setPetFormData({
+        name: '',
+        tierart: '',
+        rasse: '',
+        farbe: '',
+        wiedererkennungsmerkmal: '',
+        geschlecht: '',
+        letzte_impfung: '',
+        letzte_impfung_zusatz: '',
+        futtermenge: '',
+        medikamente: '',
+        besonderheiten: '',
+        intervall_impfung: '',
+        intervall_entwurmung: '',
+        letzte_stuhlprobe: '',
+        naechste_stuhlprobe: '',
+      })
+      setImpfpassFile(null)
+      setWurmtestFile(null)
+      setShowPetForm(false)
+      setEditingPetId(null)
+      setFormPhotoCount(0)
+      toast({
+        title: 'Erfolg',
+        description: wasEditing ? 'Tier erfolgreich aktualisiert' : 'Tier erfolgreich hinzugefügt',
+      })
 
       if (missingPhoto) {
-        setEditingPetId(savedPetId)
-        setShowPetForm(true)
         toast({
           title: 'Hinweis',
           description:
-            'Bitte lade noch mindestens ein Foto deines Tieres hoch – das hilft uns bei der Wiedererkennung.',
-        })
-      } else {
-        setPetFormData({
-          name: '',
-          tierart: '',
-          rasse: '',
-          farbe: '',
-          wiedererkennungsmerkmal: '',
-          geschlecht: '',
-          letzte_impfung: '',
-          letzte_impfung_zusatz: '',
-          futtermenge: '',
-          medikamente: '',
-          besonderheiten: '',
-          intervall_impfung: '',
-          intervall_entwurmung: '',
-          letzte_stuhlprobe: '',
-        })
-        setImpfpassFile(null)
-        setWurmtestFile(null)
-        setShowPetForm(false)
-        setEditingPetId(null)
-        setFormPhotoCount(0)
-        toast({
-          title: 'Erfolg',
-          description: editingPetId ? 'Tier erfolgreich aktualisiert' : 'Tier erfolgreich hinzugefügt',
+            'Bitte ergänze später noch ein Tierfoto – das hilft uns bei der Wiedererkennung.',
         })
       }
     } catch (error) {
@@ -1065,6 +1163,9 @@ function ProfileContent() {
         intervall_impfung: pet.intervall_impfung || '',
         intervall_entwurmung: pet.intervall_entwurmung || '',
         letzte_stuhlprobe: pet.letzte_stuhlprobe || '',
+        naechste_stuhlprobe: pet.naechste_stuhlprobe
+          ? pet.naechste_stuhlprobe.split('T')[0]
+          : '',
       })
     } else {
       setEditingPetId(null)
@@ -1083,12 +1184,14 @@ function ProfileContent() {
         intervall_impfung: '',
         intervall_entwurmung: '',
         letzte_stuhlprobe: '',
+        naechste_stuhlprobe: '',
       })
     }
     // Dateien zurücksetzen beim Öffnen des Formulars
     setImpfpassFile(null)
     setWurmtestFile(null)
     setFormPhotoCount(pet?.photo_count ?? 0)
+    setPhotoGalleryKey(pet?.id ?? crypto.randomUUID())
     setShowPetForm(true)
   }
 
@@ -1129,6 +1232,16 @@ function ProfileContent() {
         description: 'Bitte füge mindestens ein Tier hinzu.',
         variant: 'destructive',
       })
+      return
+    }
+    if (!isCustomerProfileComplete(customer ?? (personalData as Customer))) {
+      toast({
+        title: 'Profil unvollständig',
+        description: 'Bitte ergänze zuerst deine Anschrift in Schritt 1.',
+        variant: 'destructive',
+      })
+      setStep(1)
+      router.push('/portal/profile?onboarding=true&step=1')
       return
     }
     setStep(3)
@@ -1224,6 +1337,8 @@ function ProfileContent() {
 
   const hasExistingImpfpass = editingPetId && documents.some(d => d.pet_id === editingPetId && d.document_type === 'impfpass')
   const hasExistingWurmtest = editingPetId && documents.some(d => d.pet_id === editingPetId && d.document_type === 'wurmtest')
+  const step1FormComplete = isCustomerProfileComplete(personalData as Customer)
+  const contractPartyAddress = formatCustomerAddress(customer ?? personalData)
 
   return (
     <div className="space-y-6">
@@ -1384,6 +1499,49 @@ function ProfileContent() {
             </div>
 
             <div>
+              <h3 className="font-semibold mb-4">Anschrift</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="strasse">Straße *</Label>
+                  <Input
+                    id="strasse"
+                    value={personalData.strasse}
+                    onChange={(e) => setPersonalData({ ...personalData, strasse: e.target.value })}
+                    required
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="hausnummer">Hausnummer *</Label>
+                  <Input
+                    id="hausnummer"
+                    value={personalData.hausnummer}
+                    onChange={(e) => setPersonalData({ ...personalData, hausnummer: e.target.value })}
+                    required
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="plz">PLZ *</Label>
+                  <Input
+                    id="plz"
+                    inputMode="numeric"
+                    value={personalData.plz}
+                    onChange={(e) => setPersonalData({ ...personalData, plz: e.target.value })}
+                    required
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="ort">Ort *</Label>
+                  <Input
+                    id="ort"
+                    value={personalData.ort}
+                    onChange={(e) => setPersonalData({ ...personalData, ort: e.target.value })}
+                    required
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div>
               <h3 className="font-semibold mb-4">Notfallkontakt</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
@@ -1413,7 +1571,19 @@ function ProfileContent() {
                 onChange={(e) => setPersonalData({ ...personalData, datenschutz: e.target.checked })}
                 className="rounded border-sage-300"
               />
-              <Label htmlFor="datenschutz">Ich stimme der Datenschutzerklärung zu *</Label>
+              <Label htmlFor="datenschutz" className="font-normal">
+                Ich stimme der{' '}
+                <a
+                  href="/datenschutz"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-sage-600 hover:underline"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  Datenschutzerklärung
+                </a>{' '}
+                zu *
+              </Label>
             </div>
 
             <div className="flex flex-col sm:flex-row gap-4 w-full">
@@ -1421,7 +1591,7 @@ function ProfileContent() {
                 <>
                   <Button
                     onClick={handleSaveStep1}
-                    disabled={saving || !personalData.datenschutz || !personalData.nachname || !personalData.vorname || !personalData.email || !personalData.telefonnummer}
+                    disabled={saving || !step1FormComplete}
                     className="flex-1 bg-sage-600 hover:bg-sage-700 text-lg py-6"
                   >
                     {saving ? 'Wird gespeichert...' : 'Weiter zu Schritt 2 →'}
@@ -1505,6 +1675,8 @@ function ProfileContent() {
                         </SelectContent>
                       </Select>
                     </div>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     <div>
                       <Label htmlFor="pet-geschlecht">Geschlecht</Label>
                       <Select
@@ -1550,6 +1722,8 @@ function ProfileContent() {
                   />
 
                   <PetPhotoGallery
+                    ref={petPhotoGalleryRef}
+                    key={photoGalleryKey}
                     petId={editingPetId}
                     onPhotoCountChange={(count) => {
                       setFormPhotoCount(count)
@@ -1590,10 +1764,10 @@ function ProfileContent() {
                         placeholder="z.B. Allergien, Verhaltensbesonderheiten, etc."
                       />
                     </div>
-                    <div>
-                      <h4 className="font-semibold mb-3">Intervalle</h4>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        {!isDog(petFormData.tierart) && (
+                    {!isDog(petFormData.tierart) && (
+                      <div>
+                        <h4 className="font-semibold mb-3">Intervalle</h4>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           <div>
                             <Label htmlFor="pet-intervall-impfung">Intervall Impfung</Label>
                             <Select
@@ -1613,28 +1787,9 @@ function ProfileContent() {
                               </SelectContent>
                             </Select>
                           </div>
-                        )}
-                        <div>
-                          <Label htmlFor="pet-intervall-entwurmung">Intervall Entwurmung/Testung</Label>
-                          <Select
-                            value={petFormData.intervall_entwurmung || ''}
-                            onValueChange={(value) => setPetFormData({ ...petFormData, intervall_entwurmung: value })}
-                          >
-                            <SelectTrigger>
-                              <SelectValue placeholder="Intervall wählen" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="monatlich">Monatlich</SelectItem>
-                              <SelectItem value="vierteljährlich">Vierteljährlich</SelectItem>
-                              <SelectItem value="halbjährlich">Halbjährlich</SelectItem>
-                              <SelectItem value="jährlich">Jährlich</SelectItem>
-                              <SelectItem value="alle_2_jahre">Alle 2 Jahre</SelectItem>
-                              <SelectItem value="alle_3_jahre">Alle 3 Jahre</SelectItem>
-                            </SelectContent>
-                          </Select>
                         </div>
                       </div>
-                    </div>
+                    )}
                   </div>
 
                   {/* Dokumente & Vorsorge */}
@@ -1653,16 +1808,17 @@ function ProfileContent() {
                     {/* Wurmtest Bereich */}
                     <div className="p-4 bg-sage-50/50 rounded-lg border border-sage-100 space-y-4">
                       <h4 className="font-semibold text-sm text-sage-800 border-b pb-1">Wurmtest & Entwurmung</h4>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
                         <div>
                           <Label htmlFor="pet-wurmtest">
-                            Wurmtest (Foto aufnehmen, Bild oder PDF){' '}
-                            {hasExistingWurmtest ? '(bereits hochgeladen)' : '(später nachreichbar)'}
+                            Wurmtest (Foto aufnehmen, Bild oder PDF)
+                            {hasExistingWurmtest ? ' (bereits hochgeladen)' : ''}
                           </Label>
                           <Input
                             id="pet-wurmtest"
                             type="file"
                             accept="image/*,application/pdf"
+                            className="h-9 text-sm"
                             onChange={(e) => {
                               const file = e.target.files?.[0]
                               setWurmtestFile(file || null)
@@ -1674,18 +1830,19 @@ function ProfileContent() {
                             </p>
                           )}
                         </div>
-                        <div>
-                          <Label htmlFor="pet-stuhlprobe">
-                            Datum der letzten Entwurmung/Stuhlprobe (später nachreichbar)
-                          </Label>
-                          <Input
-                            id="pet-stuhlprobe"
-                            type="date"
-                            value={petFormData.letzte_stuhlprobe}
-                            max={new Date().toISOString().split('T')[0]}
-                            onChange={(e) => setPetFormData({ ...petFormData, letzte_stuhlprobe: e.target.value })}
-                          />
-                        </div>
+                        <PetDewormingDateField
+                          key={photoGalleryKey}
+                          idPrefix="onboarding-pet"
+                          letzteStuhlprobe={petFormData.letzte_stuhlprobe || ''}
+                          naechsteStuhlprobe={petFormData.naechste_stuhlprobe || ''}
+                          onChange={(values) =>
+                            setPetFormData({
+                              ...petFormData,
+                              letzte_stuhlprobe: values.letzte_stuhlprobe,
+                              naechste_stuhlprobe: values.naechste_stuhlprobe,
+                            })
+                          }
+                        />
                       </div>
                     </div>
                   </div>
@@ -1722,6 +1879,7 @@ function ProfileContent() {
                           intervall_impfung: '',
                           intervall_entwurmung: '',
                           letzte_stuhlprobe: '',
+                          naechste_stuhlprobe: '',
                         })
                         setImpfpassFile(null)
                         setWurmtestFile(null)
@@ -1776,13 +1934,21 @@ function ProfileContent() {
                           </Button>
                         </div>
                       </div>
-                      {(pet.futtermenge || pet.medikamente || pet.besonderheiten || pet.intervall_impfung || pet.intervall_entwurmung || pet.letzte_stuhlprobe) && (
+                      {(pet.futtermenge || pet.medikamente || pet.besonderheiten || pet.intervall_impfung || pet.letzte_stuhlprobe || pet.naechste_stuhlprobe) && (
                         <div className="mt-3 pt-3 border-t border-sage-200 space-y-2">
                           {pet.letzte_stuhlprobe && (
                             <div>
                               <p className="text-xs font-semibold text-sage-600">Letzte Entwurmung/Stuhlprobe:</p>
                               <p className="text-sm text-sage-700">
                                 {new Date(pet.letzte_stuhlprobe).toLocaleDateString('de-DE')}
+                              </p>
+                            </div>
+                          )}
+                          {pet.naechste_stuhlprobe && (
+                            <div>
+                              <p className="text-xs font-semibold text-sage-600">Nächste Entwurmung/Stuhlprobe:</p>
+                              <p className="text-sm text-sage-700">
+                                {new Date(pet.naechste_stuhlprobe).toLocaleDateString('de-DE')}
                               </p>
                             </div>
                           )}
@@ -1805,12 +1971,6 @@ function ProfileContent() {
                             </div>
                           )}
                           <PetVaccinationSummary pet={pet} />
-                          {pet.intervall_entwurmung && (
-                            <div>
-                              <p className="text-xs font-semibold text-sage-600">Entwurmung:</p>
-                              <p className="text-sm text-sage-700">{pet.intervall_entwurmung}</p>
-                            </div>
-                          )}
                         </div>
                       )}
                     </div>
@@ -1867,8 +2027,24 @@ function ProfileContent() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
+              <div className="rounded-lg border border-sage-200 bg-white p-4 text-sm text-sage-800">
+                <h3 className="font-bold text-sage-900 mb-2">Auftraggeber (Tierhalter)</h3>
+                <p>
+                  <span className="font-medium">Name:</span>{' '}
+                  {[personalData.vorname, personalData.nachname].filter(Boolean).join(' ') || '—'}
+                </p>
+                <p>
+                  <span className="font-medium">Anschrift:</span> {contractPartyAddress || '—'}
+                </p>
+                <p>
+                  <span className="font-medium">Telefon:</span> {personalData.telefonnummer || '—'}
+                </p>
+                <p>
+                  <span className="font-medium">E-Mail:</span> {personalData.email || '—'}
+                </p>
+              </div>
               {/* Vertragstext Box */}
-              <div className="border rounded-lg p-4 h-64 overflow-y-scroll bg-sage-50 text-sm text-sage-800 space-y-4">
+              <div className="border rounded-lg p-4 bg-sage-50 text-sm text-sage-800 space-y-4">
                 <h3 className="font-bold text-base border-b pb-2">Zusicherungen und Pflichten beider Parteien</h3>
                 <p>
                   <strong>(1) Der Tierbesitzer sichert zu, dass:</strong>
@@ -1909,7 +2085,19 @@ function ProfileContent() {
                     className="mt-1 h-4 w-4 rounded border-gray-300 text-sage-600 focus:ring-sage-500"
                   />
                   <label htmlFor="dataConsent" className="text-sm text-sage-700">
-                    <strong>Datenschutzerklärung (Pflicht):</strong> Ich stimme der Erhebung, Speicherung und elektronischen Verarbeitung meiner Daten sowie der Daten meines Tieres zum Zweck der Betreuung und Vertragsabwicklung zu.
+                    <strong>
+                      <a
+                        href="/datenschutz"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-sage-700 underline decoration-sage-400 hover:text-sage-900"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        Datenschutzerklärung
+                      </a>{' '}
+                      (Pflicht):
+                    </strong>{' '}
+                    Ich stimme der Erhebung, Speicherung und elektronischen Verarbeitung meiner Daten sowie der Daten meines Tieres zum Zweck der Betreuung und Vertragsabwicklung zu.
                   </label>
                 </div>
 

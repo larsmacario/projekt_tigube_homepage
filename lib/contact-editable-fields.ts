@@ -53,6 +53,10 @@ export const CUSTOMER_EDITABLE_FIELDS = [
   'email',
   'telefonnummer',
   'telefon_2',
+  'strasse',
+  'hausnummer',
+  'plz',
+  'ort',
   'kundennummer',
   'customer_group_id',
   'notfall_kontakt_name',
@@ -62,6 +66,28 @@ export const CUSTOMER_EDITABLE_FIELDS = [
   'besonderheiten',
   'intervall_impfung',
   'intervall_entwurmung',
+] as const
+
+/** Felder, die Kunden im Portal unter /api/portal/profile setzen dürfen */
+export const PORTAL_PROFILE_EDITABLE_FIELDS = [
+  'vorname',
+  'nachname',
+  'email',
+  'telefonnummer',
+  'telefon_2',
+  'strasse',
+  'hausnummer',
+  'plz',
+  'ort',
+  'notfall_kontakt_name',
+  'notfallnummer',
+  'datenschutz',
+] as const
+
+export const PORTAL_ONBOARDING_STATUS_FIELDS = [
+  'onboarding_completed',
+  'contract_signed',
+  'contract_signed_at',
 ] as const
 
 export const PET_EDITABLE_FIELDS = [
@@ -79,6 +105,7 @@ export const PET_EDITABLE_FIELDS = [
   'intervall_impfung',
   'intervall_entwurmung',
   'letzte_stuhlprobe',
+  'naechste_stuhlprobe',
 ] as const
 
 export function pickAllowedFields(

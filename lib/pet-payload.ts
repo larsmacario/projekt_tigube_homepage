@@ -1,8 +1,8 @@
-import { isDog, validateVaccinationDates } from '@/lib/pet-vaccination'
+import { isDog } from '@/lib/pet-vaccination'
 
 const KOMBI_INTERVALL_VALUES = new Set(['jährlich', 'alle_2_jahre'])
 
-const DATE_FIELDS = ['letzte_impfung', 'letzte_impfung_zusatz', 'letzte_stuhlprobe'] as const
+const DATE_FIELDS = ['letzte_impfung', 'letzte_impfung_zusatz', 'letzte_stuhlprobe', 'naechste_stuhlprobe'] as const
 
 function normalizeNullableString(value: unknown): string | null {
   if (value === null || value === undefined) return null
@@ -31,15 +31,15 @@ export function normalizePetPayload<T extends Record<string, unknown>>(payload: 
 }
 
 export function validatePetPayload(payload: Record<string, unknown>): string | null {
-  const tierart = typeof payload.tierart === 'string' ? payload.tierart : null
+  const name = typeof payload.name === 'string' ? payload.name.trim() : ''
+  if (!name) {
+    return 'Name des Tieres ist erforderlich.'
+  }
 
-  const dateError = validateVaccinationDates({
-    tierart,
-    letzte_impfung: typeof payload.letzte_impfung === 'string' ? payload.letzte_impfung : null,
-    letzte_impfung_zusatz:
-      typeof payload.letzte_impfung_zusatz === 'string' ? payload.letzte_impfung_zusatz : null,
-  })
-  if (dateError) return dateError
+  const tierart = typeof payload.tierart === 'string' ? payload.tierart.trim() : ''
+  if (!tierart) {
+    return 'Tierart ist erforderlich.'
+  }
 
   if (isDog(tierart) && payload.intervall_impfung) {
     const intervall = String(payload.intervall_impfung)

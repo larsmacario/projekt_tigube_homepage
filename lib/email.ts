@@ -1,6 +1,10 @@
 import fs from 'node:fs'
 import path from 'node:path'
 import nodemailer from 'nodemailer'
+import {
+  buildOnboardingInviteHtml,
+  buildOnboardingInvitePlainText,
+} from '@/lib/onboarding-invite-copy'
 
 const LEAD_CONFIRMATION_BANNER_CID = 'lead-confirmation-banner'
 const LEAD_CONFIRMATION_BANNER_ALT =
@@ -50,8 +54,8 @@ export async function sendOnboardingEmail(data: { email: string; name: string; o
       from: config.from,
       to: data.email,
       subject: 'Dein Zugang zum Kundenportal von tierisch gut betreut',
-      text: `Hallo ${data.name},\n\nwillkommen bei tierisch gut betreut. Über diesen Link kannst du dein Kundenkonto einrichten:\n${data.onboardingUrl}\n\nDer Link ist sieben Tage gültig.\n\nHerzliche Grüße\nTamara und Gabriel`,
-      html: `<p>Hallo ${escapeHtml(data.name)},</p><p>willkommen bei tierisch gut betreut. Über diesen Link kannst du dein Kundenkonto einrichten:</p><p><a href="${escapeHtml(data.onboardingUrl)}">Kundenkonto einrichten</a></p><p>Der Link ist sieben Tage gültig.</p><p>Herzliche Grüße<br>Tamara und Gabriel</p>`,
+      text: buildOnboardingInvitePlainText(data.name, data.onboardingUrl),
+      html: buildOnboardingInviteHtml(data.name, data.onboardingUrl),
     })
     return { status: 'sent', error: null }
   } catch (error) {

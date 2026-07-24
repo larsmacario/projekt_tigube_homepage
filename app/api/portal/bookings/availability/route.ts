@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerClient } from '@/lib/admin-auth'
-import { getPortalAvailabilitySnapshot } from '@/lib/booking-availability-server'
+import { getPortalAvailabilitySnapshot, getPortalAvailabilitySnapshotForServices } from '@/lib/booking-availability-server'
 import { toIsoDate } from '@/lib/vacation-dates'
 import type { ServiceType } from '@/lib/types'
 
@@ -27,12 +27,31 @@ export async function GET(request: NextRequest) {
     }
 
     const { searchParams } = new URL(request.url)
-    const serviceType = searchParams.get('service_type') as ServiceType | null
+    const serviceTypeParam = searchParams.get('service_type')
+    const serviceTypesParam = searchParams.get('service_types')
     const fromDate = searchParams.get('from_date')
     const toDate = searchParams.get('to_date')
 
-    if (!serviceType || !SERVICE_TYPES.includes(serviceType)) {
-      return NextResponse.json({ error: 'Ungültiger Service-Typ' }, { status: 400 })
+    let serviceType: ServiceType | null = null
+    let serviceTypes: ServiceType[] = []
+
+    if (serviceTypesParam) {
+      const parsed = serviceTypesParam
+        .split(',')
+        .map((s) => s.trim())
+        .filter(Boolean)
+      for (const value of parsed) {
+        if (!SERVICE_TYPES.includes(value as ServiceType)) {
+          return NextResponse.json({ error: 'Ungültiger Service-Typ' }, { status: 400 })
+        }
+        serviceTypes.push(value as ServiceType)
+      }
+      serviceTypes = [...new Set(serviceTypes)]
+    } else if (serviceTypeParam) {
+      if (!SERVICE_TYPES.includes(serviceTypeParam as ServiceType)) {
+        return NextResponse.json({ error: 'Ungültiger Service-Typ' }, { status: 400 })
+      }
+      serviceType = serviceTypeParam as ServiceType
     }
 
     const today = toIsoDate(new Date())
@@ -46,11 +65,19 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Ungültiger Datumsbereich' }, { status: 400 })
     }
 
-    const availability = await getPortalAvailabilitySnapshot(
-      serviceType,
-      rangeStart,
-      rangeEnd
-    )
+    const availability =
+      serviceTypes.length > 0
+        ? await getPortalAvailabilitySnapshotForServices(
+            rangeStart,
+            rangeEnd,
+            serviceTypes
+          )
+        : await getPortalAvailabilitySnapshot(
+            rangeStart,
+            rangeEnd,
+            serviceType,
+            supabase
+          )
 
     return NextResponse.json(availability)
   } catch (error: any) {

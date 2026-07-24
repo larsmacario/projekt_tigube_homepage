@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -24,9 +24,11 @@ import {
   validatePetSaveRequired,
 } from '@/lib/pet-vaccination'
 import { getPetsWithDashboardMissingFields } from '@/lib/pet-vaccination'
-import { PetPhotoGallery } from '@/components/portal/pet-photo-gallery'
+import { PetPhotoGallery, type PetPhotoGalleryHandle } from '@/components/portal/pet-photo-gallery'
 import { PetRecognitionField } from '@/components/portal/pet-recognition-field'
+import { PetDewormingDateField } from '@/components/portal/pet-deworming-date-field'
 import { PetMissingFieldsHint } from '@/components/portal/pet-missing-fields-hint'
+import { readApiResponse } from '@/lib/read-api-response'
 
 export default function PetsPage() {
   const [pets, setPets] = useState<Pet[]>([])
@@ -52,10 +54,13 @@ export default function PetsPage() {
     intervall_impfung: '',
     intervall_entwurmung: '',
     letzte_stuhlprobe: '',
+    naechste_stuhlprobe: '',
   })
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [petToDelete, setPetToDelete] = useState<Pet | null>(null)
   const [formPhotoCount, setFormPhotoCount] = useState(0)
+  const petPhotoGalleryRef = useRef<PetPhotoGalleryHandle>(null)
+  const [photoGalleryKey, setPhotoGalleryKey] = useState('new-pet')
   const { toast } = useToast()
 
   useEffect(() => {
@@ -65,13 +70,19 @@ export default function PetsPage() {
   async function loadPets() {
     try {
       const response = await authenticatedFetch('/api/portal/pets')
-      const data = await response.json()
-      setPets(data.pets || [])
+      const { data, error } = await readApiResponse<{ pets?: Pet[] }>(response)
+      if (error) {
+        console.error('Error loading pets:', error)
+        return
+      }
+      setPets(data?.pets || [])
 
       const docsResponse = await authenticatedFetch('/api/portal/documents')
       if (docsResponse.ok) {
-        const docsData = await docsResponse.json()
-        setDocuments(docsData.documents || [])
+        const docsResult = await readApiResponse<{ documents?: Document[] }>(docsResponse)
+        if (!docsResult.error) {
+          setDocuments(docsResult.data?.documents || [])
+        }
       }
     } catch (error) {
       console.error('Error loading pets:', error)
@@ -98,6 +109,9 @@ export default function PetsPage() {
         intervall_impfung: pet.intervall_impfung || '',
         intervall_entwurmung: pet.intervall_entwurmung || '',
         letzte_stuhlprobe: pet.letzte_stuhlprobe || '',
+        naechste_stuhlprobe: pet.naechste_stuhlprobe
+          ? pet.naechste_stuhlprobe.split('T')[0]
+          : '',
       })
     } else {
       setEditingPetId(null)
@@ -116,11 +130,13 @@ export default function PetsPage() {
         intervall_impfung: '',
         intervall_entwurmung: '',
         letzte_stuhlprobe: '',
+        naechste_stuhlprobe: '',
       })
     }
     setImpfpassFile(null)
     setWurmtestFile(null)
     setFormPhotoCount(pet?.photo_count ?? 0)
+    setPhotoGalleryKey(pet?.id ?? crypto.randomUUID())
     setShowPetForm(true)
   }
 
@@ -142,6 +158,7 @@ export default function PetsPage() {
         editingPetId,
         impfpassFile,
         wurmtestFile,
+        photoCount: formPhotoCount,
       })
     )
     if (saveWarning) {
@@ -153,6 +170,7 @@ export default function PetsPage() {
 
     try {
       setUploadingDocuments(true)
+      const wasEditing = !!editingPetId
       
       const url = editingPetId 
         ? `/api/portal/pets/${editingPetId}`
@@ -165,23 +183,23 @@ export default function PetsPage() {
         body: JSON.stringify(petFormData),
       })
 
-      if (!response.ok) {
-        const error = await response.json()
+      const { data: petData, error: saveApiError } = await readApiResponse<{
+        pet?: Pet
+        error?: string
+      }>(response)
+
+      if (saveApiError || !petData?.pet) {
         toast({
           title: 'Fehler',
-          description: error.error || 'Fehler beim Speichern',
+          description: saveApiError || 'Fehler beim Speichern',
           variant: 'destructive',
         })
         setUploadingDocuments(false)
         return
       }
 
-      const petData = await response.json()
-      const savedPetId = petData.pet?.id || editingPetId
-
-      if (!editingPetId && savedPetId) {
-        setEditingPetId(savedPetId)
-      }
+      const savedPetId = petData.pet.id || editingPetId
+      let photoCount = formPhotoCount
 
       // Lade Dokumente hoch, falls vorhanden
       if (savedPetId) {
@@ -230,45 +248,58 @@ export default function PetsPage() {
         }
 
         await Promise.all(uploadPromises)
+
+        if (petPhotoGalleryRef.current) {
+          try {
+            photoCount = await petPhotoGalleryRef.current.flushPendingUploads(savedPetId)
+            setFormPhotoCount(photoCount)
+          } catch {
+            // Fehlertoast kommt aus der Galerie
+          }
+        }
+
+        if (!editingPetId) {
+          setEditingPetId(savedPetId)
+        }
       }
 
       await loadPets()
 
-      const missingPhoto = (petData.pet?.photo_count ?? formPhotoCount) === 0
+      const missingPhoto = photoCount === 0
+
+      setPetFormData({
+        name: '',
+        tierart: '',
+        rasse: '',
+        farbe: '',
+        wiedererkennungsmerkmal: '',
+        geschlecht: '',
+        letzte_impfung: '',
+        letzte_impfung_zusatz: '',
+        futtermenge: '',
+        medikamente: '',
+        besonderheiten: '',
+        intervall_impfung: '',
+        intervall_entwurmung: '',
+        letzte_stuhlprobe: '',
+        naechste_stuhlprobe: '',
+      })
+      setImpfpassFile(null)
+      setWurmtestFile(null)
+      setShowPetForm(false)
+      setEditingPetId(null)
+      setFormPhotoCount(0)
+
+      toast({
+        title: 'Erfolg',
+        description: wasEditing ? 'Tier erfolgreich aktualisiert' : 'Tier erfolgreich hinzugefügt',
+      })
 
       if (missingPhoto) {
-        setEditingPetId(savedPetId)
-        setShowPetForm(true)
         toast({
           title: 'Hinweis',
           description:
-            'Bitte lade noch mindestens ein Foto deines Tieres hoch – das hilft uns bei der Wiedererkennung.',
-        })
-      } else {
-        setPetFormData({
-          name: '',
-          tierart: '',
-          rasse: '',
-          farbe: '',
-          wiedererkennungsmerkmal: '',
-          geschlecht: '',
-          letzte_impfung: '',
-          letzte_impfung_zusatz: '',
-          futtermenge: '',
-          medikamente: '',
-          besonderheiten: '',
-          intervall_impfung: '',
-          intervall_entwurmung: '',
-          letzte_stuhlprobe: '',
-        })
-        setImpfpassFile(null)
-        setWurmtestFile(null)
-        setShowPetForm(false)
-        setEditingPetId(null)
-        setFormPhotoCount(0)
-        toast({
-          title: 'Erfolg',
-          description: editingPetId ? 'Tier erfolgreich aktualisiert' : 'Tier erfolgreich hinzugefügt',
+            'Bitte ergänze später noch ein Tierfoto – das hilft uns bei der Wiedererkennung.',
         })
       }
     } catch (error) {
@@ -415,6 +446,8 @@ export default function PetsPage() {
                     </SelectContent>
                   </Select>
                 </div>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div>
                   <Label htmlFor="pet-geschlecht">Geschlecht</Label>
                   <Select
@@ -459,6 +492,8 @@ export default function PetsPage() {
               />
 
               <PetPhotoGallery
+                ref={petPhotoGalleryRef}
+                key={photoGalleryKey}
                 petId={editingPetId}
                 onPhotoCountChange={(count) => {
                   setFormPhotoCount(count)
@@ -499,10 +534,10 @@ export default function PetsPage() {
                     placeholder="z.B. Allergien, Verhaltensbesonderheiten, etc."
                   />
                 </div>
-                <div>
-                  <h4 className="font-semibold mb-3">Intervalle</h4>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {!isDog(petFormData.tierart) && (
+                {!isDog(petFormData.tierart) && (
+                  <div>
+                    <h4 className="font-semibold mb-3">Intervalle</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
                         <Label htmlFor="pet-intervall-impfung">Intervall Impfung</Label>
                         <Select
@@ -522,28 +557,9 @@ export default function PetsPage() {
                           </SelectContent>
                         </Select>
                       </div>
-                    )}
-                    <div>
-                      <Label htmlFor="pet-intervall-entwurmung">Intervall Entwurmung/Testung</Label>
-                      <Select
-                        value={petFormData.intervall_entwurmung || ''}
-                        onValueChange={(value) => setPetFormData({ ...petFormData, intervall_entwurmung: value })}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Intervall wählen" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="monatlich">Monatlich</SelectItem>
-                          <SelectItem value="vierteljährlich">Vierteljährlich</SelectItem>
-                          <SelectItem value="halbjährlich">Halbjährlich</SelectItem>
-                          <SelectItem value="jährlich">Jährlich</SelectItem>
-                          <SelectItem value="alle_2_jahre">Alle 2 Jahre</SelectItem>
-                          <SelectItem value="alle_3_jahre">Alle 3 Jahre</SelectItem>
-                        </SelectContent>
-                      </Select>
                     </div>
                   </div>
-                </div>
+                )}
               </div>
 
               {/* Dokumente & Vorsorge */}
@@ -562,16 +578,17 @@ export default function PetsPage() {
                 {/* Wurmtest Bereich */}
                 <div className="p-4 bg-sage-50/50 rounded-lg border border-sage-100 space-y-4">
                   <h4 className="font-semibold text-sm text-sage-800 border-b pb-1">Wurmtest & Entwurmung</h4>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
                     <div>
                       <Label htmlFor="pet-wurmtest">
-                        Wurmtest (Foto aufnehmen, Bild oder PDF){' '}
-                        {hasExistingWurmtest ? '(bereits hochgeladen)' : '(später nachreichbar)'}
+                        Wurmtest (Foto aufnehmen, Bild oder PDF)
+                        {hasExistingWurmtest ? ' (bereits hochgeladen)' : ''}
                       </Label>
                       <Input
                         id="pet-wurmtest"
                         type="file"
                         accept="image/*,application/pdf"
+                        className="h-9 text-sm"
                         onChange={(e) => {
                           const file = e.target.files?.[0]
                           setWurmtestFile(file || null)
@@ -583,18 +600,19 @@ export default function PetsPage() {
                         </p>
                       )}
                     </div>
-                    <div>
-                      <Label htmlFor="pet-stuhlprobe">
-                        Datum der letzten Entwurmung/Stuhlprobe (später nachreichbar)
-                      </Label>
-                      <Input
-                        id="pet-stuhlprobe"
-                        type="date"
-                        value={petFormData.letzte_stuhlprobe || ''}
-                        max={new Date().toISOString().split('T')[0]}
-                        onChange={(e) => setPetFormData({ ...petFormData, letzte_stuhlprobe: e.target.value })}
-                      />
-                    </div>
+                    <PetDewormingDateField
+                      key={photoGalleryKey}
+                      idPrefix="pet"
+                      letzteStuhlprobe={petFormData.letzte_stuhlprobe || ''}
+                      naechsteStuhlprobe={petFormData.naechste_stuhlprobe || ''}
+                      onChange={(values) =>
+                        setPetFormData({
+                          ...petFormData,
+                          letzte_stuhlprobe: values.letzte_stuhlprobe,
+                          naechste_stuhlprobe: values.naechste_stuhlprobe,
+                        })
+                      }
+                    />
                   </div>
                 </div>
               </div>
@@ -631,6 +649,7 @@ export default function PetsPage() {
                       intervall_impfung: '',
                       intervall_entwurmung: '',
                       letzte_stuhlprobe: '',
+                      naechste_stuhlprobe: '',
                     })
                     setImpfpassFile(null)
                     setWurmtestFile(null)
@@ -685,13 +704,21 @@ export default function PetsPage() {
                       </Button>
                     </div>
                   </div>
-                  {(pet.futtermenge || pet.medikamente || pet.besonderheiten || pet.intervall_impfung || pet.intervall_entwurmung || pet.letzte_stuhlprobe) && (
+                  {(pet.futtermenge || pet.medikamente || pet.besonderheiten || pet.intervall_impfung || pet.letzte_stuhlprobe || pet.naechste_stuhlprobe) && (
                     <div className="border-t pt-3 mt-3 space-y-2 text-sm">
                       {pet.letzte_stuhlprobe && (
                         <div>
                           <p className="text-xs font-semibold text-sage-600">Letzte Entwurmung/Stuhlprobe:</p>
                           <p className="text-sm text-sage-700">
                             {new Date(pet.letzte_stuhlprobe).toLocaleDateString('de-DE')}
+                          </p>
+                        </div>
+                      )}
+                      {pet.naechste_stuhlprobe && (
+                        <div>
+                          <p className="text-xs font-semibold text-sage-600">Nächste Entwurmung/Stuhlprobe:</p>
+                          <p className="text-sm text-sage-700">
+                            {new Date(pet.naechste_stuhlprobe).toLocaleDateString('de-DE')}
                           </p>
                         </div>
                       )}
@@ -714,12 +741,6 @@ export default function PetsPage() {
                         </div>
                       )}
                           <PetVaccinationSummary pet={pet} />
-                          {pet.intervall_entwurmung && (
-                            <div>
-                              <p className="text-xs font-semibold text-sage-600">Entwurmung:</p>
-                              <p className="text-sm text-sage-700">{pet.intervall_entwurmung}</p>
-                            </div>
-                          )}
                     </div>
                   )}
                 </div>

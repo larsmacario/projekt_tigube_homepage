@@ -19,6 +19,10 @@ Website und Verwaltungsportal für einen Tierbetreuungsservice. Das CRM verwalte
 - Hunde-Impfdaten in `pets`: `letzte_impfung` (Kombi), `intervall_impfung`, `letzte_impfung_zusatz` (Zwingerhusten); Logik in `lib/pet-vaccination.ts`.
 - Impf-Erinnerungen: täglicher Supabase-Cron ruft Next.js-Route `/api/cron/vaccination-reminders` auf; Versand-Log in `pet_vaccination_reminder_log`.
 - Admin-Impfübersicht unter `/admin/impfungen` via `/api/admin/vaccinations/upcoming`.
+- Kundenportal: Mehr-Tier-Buchungsanfragen unter `/portal/bookings` (Wizard, Verfügbarkeit, gruppierte `bookings` + optionale `booking_line_items` für Zusatzleistungen/Rechnungsvorbereitung).
+- SevDesk (Rechnungen): API-Key verschlüsselt im Supabase Vault; Status in `sevdesk_settings`; Verwaltung `/admin/einstellungen`; HTTP-Client `lib/sevdesk.ts`; `prices.sevdesk_article_id` für Artikel-Mapping. Automatische Rechnungserstellung aus Buchungen folgt separat.
+- Pflegevertrag nach Onboarding: PDF in `customer-documents`, Versand über `/api/portal/contracts/send-email` und `lib/contract-email.ts` (Storage-Download); Status `contract_email_*` auf `contacts`; Admin `/api/admin/customers/[id]/resend-contract-email`.
+- Preis-Katalog: `prices` + Overrides in `customer_prices` / `group_prices` (optional Sonderpreis und Rabatt €/%); effektive Anzeige über `lib/price-override.ts` und `/api/prices` (Kunde schlägt Gruppe).
 
 ## Entscheidungen & Constraints
 - Kundendokumente liegen zusätzlich in Supabase Storage im Bucket `customer-documents`.

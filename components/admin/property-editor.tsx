@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
@@ -17,13 +16,15 @@ import { CalendarIcon } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { PropertyDefinition, PropertyValue } from '@/lib/types'
 import { authenticatedFetch } from '@/lib/authenticated-fetch'
+import { CollapsibleAdminCard } from '@/components/admin/collapsible-admin-card'
 
 interface PropertyEditorProps {
   entityType: 'lead' | 'customer'
   entityId: string
+  defaultExpanded?: boolean
 }
 
-export function PropertyEditor({ entityType, entityId }: PropertyEditorProps) {
+export function PropertyEditor({ entityType, entityId, defaultExpanded = true }: PropertyEditorProps) {
   const { toast } = useToast()
   const [definitions, setDefinitions] = useState<PropertyDefinition[]>([])
   const [values, setValues] = useState<Record<string, PropertyValue>>({})
@@ -256,38 +257,25 @@ export function PropertyEditor({ entityType, entityId }: PropertyEditorProps) {
 
   if (loading) {
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle>Eigenschaften</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="text-center py-4 text-sage-600">Lade Eigenschaften...</div>
-        </CardContent>
-      </Card>
+      <CollapsibleAdminCard title="Eigenschaften" defaultExpanded={defaultExpanded}>
+        <div className="text-center py-4 text-sage-600">Lade Eigenschaften...</div>
+      </CollapsibleAdminCard>
     )
   }
 
   if (definitions.length === 0) {
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle>Eigenschaften</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="text-center py-4 text-sage-600">
-            Keine Eigenschaften definiert. Bitte erstellen Sie zuerst Eigenschaften im Verwaltungsbereich.
-          </div>
-        </CardContent>
-      </Card>
+      <CollapsibleAdminCard title="Eigenschaften" defaultExpanded={defaultExpanded}>
+        <div className="text-center py-4 text-sage-600">
+          Keine Eigenschaften definiert. Bitte erstellen Sie zuerst Eigenschaften im Verwaltungsbereich.
+        </div>
+      </CollapsibleAdminCard>
     )
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Eigenschaften</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
+    <CollapsibleAdminCard title="Eigenschaften" defaultExpanded={defaultExpanded}>
+      <div className="space-y-4">
         {definitions.map((definition) => (
           <div key={definition.id} className="space-y-2">
             <Label className="flex items-center gap-2">
@@ -300,8 +288,8 @@ export function PropertyEditor({ entityType, entityId }: PropertyEditorProps) {
             )}
           </div>
         ))}
-      </CardContent>
-    </Card>
+      </div>
+    </CollapsibleAdminCard>
   )
 }
 

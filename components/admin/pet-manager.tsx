@@ -11,6 +11,7 @@ import { Pencil, Trash2, Plus } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 import { authenticatedFetch } from '@/lib/authenticated-fetch'
 import type { Pet } from '@/lib/types'
+import { CollapsibleAdminCard } from '@/components/admin/collapsible-admin-card'
 import { PetAvatar } from '@/components/pet-avatar'
 import {
   PET_TIERART_OPTIONS,
@@ -21,6 +22,7 @@ import {
 import { PetVaccinationSummary } from '@/components/portal/pet-vaccination-section'
 import { PetPhotoGallery } from '@/components/portal/pet-photo-gallery'
 import { PetRecognitionField } from '@/components/portal/pet-recognition-field'
+import { PetDewormingDateField } from '@/components/portal/pet-deworming-date-field'
 import { isDog } from '@/lib/pet-vaccination'
 import {
   AlertDialog,
@@ -54,15 +56,17 @@ const emptyPetForm = {
   intervall_impfung: '',
   intervall_entwurmung: '',
   letzte_stuhlprobe: '',
+  naechste_stuhlprobe: '',
 }
 
 interface PetManagerProps {
   customerId: string
   pets: Pet[]
   onPetsChange: (pets: Pet[]) => void
+  defaultExpanded?: boolean
 }
 
-export function PetManager({ customerId, pets, onPetsChange }: PetManagerProps) {
+export function PetManager({ customerId, pets, onPetsChange, defaultExpanded = false }: PetManagerProps) {
   const { toast } = useToast()
   const [showForm, setShowForm] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -94,6 +98,7 @@ export function PetManager({ customerId, pets, onPetsChange }: PetManagerProps) 
       intervall_impfung: pet.intervall_impfung || '',
       intervall_entwurmung: pet.intervall_entwurmung || '',
       letzte_stuhlprobe: pet.letzte_stuhlprobe ? pet.letzte_stuhlprobe.split('T')[0] : '',
+      naechste_stuhlprobe: pet.naechste_stuhlprobe ? pet.naechste_stuhlprobe.split('T')[0] : '',
     })
     setShowForm(true)
   }
@@ -117,6 +122,7 @@ export function PetManager({ customerId, pets, onPetsChange }: PetManagerProps) 
         letzte_impfung: formData.letzte_impfung || null,
         letzte_impfung_zusatz: formData.letzte_impfung_zusatz || null,
         letzte_stuhlprobe: formData.letzte_stuhlprobe || null,
+        naechste_stuhlprobe: formData.naechste_stuhlprobe || null,
       }
 
       const response = editingId
@@ -185,17 +191,20 @@ export function PetManager({ customerId, pets, onPetsChange }: PetManagerProps) 
   }
 
   return (
-    <Card>
-      <CardHeader className="flex flex-row items-center justify-between">
-        <CardTitle>Tiere ({pets.length})</CardTitle>
-        {!showForm && (
+    <>
+    <CollapsibleAdminCard
+      title={`Tiere (${pets.length})`}
+      defaultExpanded={defaultExpanded}
+      headerActions={
+        !showForm ? (
           <Button size="sm" onClick={openCreate}>
             <Plus className="h-4 w-4 mr-1" />
             Tier hinzufügen
           </Button>
-        )}
-      </CardHeader>
-      <CardContent className="space-y-4">
+        ) : undefined
+      }
+    >
+      <div className="space-y-4">
         {showForm && (
           <div className="p-4 border border-sage-200 rounded-lg space-y-4">
             <h3 className="font-semibold">{editingId ? 'Tier bearbeiten' : 'Neues Tier'}</h3>
@@ -219,6 +228,8 @@ export function PetManager({ customerId, pets, onPetsChange }: PetManagerProps) 
                   </SelectContent>
                 </Select>
               </div>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div>
                 <Label>Geschlecht</Label>
                 <Select value={formData.geschlecht} onValueChange={(v) => setFormData({ ...formData, geschlecht: v })}>
@@ -303,9 +314,19 @@ export function PetManager({ customerId, pets, onPetsChange }: PetManagerProps) 
                     <Input type="date" value={formData.letzte_impfung} onChange={(e) => setFormData({ ...formData, letzte_impfung: e.target.value })} />
                   </div>
                 )}
-                <div>
-                  <Label>Letzte Entw./Stuhlpr.</Label>
-                  <Input type="date" value={formData.letzte_stuhlprobe} onChange={(e) => setFormData({ ...formData, letzte_stuhlprobe: e.target.value })} />
+                <div className="md:col-span-2">
+                  <PetDewormingDateField
+                    idPrefix="admin-pet"
+                    letzteStuhlprobe={formData.letzte_stuhlprobe}
+                    naechsteStuhlprobe={formData.naechste_stuhlprobe}
+                    onChange={(values) =>
+                      setFormData({
+                        ...formData,
+                        letzte_stuhlprobe: values.letzte_stuhlprobe,
+                        naechste_stuhlprobe: values.naechste_stuhlprobe,
+                      })
+                    }
+                  />
                 </div>
               </div>
 
@@ -392,7 +413,7 @@ export function PetManager({ customerId, pets, onPetsChange }: PetManagerProps) 
                   {pet.medikamente && <div className="col-span-2"><span className="text-sage-500">Medikamente:</span> {pet.medikamente}</div>}
                   {pet.besonderheiten && <div className="col-span-2"><span className="text-sage-500">Besonderheiten:</span> {pet.besonderheiten}</div>}
                 </div>
-                {(pet.intervall_entwurmung || pet.letzte_impfung || pet.letzte_impfung_zusatz || pet.letzte_stuhlprobe) && (
+                {(pet.intervall_entwurmung || pet.letzte_impfung || pet.letzte_impfung_zusatz || pet.letzte_stuhlprobe || pet.naechste_stuhlprobe) && (
                   <div className="border-t pt-3 mt-3 space-y-2 text-sm">
                     <p className="text-xs font-semibold text-sage-600 uppercase tracking-wide">Intervalle & Vorsorge</p>
                     <PetVaccinationSummary pet={pet} />
@@ -403,6 +424,9 @@ export function PetManager({ customerId, pets, onPetsChange }: PetManagerProps) 
                       {pet.letzte_stuhlprobe && (
                         <div><span className="text-sage-500">Letzte Entw./Stuhlpr.:</span> {new Date(pet.letzte_stuhlprobe).toLocaleDateString('de-DE')}</div>
                       )}
+                      {pet.naechste_stuhlprobe && (
+                        <div><span className="text-sage-500">Nächste Entw./Stuhlpr.:</span> {new Date(pet.naechste_stuhlprobe).toLocaleDateString('de-DE')}</div>
+                      )}
                     </div>
                   </div>
                 )}
@@ -412,7 +436,8 @@ export function PetManager({ customerId, pets, onPetsChange }: PetManagerProps) 
         ) : (
           !showForm && <p className="text-sage-600 text-center py-4">Keine Tiere registriert</p>
         )}
-      </CardContent>
+      </div>
+    </CollapsibleAdminCard>
 
       <Dialog
         open={!!previewPhoto}
@@ -444,6 +469,6 @@ export function PetManager({ customerId, pets, onPetsChange }: PetManagerProps) 
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-    </Card>
+    </>
   )
 }

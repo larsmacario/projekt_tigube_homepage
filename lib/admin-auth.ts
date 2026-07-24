@@ -69,6 +69,8 @@ export async function getServerClient(request: NextRequest): Promise<ServerClien
     if (!error && user) {
       return { client, accessToken, refreshToken }
     }
+
+    accessToken = undefined
   }
 
   if (refreshToken) {

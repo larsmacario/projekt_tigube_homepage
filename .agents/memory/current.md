@@ -1,22 +1,18 @@
 # Aktueller Stand
 
 ## Letzte Änderungen
-- Vertrags-Mail nach Onboarding repariert: PDF wird serverseitig aus Storage geladen (kein Base64-Body mehr → Vercel-Limit umgangen).
-- Signatur-Kompression vor PDF-Einbettung; Mail-Fehler blockieren Onboarding-Abschluss.
-- DB-Felder `contract_email_status`, `contract_email_error`, `contract_email_sent_at`; Admin kann Vertrags-Mail erneut senden.
-- Nachversand an gabriel-haaga@gmx.de erfolgreich (SMTP lokal verifiziert).
+- Vertrags-Mail nach Onboarding: PDF serverseitig aus Storage (`lib/contract-email.ts`), kein Base64 mehr; Signatur-Kompression; Versandstatus auf `contacts`; Admin-Nachversand unter Kundendetail.
+- SevDesk Phase 1: Vault-Key, `sevdesk_settings`, `/admin/einstellungen`, `lib/sevdesk.ts` (Migration auf Remote).
 
 ## Fokus
-- Deploy auf Vercel; SMTP-Env-Vars in Production gegen `.env.local` prüfen.
-- Vault-Secrets und `CRON_SECRET` in Production prüfen/setzen.
+- Deploy (Vertrags-Mail-Fix + SevDesk); SMTP_* in Vercel Production mit `.env.local` abgleichen.
+- SevDesk mit echtem API-Token testen; Rechnungen aus Buchungen vorbereiten.
 
 ## Nächste Schritte
-- Deploy; Vertrags-Mail-Flow mit neuem Onboarding testen.
-- Supabase Vault: `cron_secret` und `app_base_url` setzen; Vercel `CRON_SECRET` angleichen.
-- Impf-Reminder und Admin-Impfübersicht manuell testen.
+- Nach Deploy: Onboarding Schritt 3 (Vertrag + Mail) und Admin „Vertrags-Mail erneut senden“ testen.
+- SevDesk-Rechnungen aus bestätigten Buchungen/`booking_line_items` (Kontakt-Mapping).
+- Vault `cron_secret` / `app_base_url` und Vercel `CRON_SECRET` prüfen.
 
 ## Offene Punkte
-- Vercel-Production: SMTP_* müssen gesetzt sein (lokal OK, Production separat prüfen vor Deploy).
-- Vault-Secrets für Impf-Cron müssen in Supabase gesetzt sein, sonst nur Warning-Log.
-- `public/images/tigube_logo_hund.jpg` fehlt im Repo.
-- ESLint nicht installiert (`npm run lint` schlägt fehl).
+- Gabriel-Nachversand lokal erfolgreich; GMX/Admin-Zustellung in Production nach Deploy bestätigen.
+- Live-Test SevDesk nur mit Nutzer-Key; `tigube_logo_hund.jpg` fehlt; `npm run lint` ohne ESLint.

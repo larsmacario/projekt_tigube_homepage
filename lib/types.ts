@@ -48,6 +48,10 @@ export interface Contact {
   kundennummer: string | null
   customer_group_id: string | null
   telefon_2: string | null
+  strasse: string | null
+  hausnummer: string | null
+  plz: string | null
+  ort: string | null
   notfall_kontakt_name: string | null
   notfallnummer: string | null
   futtermenge: string | null
@@ -96,6 +100,7 @@ export interface Pet {
   intervall_impfung: string | null
   intervall_entwurmung: string | null
   letzte_stuhlprobe: string | null
+  naechste_stuhlprobe: string | null
   created_at: string
   updated_at: string
 }
@@ -283,6 +288,7 @@ export interface AdminTableView {
 // Booking Types
 export type ServiceType = 'hundepension' | 'katzenbetreuung' | 'tagesbetreuung'
 export type BookingStatus = 'pending' | 'approved' | 'rejected'
+export type DayCareMode = 'once' | 'recurring'
 
 export interface BookingRequest {
   id: string
@@ -290,18 +296,42 @@ export interface BookingRequest {
   pet_id: string
   service_type: ServiceType
   start_date: string
-  end_date: string
+  end_date: string | null
+  day_care_mode: DayCareMode | null
+  day_care_weekdays: number[] | null
+  selected_dates: string[] | null
   message: string | null
   status: BookingStatus
   admin_notes: string | null
   responded_at: string | null
   responded_by: string | null
+  request_group_id: string | null
   created_at: string
   updated_at: string
   // Joined data
   customer?: Customer
   pet?: Pet
   responded_by_user?: User
+}
+
+export type BookingLineItemSource = 'customer' | 'admin'
+
+export interface BookingLineItem {
+  id: string
+  request_group_id: string
+  booking_id: string | null
+  price_id: string | null
+  label: string
+  description: string | null
+  price_type: 'fixed' | 'percentage' | 'per_unit' | 'text'
+  unit: string | null
+  quantity: number
+  unit_price: number | null
+  line_total: number | null
+  source: BookingLineItemSource
+  created_by: string | null
+  created_at: string
+  updated_at: string
 }
 
 export interface CapacitySetting {
@@ -425,11 +455,15 @@ export interface CustomerGroup {
   updated_at: string
 }
 
+export type PriceOverrideDiscountType = 'fixed' | 'percentage'
+
 export interface GroupPrice {
   id: string
   group_id: string
   price_id: string
-  price: number
+  price: number | null
+  discount_type: PriceOverrideDiscountType | null
+  discount_value: number | null
   created_at: string
   updated_at: string
 }
@@ -438,7 +472,41 @@ export interface CustomerPrice {
   id: string
   customer_id: string
   price_id: string
-  price: number
+  price: number | null
+  discount_type: PriceOverrideDiscountType | null
+  discount_value: number | null
   created_at: string
   updated_at: string
+}
+
+export interface SevdeskSettings {
+  id: string
+  is_connected: boolean
+  key_preview: string | null
+  last_tested_at: string | null
+  last_test_ok: boolean | null
+  last_test_error: string | null
+  connected_by: string | null
+  connected_at: string | null
+  updated_at: string
+}
+
+export interface SevdeskConnectionStatus {
+  settings: SevdeskSettings | null
+}
+
+export interface SevdeskContact {
+  id: string
+  name: string | null
+  surename: string | null
+  customerNumber: string | null
+  category: { id: string; objectName: string } | null
+}
+
+export interface SevdeskPart {
+  id: string
+  name: string | null
+  partNumber: string | null
+  price: number | null
+  taxRate: number | null
 }

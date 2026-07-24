@@ -4,14 +4,22 @@ import {
   getBlockedDatesForService,
   getVacationPeriodsInRange,
   validateBookingAvailability,
+  validateBookingAvailabilityForDateList,
   type AvailabilityContext,
   type ValidateBookingOptions,
   type ValidateBookingResult,
 } from '@/lib/booking-availability'
 import type { ServiceType } from '@/lib/types'
 import type { VacationDate } from '@/lib/vacation-dates'
+import { loadPublicVacationDates } from '@/lib/public-vacation-dates'
 
 async function loadVacationDates(adminClient: SupabaseClient): Promise<VacationDate[]> {
+  try {
+    return await loadPublicVacationDates()
+  } catch (publicError) {
+    console.error('Public vacation load failed, trying admin client:', publicError)
+  }
+
   const { data: settings } = await adminClient
     .from('newsbar_settings')
     .select('id')
@@ -50,10 +58,12 @@ export async function loadAvailabilityContextForRange(
       .lte('date', endDate),
     adminClient
       .from('bookings')
-      .select('id, service_type, start_date, end_date')
+      .select(
+        'id, service_type, start_date, end_date, day_care_mode, selected_dates, day_care_weekdays'
+      )
       .eq('status', 'approved')
       .lte('start_date', endDate)
-      .gte('end_date', startDate),
+      .or(`end_date.gte.${startDate},end_date.is.null`),
   ])
 
   if (settingsResult.error) {
@@ -87,21 +97,103 @@ export async function validateBookingAvailabilityForRange(
   return validateBookingAvailability(context, options)
 }
 
+export async function validateBookingAvailabilityForDateListServer(
+  serviceType: ServiceType,
+  dates: string[],
+  checkCapacity: boolean,
+  excludeBookingId?: string,
+  adminClient: SupabaseClient = getAdminDbClient()
+): Promise<ValidateBookingResult> {
+  const sorted = [...dates].sort()
+  const rangeStart = sorted[0]
+  const rangeEnd = sorted[sorted.length - 1]
+  const context = await loadAvailabilityContextForRange(rangeStart, rangeEnd, adminClient)
+  return validateBookingAvailabilityForDateList(context, {
+    serviceType,
+    dates,
+    checkCapacity,
+    excludeBookingId,
+  })
+}
+
 export interface PortalAvailabilitySnapshot {
   vacationPeriods: Array<{ start_date: string; end_date: string; label: string }>
   closedDates: string[]
 }
 
 export async function getPortalAvailabilitySnapshot(
-  serviceType: ServiceType,
   fromDate: string,
   toDate: string,
-  adminClient: SupabaseClient = getAdminDbClient()
+  serviceType?: ServiceType | null,
+  _userClient?: SupabaseClient
 ): Promise<PortalAvailabilitySnapshot> {
-  const context = await loadAvailabilityContextForRange(fromDate, toDate, adminClient)
+  let vacations: VacationDate[] = []
+
+  try {
+    vacations = await loadPublicVacationDates()
+  } catch (error) {
+    console.error('Failed to load public vacation dates:', error)
+    try {
+      vacations = await loadVacationDates(getAdminDbClient())
+    } catch (adminError) {
+      console.error('Failed to load vacation dates via admin:', adminError)
+    }
+  }
+
+  const vacationPeriods = getVacationPeriodsInRange(vacations, fromDate, toDate)
+
+  if (!serviceType) {
+    return {
+      vacationPeriods,
+      closedDates: [],
+    }
+  }
+
+  try {
+    const context = await loadAvailabilityContextForRange(
+      fromDate,
+      toDate,
+      getAdminDbClient()
+    )
+
+    return {
+      vacationPeriods,
+      closedDates: getBlockedDatesForService(context, serviceType, fromDate, toDate),
+    }
+  } catch (error) {
+    console.error('Failed to load closed dates for service:', error)
+    return {
+      vacationPeriods,
+      closedDates: [],
+    }
+  }
+}
+
+export async function getPortalAvailabilitySnapshotForServices(
+  fromDate: string,
+  toDate: string,
+  serviceTypes: ServiceType[]
+): Promise<PortalAvailabilitySnapshot> {
+  if (serviceTypes.length === 0) {
+    return getPortalAvailabilitySnapshot(fromDate, toDate, null)
+  }
+
+  const snapshots = await Promise.all(
+    serviceTypes.map((serviceType) =>
+      getPortalAvailabilitySnapshot(fromDate, toDate, serviceType)
+    )
+  )
+
+  const vacationPeriods = snapshots[0]?.vacationPeriods ?? []
+  const closedSet = new Set<string>()
+  for (const snapshot of snapshots) {
+    for (const date of snapshot.closedDates) {
+      closedSet.add(date)
+    }
+  }
 
   return {
-    vacationPeriods: getVacationPeriodsInRange(context.vacations, fromDate, toDate),
-    closedDates: getBlockedDatesForService(context, serviceType, fromDate, toDate),
+    vacationPeriods,
+    closedDates: [...closedSet].sort(),
   }
 }

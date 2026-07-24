@@ -10,6 +10,7 @@ import {
   Mail,
   FileText,
   Shield,
+  Settings,
 } from "lucide-react"
 import type { NavItem } from "@/lib/nav-types"
 
@@ -24,6 +25,7 @@ export const adminNavItems: NavItem[] = [
   { label: "Buchungen", href: "/admin/bookings", icon: Calendar },
   { label: "E-Mails", href: "/admin/newsletter", icon: Mail },
   { label: "CMS", href: "/admin/cms", icon: FileText },
+  { label: "Einstellungen", href: "/admin/einstellungen", icon: Settings },
   { label: "Admins", href: "/admin/admins", icon: Shield },
 ]
 

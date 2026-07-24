@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerClient } from '@/lib/admin-auth'
-import { normalizePetsWithPhotos, PET_PHOTOS_SELECT } from '@/lib/pet-photos'
+import { PET_EDITABLE_FIELDS, pickAllowedFields } from '@/lib/contact-editable-fields'
+import { normalizePetsWithPhotos, normalizePetWithPhotoCount, PET_PHOTOS_SELECT } from '@/lib/pet-photos'
 import { normalizePetPayload, validatePetPayload } from '@/lib/pet-payload'
+import { getPortalCustomer } from '@/lib/portal-customer'
 
 export async function GET(request: NextRequest) {
   try {
@@ -23,47 +25,62 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    const { data: userData } = await supabase
-      .from('users')
-      .select('*')
-      .eq('id', authUser.id)
-      .single()
-
-    if (!userData) {
-      return NextResponse.json({ pets: [] })
-    }
-
-    // Hole Customer-ID
-    const { data: customer } = await supabase
-      .from('contacts')
-      .select('id')
-      .eq('user_id', userData.id)
-      .eq('contact_type', 'customer')
-      .single()
-
-    if (!customer) {
-      return NextResponse.json({ pets: [] })
+    const customerResult = await getPortalCustomer(supabase, authUser.id)
+    if ('error' in customerResult) {
+      if (customerResult.status === 404) {
+        return NextResponse.json({ pets: [] })
+      }
+      return NextResponse.json(
+        { error: customerResult.error },
+        { status: customerResult.status }
+      )
     }
 
     const { data, error } = await supabase
       .from('pets')
       .select(`*, ${PET_PHOTOS_SELECT}`)
-      .eq('customer_id', customer.id)
+      .eq('customer_id', customerResult.customer.id)
       .order('created_at', { ascending: false })
 
     if (error) {
-      throw error
+      console.warn('Pets with pet_photos embed failed, falling back:', error.message)
+      const { data: basicPets, error: basicError } = await supabase
+        .from('pets')
+        .select('*')
+        .eq('customer_id', customerResult.customer.id)
+        .order('created_at', { ascending: false })
+
+      if (basicError) {
+        throw basicError
+      }
+
+      const pets = (basicPets || []).map((pet) => ({
+        ...normalizePetWithPhotoCount({ ...pet, pet_photos: [] }),
+        primary_photo_url: null as string | null,
+      }))
+
+      return NextResponse.json({ pets })
     }
 
-    const pets = await normalizePetsWithPhotos(supabase, data || [])
-
-    return NextResponse.json({ pets })
-  } catch (error: any) {
+    try {
+      const pets = await normalizePetsWithPhotos(supabase, data || [])
+      return NextResponse.json({ pets })
+    } catch (photoError) {
+      console.error('Pet photo normalization failed, returning basic pets:', photoError)
+      const pets = (data || []).map((pet) => ({
+        ...normalizePetWithPhotoCount({
+          ...(pet as Record<string, unknown>),
+          pet_photos: (pet as { pet_photos?: unknown }).pet_photos ?? [],
+        }),
+        primary_photo_url: null as string | null,
+      }))
+      return NextResponse.json({ pets })
+    }
+  } catch (error: unknown) {
     console.error('Error fetching pets:', error)
-    return NextResponse.json(
-      { error: error.message || 'Fehler beim Laden der Tiere' },
-      { status: 500 }
-    )
+    const message =
+      error instanceof Error ? error.message : 'Fehler beim Laden der Tiere'
+    return NextResponse.json({ error: message }, { status: 500 })
   }
 }
 
@@ -87,35 +104,24 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const { data: userData } = await supabase
-      .from('users')
-      .select('*')
-      .eq('id', authUser.id)
-      .single()
-
-    if (!userData) {
+    const customerResult = await getPortalCustomer(supabase, authUser.id)
+    if ('error' in customerResult) {
       return NextResponse.json(
-        { error: 'User-Daten nicht gefunden' },
-        { status: 401 }
+        { error: customerResult.error },
+        { status: customerResult.status }
       )
     }
 
-    // Hole Customer-ID
-    const { data: customer } = await supabase
-      .from('contacts')
-      .select('id')
-      .eq('user_id', userData.id)
-      .eq('contact_type', 'customer')
-      .single()
-
-    if (!customer) {
-      return NextResponse.json(
-        { error: 'Kundenprofil nicht gefunden' },
-        { status: 404 }
-      )
+    let body: Record<string, unknown>
+    try {
+      body = await request.json()
+    } catch {
+      return NextResponse.json({ error: 'Ungültiger Anfrage-Body' }, { status: 400 })
     }
 
-    const petData = normalizePetPayload(await request.json())
+    const petData = normalizePetPayload(
+      pickAllowedFields(body, PET_EDITABLE_FIELDS)
+    )
     const validationError = validatePetPayload(petData)
     if (validationError) {
       return NextResponse.json({ error: validationError }, { status: 400 })
@@ -124,21 +130,25 @@ export async function POST(request: NextRequest) {
     const { data, error } = await supabase
       .from('pets')
       .insert({
-        customer_id: customer.id,
+        customer_id: customerResult.customer.id,
         ...petData,
       })
       .select()
       .single()
 
     if (error) {
-      throw error
+      console.error('Error creating pet:', error)
+      return NextResponse.json(
+        { error: error.message || 'Fehler beim Erstellen des Tieres' },
+        { status: 500 }
+      )
     }
 
     return NextResponse.json({ pet: data })
   } catch (error: any) {
     console.error('Error creating pet:', error)
     return NextResponse.json(
-      { error: error.message || 'Fehler beim Erstellen des Tieres' },
+      { error: error?.message || 'Fehler beim Erstellen des Tieres' },
       { status: 500 }
     )
   }

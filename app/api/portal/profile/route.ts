@@ -1,5 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerClient } from '@/lib/admin-auth'
+import {
+  pickAllowedFields,
+  PORTAL_ONBOARDING_STATUS_FIELDS,
+  PORTAL_PROFILE_EDITABLE_FIELDS,
+} from '@/lib/contact-editable-fields'
 
 export async function GET(request: NextRequest) {
   try {
@@ -133,7 +138,22 @@ export async function PUT(request: NextRequest) {
       )
     }
 
-    const updates = await request.json()
+    const rawUpdates = await request.json()
+    const allowedKeys = [
+      ...PORTAL_PROFILE_EDITABLE_FIELDS,
+      ...PORTAL_ONBOARDING_STATUS_FIELDS,
+    ] as const
+    const updates = pickAllowedFields(
+      rawUpdates as Record<string, unknown>,
+      allowedKeys
+    )
+
+    if (Object.keys(updates).length === 0) {
+      return NextResponse.json(
+        { error: 'Keine gültigen Felder zum Aktualisieren' },
+        { status: 400 }
+      )
+    }
 
     // Prüfe ob Customer bereits existiert
     const { data: existing } = await supabase

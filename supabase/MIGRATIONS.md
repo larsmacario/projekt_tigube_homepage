@@ -74,6 +74,9 @@ npx supabase migration list
 | `20260708080000_create_admin_invitations.sql` | Admin-Einladungen |
 | `20260714143000_normalize_legal_cms_content.sql` | Rechtsseiten-CMS (kanonische Version) |
 | `20260714170000_enable_rls_newsletter_and_contact_emails.sql` | RLS für Newsletter + contact_emails |
+| `20260724220000_seed_kundenportal_cms.sql` | CMS-Seed für Kundenportal (Checkliste + Infos) |
+| `20260724230000_add_address_to_contacts.sql` | Anschrift (Straße, Hausnummer, PLZ, Ort) auf contacts |
+| `20260724260000_sevdesk_integration.sql` | SevDesk: Vault API-Key + `sevdesk_settings` + RPC |
 
 ## Migration Repair (wenn CLI-Zugriff verfügbar)
 

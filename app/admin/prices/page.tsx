@@ -11,6 +11,14 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useToast } from '@/hooks/use-toast'
 import { Plus, Trash2 } from 'lucide-react'
 import { authenticatedFetch } from '@/lib/authenticated-fetch'
+import {
+  emptyPriceOverrideForm,
+  formToOverrideRow,
+  GroupPriceOverrideEditorRow,
+  overrideRowToForm,
+  type PriceOverrideFormState,
+} from '@/components/admin/price-override-editor'
+import type { PriceOverrideRow } from '@/lib/price-override'
 
 interface Price {
   id: string
@@ -47,7 +55,7 @@ export default function PricesPage() {
   const [categories, setCategories] = useState<PriceCategory[]>([])
   const [groups, setGroups] = useState<CustomerGroup[]>([])
   const [selectedGroupId, setSelectedGroupId] = useState<string>('')
-  const [groupPrices, setGroupPrices] = useState<Record<string, number>>({})
+  const [groupPriceForms, setGroupPriceForms] = useState<Record<string, PriceOverrideFormState>>({})
   
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -86,7 +94,7 @@ export default function PricesPage() {
     if (selectedGroupId) {
       loadGroupPrices(selectedGroupId)
     } else {
-      setGroupPrices({})
+      setGroupPriceForms({})
     }
   }, [selectedGroupId])
 
@@ -126,13 +134,13 @@ export default function PricesPage() {
       const response = await authenticatedFetch(`/api/admin/group-prices?group_id=${groupId}`)
       const data = await response.json()
       
-      const overridesMap: Record<string, number> = {}
+      const formsMap: Record<string, PriceOverrideFormState> = {}
       if (data.overrides) {
-        data.overrides.forEach((o: any) => {
-          overridesMap[o.price_id] = o.price
+        data.overrides.forEach((o: PriceOverrideRow) => {
+          formsMap[o.price_id] = overrideRowToForm(o)
         })
       }
-      setGroupPrices(overridesMap)
+      setGroupPriceForms(formsMap)
     } catch (error) {
       console.error('Error loading group prices:', error)
     }
@@ -242,12 +250,9 @@ export default function PricesPage() {
     if (!selectedGroupId) return
     setSavingGroupPrices(true)
     try {
-      const overrides = Object.entries(groupPrices)
-        .filter(([_, price]) => price !== undefined && price !== null && !isNaN(price))
-        .map(([price_id, price]) => ({
-          price_id,
-          price,
-        }))
+      const overrides = Object.entries(groupPriceForms)
+        .map(([price_id, form]) => formToOverrideRow(price_id, form))
+        .filter(Boolean)
 
       const response = await authenticatedFetch('/api/admin/group-prices', {
         method: 'PUT',
@@ -475,16 +480,21 @@ export default function PricesPage() {
     ))
   }
 
-  function updateGroupPrice(priceId: string, val: string) {
-    setGroupPrices(prev => {
-      const updated = { ...prev }
-      if (val === '') {
+  function updateGroupPriceForm(priceId: string, next: PriceOverrideFormState) {
+    setGroupPriceForms(prev => {
+      const isEmpty =
+        next.price === '' && next.discount_type === '' && next.discount_value === ''
+      if (isEmpty) {
+        const updated = { ...prev }
         delete updated[priceId]
-      } else {
-        updated[priceId] = parseFloat(val)
+        return updated
       }
-      return updated
+      return { ...prev, [priceId]: next }
     })
+  }
+
+  function getGroupPriceForm(priceId: string): PriceOverrideFormState {
+    return groupPriceForms[priceId] ?? emptyPriceOverrideForm()
   }
 
   function formatPrice(price: Price): string {
@@ -944,7 +954,7 @@ export default function PricesPage() {
                 </CardHeader>
                 <CardContent className="space-y-6">
                   <p className="text-sm text-sage-600">
-                    Überschreibe hier den Standardpreis für diese Gruppe. Ein leeres Feld bedeutet, dass der Standardpreis verwendet wird.
+                    Optional Sonderpreis und/oder Rabatt pro Posten für diese Gruppe. Leere Felder = Standardpreis.
                   </p>
                   
                   {categories.map((category) => {
@@ -958,23 +968,12 @@ export default function PricesPage() {
                         </h3>
                         <div className="grid grid-cols-1 gap-3">
                           {categoryPrices.map((price) => (
-                            <div key={price.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-3 border border-sage-100 rounded-lg">
-                              <div>
-                                <p className="font-semibold text-sage-900 text-sm">{price.name}</p>
-                                <p className="text-xs text-sage-500">Standard: {price.price}€ {price.unit}</p>
-                              </div>
-                              <div className="flex items-center gap-2 max-w-[200px]">
-                                <Input
-                                  type="number"
-                                  step="0.01"
-                                  placeholder="Standard"
-                                  value={groupPrices[price.id] !== undefined ? groupPrices[price.id] : ''}
-                                  onChange={(e) => updateGroupPrice(price.id, e.target.value)}
-                                  className="h-9 bg-white"
-                                />
-                                <span className="text-sage-700">€</span>
-                              </div>
-                            </div>
+                            <GroupPriceOverrideEditorRow
+                              key={price.id}
+                              catalogPrice={price}
+                              form={getGroupPriceForm(price.id)}
+                              onChange={(next) => updateGroupPriceForm(price.id, next)}
+                            />
                           ))}
                         </div>
                       </div>

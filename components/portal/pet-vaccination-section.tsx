@@ -56,10 +56,8 @@ export function PetVaccinationSection({
       {onImpfpassChange && (
         <div>
           <Label htmlFor={`${idPrefix}-impfpass`}>
-            Impfpass (Foto aufnehmen, Bild oder PDF){' '}
-            {hasExistingImpfpass
-              ? '(bereits hochgeladen)'
-              : '(später nachreichbar)'}
+            Impfpass (Foto aufnehmen, Bild oder PDF)
+            {hasExistingImpfpass ? ' (bereits hochgeladen)' : ''}
           </Label>
           <Input
             id={`${idPrefix}-impfpass`}

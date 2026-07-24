@@ -10,6 +10,12 @@ import type { Customer, Pet, Document, BookingRequest } from '@/lib/types'
 import { PetAvatar } from '@/components/pet-avatar'
 import { authenticatedFetch } from '@/lib/authenticated-fetch'
 import { getPetsWithDashboardMissingFields } from '@/lib/pet-vaccination'
+import {
+  defaultKundenportalData,
+  mergeKundenportalData,
+  type KundenportalData,
+} from '@/lib/cms/portal-defaults'
+import { isCustomerProfileComplete } from '@/lib/customer-profile-complete'
 
 export default function PortalPage() {
   const [customer, setCustomer] = useState<Customer | null>(null)
@@ -17,6 +23,7 @@ export default function PortalPage() {
   const [documents, setDocuments] = useState<Document[]>([])
   const [bookings, setBookings] = useState<BookingRequest[]>([])
   const [loading, setLoading] = useState(true)
+  const [portalCms, setPortalCms] = useState<KundenportalData>(defaultKundenportalData)
 
   useEffect(() => {
     loadData()
@@ -24,24 +31,27 @@ export default function PortalPage() {
 
   async function loadData() {
     try {
-      const [profileRes, petsRes, docsRes, bookingsRes] = await Promise.all([
+      const [profileRes, petsRes, docsRes, bookingsRes, cmsRes] = await Promise.all([
         authenticatedFetch('/api/portal/profile'),
         authenticatedFetch('/api/portal/pets'),
         authenticatedFetch('/api/portal/documents'),
         authenticatedFetch('/api/portal/bookings'),
+        fetch('/api/cms?key=kundenportal'),
       ])
 
-      const [profileData, petsData, docsData, bookingsData] = await Promise.all([
+      const [profileData, petsData, docsData, bookingsData, cmsJson] = await Promise.all([
         profileRes.json(),
         petsRes.json(),
         docsRes.json(),
         bookingsRes.json(),
+        cmsRes.json(),
       ])
 
       setCustomer(profileData.customer)
       setPets(petsData.pets || [])
       setDocuments(docsData.documents || [])
       setBookings(bookingsData.bookings || [])
+      setPortalCms(mergeKundenportalData(cmsJson.data as KundenportalData | null))
     } catch (error) {
       console.error('Error loading data:', error)
     } finally {
@@ -58,8 +68,10 @@ export default function PortalPage() {
   }
 
   const showOnboardingBanner = customer && !customer.onboarding_completed
-  const isProfileComplete = !!(customer && customer.nachname && customer.vorname && customer.datenschutz && customer.telefonnummer)
+  const isProfileComplete = isCustomerProfileComplete(customer)
   const isStep1Complete = isProfileComplete
+  const showAddressBackfillBanner =
+    !!customer && customer.onboarding_completed && !isProfileComplete
   const hasPets = pets.length > 0
   const onboardingLink = !isStep1Complete
     ? '/portal/profile?onboarding=true&step=1'
@@ -100,6 +112,22 @@ export default function PortalPage() {
               <Button className="bg-amber-600 hover:bg-amber-700">
                 Tierdaten nachtragen
               </Button>
+            </Link>
+          </CardContent>
+        </Card>
+      )}
+
+      {showAddressBackfillBanner && (
+        <Card className="border-amber-300 bg-amber-50">
+          <CardHeader>
+            <CardTitle className="text-amber-800">Adresse ergänzen</CardTitle>
+            <CardDescription className="text-amber-700">
+              Bitte hinterlege deine Anschrift in deinem Profil – sie wird auch im Betreuungsvertrag geführt.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Link href="/portal/profile">
+              <Button className="bg-amber-600 hover:bg-amber-700">Zum Profil</Button>
             </Link>
           </CardContent>
         </Card>
@@ -293,74 +321,32 @@ export default function PortalPage() {
         {/* Checkliste für Hundeurlaub */}
         <Card>
           <CardHeader>
-            <CardTitle className="text-2xl font-bold text-sage-900">CHECKLISTE</CardTitle>
+            <CardTitle className="text-2xl font-bold text-sage-900">{portalCms.checklistTitle}</CardTitle>
             <CardDescription className="text-lg font-semibold text-sage-800">
-              für den Hundeurlaub in der Pension
+              {portalCms.checklistSubtitle}
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
-            {/* Für den Aufenthalt mitbringen */}
             <div>
-              <h3 className="font-semibold text-sage-900 mb-3">für den Aufenthalt mitbringen</h3>
+              <h3 className="font-semibold text-sage-900 mb-3">{portalCms.checklistSectionTitle}</h3>
               <ul className="space-y-2">
-                <li className="flex items-start gap-3">
-                  <Checkbox id="check-1" className="mt-1" />
-                  <label htmlFor="check-1" className="text-sage-700 cursor-pointer">
-                    Leine - Halsband - Geschirr
-                  </label>
-                </li>
-                <li className="flex items-start gap-3">
-                  <Checkbox id="check-2" className="mt-1" />
-                  <label htmlFor="check-2" className="text-sage-700 cursor-pointer">
-                    Steuermarke
-                  </label>
-                </li>
-                <li className="flex items-start gap-3">
-                  <Checkbox id="check-3" className="mt-1" />
-                  <label htmlFor="check-3" className="text-sage-700 cursor-pointer">
-                    Fressnapf - Wassernapf
-                  </label>
-                </li>
-                <li className="flex items-start gap-3">
-                  <Checkbox id="check-4" className="mt-1" />
-                  <label htmlFor="check-4" className="text-sage-700 cursor-pointer">
-                    Futter - Leckerlis
-                  </label>
-                </li>
-                <li className="flex items-start gap-3">
-                  <Checkbox id="check-5" className="mt-1" />
-                  <label htmlFor="check-5" className="text-sage-700 cursor-pointer">
-                    Bettchen - Kissen - Kuscheldecke - Box/Hundezelt
-                  </label>
-                </li>
-                <li className="flex items-start gap-3">
-                  <Checkbox id="check-6" className="mt-1" />
-                  <label htmlFor="check-6" className="text-sage-700 cursor-pointer">
-                    Medikamente - Nahrungsergänzung inkl. Verabreichungsplan
-                  </label>
-                </li>
-                <li className="flex items-start gap-3">
-                  <Checkbox id="check-7" className="mt-1" />
-                  <label htmlFor="check-7" className="text-sage-700 cursor-pointer">
-                    Kopie der aktuellen Hundehalter-Haftpflicht
-                  </label>
-                </li>
+                {(portalCms.checklistItems ?? []).map((item, idx) => (
+                  <li key={idx} className="flex items-start gap-3">
+                    <Checkbox id={`check-${idx}`} className="mt-1" />
+                    <label htmlFor={`check-${idx}`} className="text-sage-700 cursor-pointer">
+                      {item}
+                    </label>
+                  </li>
+                ))}
               </ul>
             </div>
 
-            {/* ACHTUNG Abschnitt */}
             <div className="border-t pt-6">
-              <h3 className="font-bold text-sage-900 mb-3">ACHTUNG:</h3>
+              <h3 className="font-bold text-sage-900 mb-3">{portalCms.checklistWarningTitle}</h3>
               <div className="space-y-3 text-sage-700">
-                <p>
-                  Erneuere rechtzeitig den benötigten Impfschutz, sorge für eine Entwurmung oder eine Kotuntersuchung und führe eine Ungeziefer-Prävention durch, um deinen Hund maximal zu schützen.
-                </p>
-                <p>
-                  Stelle unbedingt sicher, dass Dritte in der Hundehalter-Haftpflicht mit inbegriffen sind.
-                </p>
-                <p>
-                  Fress- und Wassernapf sowie ein Bettchen mit Kuscheldecke stellen wir auf Wunsch selbstverständlich zur Verfügung. Dennoch macht es durchaus Sinn, die gewohnten Sachen von zu Hause in den Urlaub mitzugeben, um etwas Vertrautes in der neuen Umgebung dabei zu haben.
-                </p>
+                {(portalCms.checklistWarningNotes ?? []).map((note, idx) => (
+                  <p key={idx}>{note}</p>
+                ))}
               </div>
             </div>
           </CardContent>
@@ -371,96 +357,57 @@ export default function PortalPage() {
       {/* Wichtige Infos */}
       <Card>
         <CardHeader>
-          <CardTitle>Die wichtigsten Infos auf einen Blick</CardTitle>
+          <CardTitle>{portalCms.infosTitle}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-6">
-          {/* Bring- und Holzeiten */}
           <div>
-            <h3 className="text-lg font-semibold text-sage-900 mb-3">Unsere Bring- und Holzeiten</h3>
+            <h3 className="text-lg font-semibold text-sage-900 mb-3">{portalCms.pickupTimesTitle}</h3>
             <div className="space-y-2 text-sage-700">
-              <div>
-                <p className="font-medium">Montag - Freitag</p>
-                <p>7-8h / 12-14h (mit Termin) / 17-18h</p>
-              </div>
-              <div>
-                <p className="font-medium">Samstag, Sonntag, Feiertag</p>
-                <p>9-10h / 17-18h</p>
-              </div>
-              <p className="text-sm text-sage-600 mt-2">
-                Außerhalb der offiziellen Zeiten nur mit Termin und gegen Aufpreis.
-              </p>
+              {(portalCms.pickupTimesList ?? []).map((row, idx) => (
+                <div key={idx}>
+                  <p className="font-medium">{row.days}</p>
+                  <p>{row.times}</p>
+                </div>
+              ))}
+              {portalCms.pickupTimesNote ? (
+                <p className="text-sm text-sage-600 mt-2">{portalCms.pickupTimesNote}</p>
+              ) : null}
             </div>
           </div>
 
           <div className="border-t pt-6">
-            <h3 className="text-lg font-semibold text-sage-900 mb-3">
-              Nötige Unterlagen für den Hundeurlaub und die Tagesbetreuung
-            </h3>
-            <p className="text-sage-700 mb-4">
-              Diese Unterlagen sind zwingend notwendig für den Aufenthalt in unserer Pension. Bitte
-              überprüfe rechtzeitig vor dem Urlaubsantritt, ob sie auf dem aktuellen Stand sind.
-              Ohne gültige Nachweise kann keine Betreuung stattfinden.
-            </p>
+            <h3 className="text-lg font-semibold text-sage-900 mb-3">{portalCms.documentsTitle}</h3>
+            <p className="text-sage-700 mb-4">{portalCms.documentsIntro}</p>
             <ul className="space-y-3 text-sage-700">
-              <li className="flex items-start gap-2">
-                <span className="text-sage-600 mt-1">•</span>
-                <div>
-                  <p className="font-medium">Impfpass mit den erforderlichen Impfungen</p>
-                  <p className="text-sm text-sage-600">
-                    Parvovirose, Leptospirose, Hepatitis, Staupe, Zwingerhusten
-                  </p>
-                </div>
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="text-sage-600 mt-1">•</span>
-                <div>
-                  <p className="font-medium">Entwurmung/Kot-Test</p>
-                  <p className="text-sm text-sage-600">
-                    Wurmkur mit Nachweis vom Tierarzt (den Nachweis bitte im Impfpass vermerken lassen) bzw.
-                    Kot-Test beim Check-In. Am Besten ganz frisch, jedoch nicht älter als 3 Monate.
-                  </p>
-                </div>
-              </li>
-              <li className="flex items-start gap-2">
-                <span className="text-sage-600 mt-1">•</span>
-                <p className="text-sm text-sage-600">
-                  Bitte sorge im eigenen Interesse für einen ausreichenden Schutz gegen Parasiten wie
-                  Zecken und Flöhe.
-                </p>
-              </li>
+              {(portalCms.documentsItems ?? []).map((doc, idx) => (
+                <li key={idx} className="flex items-start gap-2">
+                  <span className="text-sage-600 mt-1">•</span>
+                  <div>
+                    {doc.title ? <p className="font-medium">{doc.title}</p> : null}
+                    {doc.description ? (
+                      <p className={doc.title ? 'text-sm text-sage-600' : 'text-sm text-sage-600'}>
+                        {doc.description}
+                      </p>
+                    ) : null}
+                  </div>
+                </li>
+              ))}
             </ul>
           </div>
 
           <div className="border-t pt-6">
-            <h3 className="text-lg font-semibold text-sage-900 mb-3">Stornierung</h3>
+            <h3 className="text-lg font-semibold text-sage-900 mb-3">{portalCms.cancellationTitle}</h3>
             <div className="space-y-3 text-sage-700">
-              <div>
-                <p className="font-medium">15 Tage und mehr vor Check-In:</p>
-                <p className="text-sage-600">kostenlos</p>
-              </div>
-              <div>
-                <p className="font-medium">14 - 7 Tage vor Check-In:</p>
-                <p className="text-sage-600">50% der Buchungssumme</p>
-              </div>
-              <div>
-                <p className="font-medium">6 Tage und weniger vor Check-In:</p>
-                <p className="text-sage-600">100% der Buchungssumme</p>
-              </div>
+              {(portalCms.cancellationPolicy ?? []).map((rule, idx) => (
+                <div key={idx}>
+                  <p className="font-medium">{rule.period}</p>
+                  <p className="text-sage-600">{rule.refund}</p>
+                </div>
+              ))}
               <div className="mt-4 space-y-2 text-sm text-sage-600">
-                <p>
-                  Absagen werden jeweils bis 18h berücksichtigt - auch dann, wenn sie an einem Sonn-/Feiertag
-                  oder in unserem Urlaub getätigt werden. Die Stornierung muss grundsätzlich in schriftlicher
-                  Form per Mail oder WhatsApp erfolgen.
-                </p>
-                <p>
-                  Bei frühzeitiger Abholung gibt es keine Rückerstattung der gebuchten Tage. Dies gilt auch, wenn
-                  ein Hund später als zum vereinbarten Datum in Betreuung gebracht wird.
-                </p>
-                <p>
-                  Tagesgäste müssen spätestens bis Mittwochabend ihren nicht benötigten Platz für die
-                  kommende Woche absagen, damit wir am Donnerstag unseren Springern den Platz anbieten
-                  können. Wird der Platz später abgesagt, gelten die o.g. Stornobedingungen.
-                </p>
+                {(portalCms.cancellationNotes ?? []).map((note, idx) => (
+                  <p key={idx}>{note}</p>
+                ))}
               </div>
             </div>
           </div>

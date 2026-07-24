@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAdmin } from '@/lib/admin-auth'
+import { normalizeOverridePayload } from '@/lib/price-override'
 
 export async function GET(request: NextRequest) {
   try {
@@ -49,7 +50,6 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: 'overrides muss ein Array sein' }, { status: 400 })
     }
 
-    // 1. Alle bestehenden Überschreibungen für diesen Kunden löschen
     const { error: deleteError } = await supabase
       .from('customer_prices')
       .delete()
@@ -57,14 +57,16 @@ export async function PUT(request: NextRequest) {
 
     if (deleteError) throw deleteError
 
-    // 2. Neue Überschreibungen einfügen (falls vorhanden)
     if (overrides.length > 0) {
       const recordsToInsert = overrides
-        .filter((o: any) => o.price !== null && o.price !== undefined && o.price !== '')
-        .map((o: any) => ({
+        .map((o: any) => normalizeOverridePayload(o))
+        .filter(Boolean)
+        .map((o) => ({
           customer_id,
-          price_id: o.price_id,
-          price: parseFloat(o.price),
+          price_id: o!.price_id,
+          price: o!.price,
+          discount_type: o!.discount_type ?? null,
+          discount_value: o!.discount_value ?? null,
         }))
 
       if (recordsToInsert.length > 0) {

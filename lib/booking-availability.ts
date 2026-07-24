@@ -2,10 +2,11 @@ import {
   findOverlappingVacation,
   formatVacationDisplay,
   parseIsoDate,
+  resolveVacationBounds,
   toIsoDate,
   type VacationDate,
 } from '@/lib/vacation-dates'
-import type { CapacityOverride, CapacitySetting, ServiceType } from '@/lib/types'
+import type { CapacityOverride, CapacitySetting, ServiceType, DayCareMode } from '@/lib/types'
 
 export type AvailabilityConflictReason =
   | 'vacation'
@@ -17,7 +18,9 @@ export interface ApprovedBookingSlice {
   id?: string
   service_type: ServiceType
   start_date: string
-  end_date: string
+  end_date: string | null
+  day_care_mode?: DayCareMode | null
+  selected_dates?: string[] | null
 }
 
 export interface AvailabilityContext {
@@ -119,6 +122,29 @@ export function getClosedReason(
   return serviceOverride?.reason ?? null
 }
 
+export function bookingAppliesOnDate(
+  booking: ApprovedBookingSlice,
+  date: string
+): boolean {
+  if (date < booking.start_date) {
+    return false
+  }
+
+  if (booking.selected_dates?.length) {
+    return booking.selected_dates.includes(date)
+  }
+
+  if (booking.day_care_mode === 'recurring' && booking.end_date === null) {
+    return date === booking.start_date
+  }
+
+  if (!booking.end_date) {
+    return date === booking.start_date
+  }
+
+  return date <= booking.end_date
+}
+
 export function countApprovedBookingsOnDate(
   date: string,
   serviceType: ServiceType | null,
@@ -130,7 +156,7 @@ export function countApprovedBookingsOnDate(
       return false
     }
 
-    if (date < booking.start_date || date > booking.end_date) {
+    if (!bookingAppliesOnDate(booking, date)) {
       return false
     }
 
@@ -293,6 +319,50 @@ export function validateBookingAvailability(
   }
 }
 
+export function validateBookingAvailabilityForDateList(
+  context: AvailabilityContext,
+  options: {
+    serviceType: ServiceType
+    dates: string[]
+    excludeBookingId?: string
+    checkCapacity: boolean
+  }
+): ValidateBookingResult {
+  const uniqueDates = [...new Set(options.dates)].sort()
+  if (uniqueDates.length === 0) {
+    return {
+      valid: false,
+      conflicts: [],
+      error: 'Keine Tage ausgewählt.',
+    }
+  }
+
+  const allConflicts: AvailabilityConflict[] = []
+
+  for (const date of uniqueDates) {
+    const result = validateBookingAvailability(context, {
+      serviceType: options.serviceType,
+      startDate: date,
+      endDate: date,
+      excludeBookingId: options.excludeBookingId,
+      checkCapacity: options.checkCapacity,
+    })
+    if (!result.valid) {
+      allConflicts.push(...result.conflicts)
+    }
+  }
+
+  if (allConflicts.length === 0) {
+    return { valid: true, conflicts: [] }
+  }
+
+  return {
+    valid: false,
+    conflicts: allConflicts,
+    error: formatAvailabilityError(allConflicts),
+  }
+}
+
 export function getBlockedDatesForService(
   context: AvailabilityContext,
   serviceType: ServiceType,
@@ -324,11 +394,13 @@ export function getVacationPeriodsInRange(
 
   return vacations
     .map((vacation) => {
-      const start = vacation.start_date
-      const end = vacation.end_date
-      if (!start || !end) {
+      const bounds = resolveVacationBounds(vacation)
+      if (!bounds) {
         return null
       }
+
+      const start = toIsoDate(bounds.start)
+      const end = toIsoDate(bounds.end)
 
       if (end < fromDate || start > toDate) {
         return null

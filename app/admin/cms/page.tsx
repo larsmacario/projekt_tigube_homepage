@@ -8,10 +8,11 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useToast } from "@/hooks/use-toast"
-import { Trash2, Plus, Upload, Loader2, FileText, Globe } from "lucide-react"
+import { Trash2, Plus, Upload, Loader2, FileText, Globe, LayoutDashboard } from "lucide-react"
 import { LegalRichTextEditor } from "@/components/admin/cms/legal-rich-text-editor"
 import { LegalContent } from "@/components/legal-content"
 import { adminFetch } from "@/lib/admin-fetch"
+import { mergeKundenportalData, type KundenportalData } from "@/lib/cms/portal-defaults"
 
 // Types matching page constants
 interface HomepageData {
@@ -121,6 +122,7 @@ const CMS_SECTION_LABELS: Record<string, string> = {
   homepage: 'Startseite',
   hundepension: 'Hundepension',
   katzenbetreuung: 'Katzenbetreuung',
+  kundenportal: 'Kundenportal',
   impressum: 'Impressum',
   datenschutz: 'Datenschutz',
   agb: 'AGB',
@@ -139,7 +141,11 @@ export default function CMSPage() {
         const res = await adminFetch('/api/admin/cms')
         const result = await res.json()
         if (res.ok) {
-          setCmsData(result.data || {})
+          const data = result.data || {}
+          setCmsData({
+            ...data,
+            kundenportal: mergeKundenportalData(data.kundenportal as KundenportalData | undefined),
+          })
         } else {
           toast({
             title: 'Laden fehlgeschlagen',
@@ -176,7 +182,10 @@ export default function CMSPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           key,
-          data: cmsData[key] || {}
+          data:
+            key === 'kundenportal'
+              ? mergeKundenportalData(cmsData[key] as KundenportalData | undefined)
+              : cmsData[key] || {},
         })
       })
       const result = await res.json().catch(() => ({}))
@@ -184,7 +193,10 @@ export default function CMSPage() {
         if (result.data?.data) {
           setCmsData((prev) => ({
             ...prev,
-            [key]: result.data.data,
+            [key]:
+              key === 'kundenportal'
+                ? mergeKundenportalData(result.data.data as KundenportalData)
+                : result.data.data,
           }))
         }
         saveToast.update({
@@ -349,6 +361,9 @@ export default function CMSPage() {
   const hData: HomepageData = cmsData['homepage'] || {}
   const dData: DogPensionData = cmsData['hundepension'] || {}
   const cData: CatCareData = cmsData['katzenbetreuung'] || {}
+  const kpData: KundenportalData = mergeKundenportalData(
+    cmsData['kundenportal'] as KundenportalData | undefined
+  )
 
   return (
     <div className="space-y-8">
@@ -362,6 +377,7 @@ export default function CMSPage() {
           <TabsTrigger value="homepage" className="data-[state=active]:bg-sage-600 data-[state=active]:text-white">Startseite</TabsTrigger>
           <TabsTrigger value="hundepension" className="data-[state=active]:bg-sage-600 data-[state=active]:text-white">Hundepension</TabsTrigger>
           <TabsTrigger value="katzenbetreuung" className="data-[state=active]:bg-sage-600 data-[state=active]:text-white">Katzenbetreuung</TabsTrigger>
+          <TabsTrigger value="kundenportal" className="data-[state=active]:bg-sage-600 data-[state=active]:text-white">Kundenportal</TabsTrigger>
           <TabsTrigger value="agb" className="data-[state=active]:bg-sage-600 data-[state=active]:text-white">AGB</TabsTrigger>
           <TabsTrigger value="datenschutz" className="data-[state=active]:bg-sage-600 data-[state=active]:text-white">Datenschutz</TabsTrigger>
           <TabsTrigger value="impressum" className="data-[state=active]:bg-sage-600 data-[state=active]:text-white">Impressum</TabsTrigger>
@@ -800,6 +816,110 @@ export default function CMSPage() {
               <div className="flex justify-end pt-6 border-t">
                 <Button disabled={saving} onClick={() => handleSave('katzenbetreuung')} className="bg-sage-600 hover:bg-sage-700 text-white">
                   {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Katzenbetreuung Speichern
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Kundenportal */}
+        <TabsContent value="kundenportal" className="space-y-6 mt-6">
+          <Card className="border-sage-200">
+            <CardHeader className="bg-sage-50/50 border-b border-sage-100">
+              <CardTitle className="text-xl text-sage-900 font-raleway flex items-center gap-2">
+                <LayoutDashboard className="h-5 w-5" /> Kundenportal-Dashboard
+              </CardTitle>
+              <CardDescription>
+                Checkliste und Infos auf der Portal-Startseite. Unabhängig von der öffentlichen Hundepension-Seite – Änderungen hier gelten nur im Kundenportal.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="pt-6 space-y-8">
+              <div className="space-y-4">
+                <h3 className="text-lg font-bold border-b pb-2 text-sage-800">Checkliste für den Hundeurlaub</h3>
+                <div className="grid md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Karten-Titel</Label>
+                    <Input value={kpData.checklistTitle || ''} onChange={(e) => updateData('kundenportal', 'checklistTitle', e.target.value)} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Untertitel</Label>
+                    <Input value={kpData.checklistSubtitle || ''} onChange={(e) => updateData('kundenportal', 'checklistSubtitle', e.target.value)} />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label>Abschnitt „Mitbringen“</Label>
+                  <Input value={kpData.checklistSectionTitle || ''} onChange={(e) => updateData('kundenportal', 'checklistSectionTitle', e.target.value)} />
+                </div>
+                <StringList label="Mitbring-Liste (Checkboxen)" list={kpData.checklistItems || []} onChange={(val) => updateData('kundenportal', 'checklistItems', val)} />
+                <div className="space-y-2 pt-2">
+                  <Label>ACHTUNG-Überschrift</Label>
+                  <Input value={kpData.checklistWarningTitle || ''} onChange={(e) => updateData('kundenportal', 'checklistWarningTitle', e.target.value)} />
+                </div>
+                <StringList label="ACHTUNG-Hinweise (Absätze)" list={kpData.checklistWarningNotes || []} onChange={(val) => updateData('kundenportal', 'checklistWarningNotes', val)} />
+              </div>
+
+              <div className="space-y-4 pt-4 border-t">
+                <h3 className="text-lg font-bold border-b pb-2 text-sage-800">Die wichtigsten Infos auf einen Blick</h3>
+                <div className="space-y-2">
+                  <Label>Karten-Titel</Label>
+                  <Input value={kpData.infosTitle || ''} onChange={(e) => updateData('kundenportal', 'infosTitle', e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  <Label>Bring- und Holzeiten – Überschrift</Label>
+                  <Input value={kpData.pickupTimesTitle || ''} onChange={(e) => updateData('kundenportal', 'pickupTimesTitle', e.target.value)} />
+                </div>
+                <StructuredList
+                  label="Bring- und Holzeiten"
+                  list={kpData.pickupTimesList || []}
+                  fields={[
+                    { key: 'days', label: 'Tage' },
+                    { key: 'times', label: 'Uhrzeiten' },
+                  ]}
+                  defaultObj={{ days: '', times: '' }}
+                  onChange={(val) => updateData('kundenportal', 'pickupTimesList', val)}
+                />
+                <div className="space-y-2">
+                  <Label>Hinweis zu Bring-/Holzeiten</Label>
+                  <Textarea value={kpData.pickupTimesNote || ''} onChange={(e) => updateData('kundenportal', 'pickupTimesNote', e.target.value)} />
+                </div>
+                <div className="space-y-2 pt-2">
+                  <Label>Pflichtunterlagen – Überschrift</Label>
+                  <Input value={kpData.documentsTitle || ''} onChange={(e) => updateData('kundenportal', 'documentsTitle', e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  <Label>Pflichtunterlagen – Einleitung</Label>
+                  <Textarea value={kpData.documentsIntro || ''} onChange={(e) => updateData('kundenportal', 'documentsIntro', e.target.value)} />
+                </div>
+                <StructuredList
+                  label="Pflichtunterlagen"
+                  list={kpData.documentsItems || []}
+                  fields={[
+                    { key: 'title', label: 'Titel (optional)' },
+                    { key: 'description', label: 'Text', type: 'textarea' },
+                  ]}
+                  defaultObj={{ title: '', description: '' }}
+                  onChange={(val) => updateData('kundenportal', 'documentsItems', val)}
+                />
+                <div className="space-y-2 pt-2">
+                  <Label>Stornierung – Überschrift</Label>
+                  <Input value={kpData.cancellationTitle || ''} onChange={(e) => updateData('kundenportal', 'cancellationTitle', e.target.value)} />
+                </div>
+                <StructuredList
+                  label="Stornierungsfristen"
+                  list={kpData.cancellationPolicy || []}
+                  fields={[
+                    { key: 'period', label: 'Frist' },
+                    { key: 'refund', label: 'Erstattung / Gebühr' },
+                  ]}
+                  defaultObj={{ period: '', refund: '' }}
+                  onChange={(val) => updateData('kundenportal', 'cancellationPolicy', val)}
+                />
+                <StringList label="Storno-Zusatzhinweise (Absätze)" list={kpData.cancellationNotes || []} onChange={(val) => updateData('kundenportal', 'cancellationNotes', val)} />
+              </div>
+
+              <div className="flex justify-end pt-6 border-t">
+                <Button disabled={saving} onClick={() => handleSave('kundenportal')} className="bg-sage-600 hover:bg-sage-700 text-white">
+                  {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Kundenportal Speichern
                 </Button>
               </div>
             </CardContent>

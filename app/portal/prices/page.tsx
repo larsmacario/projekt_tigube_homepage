@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { authenticatedFetch } from '@/lib/authenticated-fetch'
+import { formatDiscountLabel, formatEuro } from '@/lib/price-override'
 
 interface Price {
   id: string
@@ -11,10 +12,16 @@ interface Price {
   name: string
   description: string | null
   price: number | null
+  catalog_price?: number | null
   price_type: 'fixed' | 'percentage' | 'per_unit' | 'text'
   unit: string | null
   note: string | null
   sort_order: number
+  base_price?: number | null
+  discount_type?: 'fixed' | 'percentage' | null
+  discount_value?: number | null
+  discount_amount?: number | null
+  final_price?: number | null
   is_override?: boolean
   override_type?: 'individual' | 'group' | null
 }
@@ -49,22 +56,55 @@ export default function PricesPage() {
     }
   }
 
-  function formatPrice(price: Price): string {
+  function formatCatalogPrice(price: Price): string {
     if (price.price_type === 'text') {
       return price.description || ''
     }
-    
-    if (price.price === null) return ''
-    
+
+    const catalogAmount = price.catalog_price ?? price.price
+    if (catalogAmount === null) return ''
+
     if (price.price_type === 'percentage') {
-      return `+${price.price}%${price.unit ? ` ${price.unit}` : ''}`
+      return `+${catalogAmount}%${price.unit ? ` ${price.unit}` : ''}`
     }
-    
+
     if (price.price_type === 'per_unit') {
-      return `${price.price.toFixed(2).replace('.', ',')}€${price.unit ? ` ${price.unit}` : ''}`
+      return `${formatEuro(catalogAmount)}${price.unit ? ` ${price.unit}` : ''}`
     }
-    
-    return `${price.price.toFixed(2).replace('.', ',')}€${price.unit ? ` ${price.unit}` : ''}`
+
+    return `${formatEuro(catalogAmount)}${price.unit ? ` ${price.unit}` : ''}`
+  }
+
+  function renderPriceColumn(price: Price) {
+    if (price.price_type === 'text') {
+      return <p className="text-sm text-sage-700 whitespace-pre-wrap">{price.description}</p>
+    }
+
+    if (price.is_override && price.base_price != null) {
+      return (
+        <div className="flex flex-col items-start sm:items-end gap-0.5 text-right">
+          <p className="text-sm text-sage-600">
+            Basis: {formatEuro(price.base_price)}
+            {price.unit ? ` ${price.unit}` : ''}
+          </p>
+          {price.discount_type && price.discount_value != null && price.discount_amount != null && (
+            <p className="text-sm text-green-800">
+              Rabatt: {formatDiscountLabel(price.discount_type, price.discount_value)} (
+              {formatEuro(price.discount_amount)})
+            </p>
+          )}
+          <p className="text-lg font-bold text-sage-900">
+            {formatEuro(price.final_price ?? price.price ?? price.base_price)}
+            {price.unit ? ` ${price.unit}` : ''}
+          </p>
+          <span className="text-xs font-semibold bg-green-100 text-green-800 px-2 py-0.5 rounded-full mt-1">
+            Dein Sonderpreis
+          </span>
+        </div>
+      )
+    }
+
+    return <p className="text-lg font-bold text-sage-900">{formatCatalogPrice(price)}</p>
   }
 
   if (loading) {
@@ -79,7 +119,6 @@ export default function PricesPage() {
     const categoryPrices = prices.filter(p => p.category_id === category.id)
     if (categoryPrices.length === 0) return null
 
-    // Special styling for warnings/notes categories
     const isWarningCat = category.name.toLowerCase().includes('hinweis') || category.name.toLowerCase().includes('achtung')
 
     if (isWarningCat) {
@@ -98,7 +137,8 @@ export default function PricesPage() {
                   price.description
                 ) : (
                   <span>
-                    <strong>{price.name}:</strong> {formatPrice(price)} {price.note && <span className="text-xs">({price.note})</span>}
+                    <strong>{price.name}:</strong> {formatCatalogPrice(price)}{' '}
+                    {price.note && <span className="text-xs">({price.note})</span>}
                   </span>
                 )}
               </p>
@@ -128,18 +168,9 @@ export default function PricesPage() {
                   <p className="text-xs text-sage-500 italic mt-0.5">{price.note}</p>
                 )}
               </div>
-              
+
               <div className="flex flex-col items-start sm:items-end min-w-[120px]">
-                {price.price_type === 'text' ? (
-                  <p className="text-sm text-sage-700 whitespace-pre-wrap">{price.description}</p>
-                ) : (
-                  <p className="text-lg font-bold text-sage-900">{formatPrice(price)}</p>
-                )}
-                {price.is_override && (
-                  <span className="text-xs font-semibold bg-green-100 text-green-800 px-2 py-0.5 rounded-full mt-1">
-                    Dein Sonderpreis
-                  </span>
-                )}
+                {renderPriceColumn(price)}
               </div>
             </div>
           ))}
@@ -148,7 +179,6 @@ export default function PricesPage() {
     )
   }
 
-  // Filter categories by service type
   const dogCategories = categories.filter(c => c.service_type === 'hundepension' || c.service_type === 'all')
   const catCategories = categories.filter(c => c.service_type === 'katzenbetreuung' || c.service_type === 'all')
 

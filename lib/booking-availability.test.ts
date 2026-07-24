@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   countApprovedBookingsOnDate,
   getCapacityLimit,
+  getVacationPeriodsInRange,
   isDayClosed,
   validateBookingAvailability,
   type AvailabilityContext,
@@ -187,5 +188,22 @@ describe('booking availability', () => {
     expect(
       countApprovedBookingsOnDate('2026-09-10', 'hundepension', baseContext.approvedBookings)
     ).toBe(1)
+  })
+
+  it('löst Ferien aus period-Text wenn start_date/end_date fehlen', () => {
+    const periods = getVacationPeriodsInRange(
+      [
+        {
+          period: '17.09. bis 28.09.2026',
+          label: 'geschlossen',
+        },
+      ],
+      '2026-09-01',
+      '2026-12-31'
+    )
+
+    expect(periods).toHaveLength(1)
+    expect(periods[0]?.start_date).toBe('2026-09-17')
+    expect(periods[0]?.end_date).toBe('2026-09-28')
   })
 })

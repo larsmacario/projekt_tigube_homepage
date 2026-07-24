@@ -26,9 +26,19 @@ export async function readApiResponse<T extends Record<string, unknown> = Record
         error: 'Die Datei ist zu groß. Bitte wähle ein kleineres Bild (max. 10 MB).',
       }
     }
+    const statusHint =
+      response.status >= 500
+        ? `Serverfehler (${response.status})`
+        : `Antwort konnte nicht gelesen werden (${response.status || 'unbekannt'})`
+    if (text.includes('Internal Server Error') || text.startsWith('Internal')) {
+      return {
+        data: null,
+        error: `${statusHint}. Bitte Seite neu laden und erneut speichern.`,
+      }
+    }
     return {
       data: null,
-      error: 'Unerwartete Server-Antwort. Bitte versuche es erneut.',
+      error: `${statusHint}. Bitte versuche es erneut.`,
     }
   }
 

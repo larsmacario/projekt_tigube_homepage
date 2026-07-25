@@ -1,21 +1,17 @@
 # Aktueller Stand
 
 ## Letzte Änderungen
-- Link-Hub `/rechtliches` (WhatsApp): ohne Nav/Footer, Linktree-UI + minimale Unterseiten für Betreuungsvertrag, Datenschutz, Impressum (CMS-Inhalte).
-- Portal-Buchungswizard (4 Schritte): Kostenschätzung, Zusatzleistungen pro Tier, Mengen-Vorschlag am Zeitraum (`lib/booking-extra-quantity.ts`), Override durch Kunde.
-- Nach Buchungsanfrage: SMTP an `SMTP_TO` (info@…) und Bestätigung an Kunden-E-Mail (`sendBookingRequestEmails`, `lib/booking-request-email.ts`, `/api/portal/bookings`).
-- Migration `extra_feeding_quantity_hint` auf Remote angewendet (Fütterung: „1 Fütterung pro Tag“ in Preisbeschreibung).
-- Öffentliche Website: WhatsApp entfernt; Migration `20260724280000_remove_whatsapp_from_cms.sql` – auf Remote noch prüfen/anwenden.
+- Betreuungsvertrag vereinheitlicht: CMS-Key `agb` (wie `/agb`) ist die Textquelle für Onboarding Schritt 3 und neu erzeugte PDFs (`lib/betreuungsvertrag.ts`, `betreuungsvertrag-html.ts`, `betreuungsvertrag-pdf.ts`); Portal lädt via `/api/cms?key=agb`, PDF ergänzt Vertragsparteien, Foto/Video-Status, Unterschrift.
+- Test `lib/betreuungsvertrag-html.test.ts` sichert Abschnittsreihenfolge; Build und Vitest grün.
 
 ## Fokus
-- Deploy; Buchungsflow + E-Mail-Versand in Staging/Production mit SMTP testen.
-- CMS-WhatsApp-Migration und Live-Seiten prüfen.
+- Vertrag in Production kurz gegen `/agb` und ein frisch unterzeichnetes PDF prüfen (Onboarding Schritt 3).
+- Buchungswizard: Feiertage, Bring/Hol, Schritt-4-Schätzung.
 
 ## Nächste Schritte
-- Test: Portal-Anfrage → zwei Mails (intern + Kunde); Logs bei SMTP-Fehler.
-- Migration `20260724280000` auf Remote, falls noch offen.
-- SevDesk, Vertrags-Mail, Cron-Secrets wie zuvor.
+- Manuell: Onboarding → Vertrag lesen/unterschreiben → PDF im Portal und Mail-Anhang mit `/agb` vergleichen.
+- Optional Feiertags-Legende auf `/portal/bookings`; Katalog-Posten für 8‑€-Zeitaufpreis; `/rechtliches` Mobile.
 
 ## Offene Punkte
-- Kundenportal ggf. noch „Stornierung … WhatsApp“ in Portal-CMS/Fallback.
-- SMTP in Production; `tigube_logo_hund.jpg`; ESLint fehlt für `npm run lint`.
+- Bereits gespeicherte Vertrags-PDFs vor dem Release behalten alten Wortlaut (nur neue Signaturen betroffen).
+- Mittagsfenster 12–14: nur Hinweis (v1); ESLint fehlt für `npm run lint`; SMTP in Production verifizieren.

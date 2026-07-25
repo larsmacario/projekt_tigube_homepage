@@ -2,11 +2,11 @@
 
 import { AuthGuard } from '@/components/auth/auth-guard'
 import { AuthSessionProvider } from '@/components/auth/auth-session-provider'
-import { AppShell } from '@/components/layout/app-shell'
+import { AdminAppShell } from '@/components/admin/admin-app-shell'
+import { AdminMetricsProvider } from '@/components/admin/admin-metrics-provider'
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { getCurrentUser, signOut } from '@/lib/auth'
-import { adminNavItems, adminShellConfig } from '@/lib/admin-nav'
 
 export default function AdminLayout({
   children,
@@ -39,15 +39,11 @@ export default function AdminLayout({
   return (
     <AuthSessionProvider>
       <AuthGuard requiredRole="admin">
-        <AppShell
-          title={adminShellConfig.title}
-          homeHref={adminShellConfig.homeHref}
-          navItems={adminNavItems}
-          userEmail={user?.email}
-          onLogout={handleLogout}
-        >
-          {children}
-        </AppShell>
+        <AdminMetricsProvider>
+          <AdminAppShell userEmail={user?.email} onLogout={handleLogout}>
+            {children}
+          </AdminAppShell>
+        </AdminMetricsProvider>
       </AuthGuard>
     </AuthSessionProvider>
   )

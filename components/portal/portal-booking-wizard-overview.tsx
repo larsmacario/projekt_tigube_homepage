@@ -144,7 +144,7 @@ export function PortalBookingWizardOverview({
             Zeitraum: {formatDateRangeDE(dateRange.from, dateRange.to ?? dateRange.from)}
           </p>
         )}
-        {dropOffTime && pickUpTime && rangePetLines.some((l) => l.service_type === 'hundepension') && (
+        {dropOffTime && pickUpTime && (
           <p className="mt-2">
             Bringen: {dropOffTime} Uhr · Abholen: {pickUpTime} Uhr
           </p>

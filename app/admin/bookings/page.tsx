@@ -20,8 +20,14 @@ import { format } from 'date-fns'
 import { de } from 'date-fns/locale'
 import type { BookingRequest, CapacitySetting, CapacityOverride, ServiceType } from '@/lib/types'
 import { authenticatedFetch } from '@/lib/authenticated-fetch'
-import { expandBookingOccupiedDates, formatDayCareBookingSummary } from '@/lib/day-care-booking'
-import { BookingLineItemsPanel } from '@/components/admin/booking-line-items-panel'
+import { expandBookingOccupiedDates } from '@/lib/day-care-booking'
+import { BookingDetailSheet } from '@/components/admin/booking-detail-sheet'
+import { useAdminMetrics } from '@/components/admin/admin-metrics-provider'
+import { BookingGroupListCard } from '@/components/booking/booking-group-list-card'
+import {
+  categorizeBookingGroups,
+  groupBookingsForDisplay,
+} from '@/lib/booking-request-groups'
 
 export default function AdminBookingsPage() {
   const [bookings, setBookings] = useState<BookingRequest[]>([])
@@ -29,7 +35,7 @@ export default function AdminBookingsPage() {
   const [capacityOverrides, setCapacityOverrides] = useState<CapacityOverride[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedBooking, setSelectedBooking] = useState<BookingRequest | null>(null)
-  const [isDialogOpen, setIsDialogOpen] = useState(false)
+  const [isDetailOpen, setIsDetailOpen] = useState(false)
   const [isOverrideDialogOpen, setIsOverrideDialogOpen] = useState(false)
   const [adminNotes, setAdminNotes] = useState('')
   const [filterStatus, setFilterStatus] = useState<string>('all')
@@ -41,6 +47,7 @@ export default function AdminBookingsPage() {
     reason: '',
   })
   const { toast } = useToast()
+  const { refreshMetrics } = useAdminMetrics()
 
   useEffect(() => {
     loadData()
@@ -146,11 +153,12 @@ export default function AdminBookingsPage() {
 
       const data = await response.json()
       setBookings(bookings.map(b => b.id === selectedBooking.id ? data.booking : b))
-      setIsDialogOpen(false)
+      setIsDetailOpen(false)
       setSelectedBooking(null)
       setAdminNotes('')
       // Reload capacity data
       loadData()
+      void refreshMetrics()
       toast({
         title: 'Erfolg',
         description: `Buchung wurde ${status === 'approved' ? 'genehmigt' : 'abgelehnt'}`,
@@ -336,13 +344,46 @@ export default function AdminBookingsPage() {
     }
   }
 
+  const pendingBookingsAll = useMemo(
+    () => bookings.filter((b) => b.status === 'pending'),
+    [bookings]
+  )
+
   const filteredBookings = bookings.filter(b => {
     if (filterStatus !== 'all' && b.status !== filterStatus) return false
     if (filterService !== 'all' && b.service_type !== filterService) return false
     return true
   })
 
-  const pendingBookings = filteredBookings.filter(b => b.status === 'pending')
+  const pendingBookings = useMemo(
+    () =>
+      bookings.filter((b) => {
+        if (b.status !== 'pending') return false
+        if (filterService !== 'all' && b.service_type !== filterService) return false
+        return true
+      }),
+    [bookings, filterService]
+  )
+
+  const openGroups = useMemo(
+    () => groupBookingsForDisplay(pendingBookings),
+    [pendingBookings]
+  )
+
+  const settledBookings = useMemo(
+    () => filteredBookings.filter((b) => b.status !== 'pending'),
+    [filteredBookings]
+  )
+
+  const { future: futureGroups, current: currentGroups, past: pastGroups } = useMemo(() => {
+    const categorized = categorizeBookingGroups(groupBookingsForDisplay(settledBookings))
+    return categorized
+  }, [settledBookings])
+
+  const openBookingDetail = (booking: BookingRequest) => {
+    setSelectedBooking(booking)
+    setIsDetailOpen(true)
+  }
 
   if (loading) {
     return (
@@ -364,9 +405,9 @@ export default function AdminBookingsPage() {
           <h1 className="text-3xl font-bold text-sage-900">Buchungsanfragen</h1>
           <p className="mt-2 text-sage-600">Verwalte alle Buchungsanfragen und Kapazitäten</p>
         </div>
-        {pendingBookings.length > 0 && (
+        {pendingBookingsAll.length > 0 && (
           <Badge className="bg-yellow-100 text-yellow-800 border-yellow-300 text-lg px-4 py-2">
-            {pendingBookings.length} ausstehend
+            {pendingBookingsAll.length} ausstehend
           </Badge>
         )}
       </div>
@@ -428,207 +469,116 @@ export default function AdminBookingsPage() {
             isAdmin={true}
             onSelectBooking={(booking) => {
               setSelectedBooking(booking)
-              setIsDialogOpen(true)
+              setIsDetailOpen(true)
             }}
           />
         </CardContent>
       </Card>
 
-      {/* Buchungsliste */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Alle Buchungen ({filteredBookings.length})</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {filteredBookings.length > 0 ? (
-            <div className="space-y-3">
-              {filteredBookings.map(booking => (
-                <div
-                  key={booking.id}
-                  className="p-4 border border-sage-200 rounded-lg hover:bg-sage-50 cursor-pointer"
-                  onClick={() => {
-                    setSelectedBooking(booking)
-                    setIsDialogOpen(true)
-                  }}
-                >
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-1">
-                        <p className="font-semibold text-sage-900">
-                          {booking.pet?.name || 'Unbekannt'}
-                        </p>
-                        <Badge variant="outline" className="text-xs">
-                          {getServiceLabel(booking.service_type)}
-                        </Badge>
-                      </div>
-                      <p className="text-sm text-sage-600">
-                        {booking.customer?.vorname} {booking.customer?.nachname}
-                      </p>
-                      <p className="text-sm text-sage-600 mt-1">
-                        {new Date(booking.start_date).toLocaleDateString('de-DE')} - {new Date(booking.end_date).toLocaleDateString('de-DE')}
-                      </p>
-                      {booking.message && (
-                        <p className="text-sm text-sage-500 mt-1 line-clamp-1">
-                          {booking.message}
-                        </p>
-                      )}
-                    </div>
-                    <Badge className={getStatusColor(booking.status)}>
-                      {getStatusLabel(booking.status)}
-                    </Badge>
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <p className="text-sage-600 text-center py-4">Keine Buchungen gefunden</p>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Booking Detail Dialog */}
-      {selectedBooking && (
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogContent className="max-w-2xl">
-            <DialogHeader>
-              <DialogTitle>Buchungsdetails</DialogTitle>
-              <DialogDescription>
-                {selectedBooking.status === 'pending' && 'Genehmige oder lehne diese Anfrage ab'}
-              </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label>Tier</Label>
-                  <p className="font-medium">{selectedBooking.pet?.name || 'Unbekannt'}</p>
-                </div>
-                <div>
-                  <Label>Service</Label>
-                  <p className="font-medium">{getServiceLabel(selectedBooking.service_type)}</p>
-                </div>
-                <div>
-                  <Label>Kunde</Label>
-                  <p className="font-medium">
-                    {selectedBooking.customer?.vorname} {selectedBooking.customer?.nachname}
-                  </p>
-                </div>
-                <div>
-                  <Label>Kontakt</Label>
-                  <p className="font-medium">{selectedBooking.customer?.email}</p>
-                  {selectedBooking.customer?.telefonnummer && (
-                    <p className="text-sm text-sage-600">{selectedBooking.customer.telefonnummer}</p>
-                  )}
-                </div>
-                <div>
-                  <Label>Zeitraum</Label>
-                  <p className="font-medium">
-                    {new Date(selectedBooking.start_date).toLocaleDateString('de-DE')} –{' '}
-                    {selectedBooking.end_date
-                      ? new Date(selectedBooking.end_date).toLocaleDateString('de-DE')
-                      : 'laufend'}
-                  </p>
-                </div>
-                {selectedBooking.request_group?.drop_off_time &&
-                  selectedBooking.request_group?.pick_up_time && (
-                    <div>
-                      <Label>Bring- & Holzeiten</Label>
-                      <p className="font-medium">
-                        Bringen: {selectedBooking.request_group.drop_off_time} Uhr · Abholen:{' '}
-                        {selectedBooking.request_group.pick_up_time} Uhr
-                      </p>
-                    </div>
-                  )}
-                {formatDayCareBookingSummary(selectedBooking) && (
-                  <div className="sm:col-span-2">
-                    <Label>Tagesbetreuung</Label>
-                    <p className="font-medium">{formatDayCareBookingSummary(selectedBooking)}</p>
-                  </div>
-                )}
-                <div>
-                  <Label>Status</Label>
-                  <Badge className={getStatusColor(selectedBooking.status)}>
-                    {getStatusLabel(selectedBooking.status)}
-                  </Badge>
-                </div>
-              </div>
-
-              {selectedBooking.message && (
-                <div>
-                  <Label>Nachricht vom Kunden</Label>
-                  <p className="text-sage-600 mt-1 p-3 bg-sage-50 rounded">
-                    {selectedBooking.message}
-                  </p>
-                </div>
-              )}
-
-              {selectedBooking.admin_notes && (
-                <div>
-                  <Label>Admin Notiz</Label>
-                  <p className="text-sage-600 mt-1 p-3 bg-sage-50 rounded">
-                    {selectedBooking.admin_notes}
-                  </p>
-                </div>
-              )}
-
-              {selectedBooking.status === 'pending' && (
-                <div>
-                  <Label>Admin Notiz (optional)</Label>
-                  <Textarea
-                    value={adminNotes}
-                    onChange={(e) => setAdminNotes(e.target.value)}
-                    placeholder="Begründung für Genehmigung/Ablehnung..."
-                    rows={3}
+      <div className="space-y-4">
+        <Card>
+          <CardHeader>
+            <CardTitle>Offene Anfragen ({pendingBookings.length})</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {openGroups.length > 0 ? (
+              <div className="space-y-3">
+                {openGroups.map((group) => (
+                  <BookingGroupListCard
+                    key={`${group.key}-${group.start_date}`}
+                    group={group}
+                    showCustomer
+                    onSelect={openBookingDetail}
                   />
-                </div>
-              )}
+                ))}
+              </div>
+            ) : (
+              <p className="py-4 text-center text-sage-600">Keine offenen Anfragen</p>
+            )}
+          </CardContent>
+        </Card>
 
-              <BookingLineItemsPanel bookingId={selectedBooking.id} />
+        <Card>
+          <CardHeader>
+            <CardTitle>Zukünftige Buchungen ({futureGroups.length})</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {futureGroups.length > 0 ? (
+              <div className="space-y-3">
+                {futureGroups.map((group) => (
+                  <BookingGroupListCard
+                    key={group.key}
+                    group={group}
+                    showCustomer
+                    onSelect={openBookingDetail}
+                  />
+                ))}
+              </div>
+            ) : (
+              <p className="py-4 text-center text-sage-600">Keine zukünftigen Buchungen</p>
+            )}
+          </CardContent>
+        </Card>
 
-              {selectedBooking.status === 'pending' && (
-                <div className="flex justify-end gap-2">
-                  <Button
-                    variant="outline"
-                    onClick={() => {
-                      setIsDialogOpen(false)
-                      setSelectedBooking(null)
-                      setAdminNotes('')
-                    }}
-                  >
-                    Schließen
-                  </Button>
-                  <Button
-                    variant="destructive"
-                    onClick={() => handleStatusChange('rejected')}
-                  >
-                    Ablehnen
-                  </Button>
-                  <Button
-                    className="bg-green-600 hover:bg-green-700"
-                    onClick={() => handleStatusChange('approved')}
-                  >
-                    Genehmigen
-                  </Button>
-                </div>
-              )}
+        <Card>
+          <CardHeader>
+            <CardTitle>Aktuelle Buchungen ({currentGroups.length})</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {currentGroups.length > 0 ? (
+              <div className="space-y-3">
+                {currentGroups.map((group) => (
+                  <BookingGroupListCard
+                    key={group.key}
+                    group={group}
+                    showCustomer
+                    onSelect={openBookingDetail}
+                  />
+                ))}
+              </div>
+            ) : (
+              <p className="py-4 text-center text-sage-600">Keine aktuellen Buchungen</p>
+            )}
+          </CardContent>
+        </Card>
 
-              {selectedBooking.status !== 'pending' && (
-                <div className="flex justify-end">
-                  <Button
-                    variant="outline"
-                    onClick={() => {
-                      setIsDialogOpen(false)
-                      setSelectedBooking(null)
-                      setAdminNotes('')
-                    }}
-                  >
-                    Schließen
-                  </Button>
-                </div>
-              )}
-            </div>
-          </DialogContent>
-        </Dialog>
-      )}
+        <Card>
+          <CardHeader>
+            <CardTitle>Vergangene Buchungen ({pastGroups.length})</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {pastGroups.length > 0 ? (
+              <div className="space-y-3">
+                {pastGroups.map((group) => (
+                  <BookingGroupListCard
+                    key={group.key}
+                    group={group}
+                    muted
+                    showCustomer
+                    onSelect={openBookingDetail}
+                  />
+                ))}
+              </div>
+            ) : (
+              <p className="py-4 text-center text-sage-600">Keine vergangenen Buchungen</p>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      <BookingDetailSheet
+        booking={selectedBooking}
+        open={isDetailOpen && selectedBooking != null}
+        onOpenChange={setIsDetailOpen}
+        adminNotes={adminNotes}
+        onAdminNotesChange={setAdminNotes}
+        onStatusChange={handleStatusChange}
+        onClose={() => {
+          setIsDetailOpen(false)
+          setSelectedBooking(null)
+          setAdminNotes('')
+        }}
+      />
         </TabsContent>
 
         <TabsContent value="capacity" className="space-y-6">

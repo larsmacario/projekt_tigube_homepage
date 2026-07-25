@@ -29,6 +29,51 @@ import { formatEuro } from '@/lib/price-override'
 import type { DayCareMode, Pet, ServiceType } from '@/lib/types'
 import { toIsoDate } from '@/lib/vacation-dates'
 
+function resolvePickupDateSpan(input: BookingEstimateInput): { start: string; end: string } | null {
+  if (
+    input.petLines.some((l) => l.service_type === 'hundepension') &&
+    input.dateRange?.from
+  ) {
+    return {
+      start: toIsoDate(input.dateRange.from),
+      end: toIsoDate(input.dateRange.to ?? input.dateRange.from),
+    }
+  }
+
+  const oncePetIds = input.petLines
+    .filter((l) => l.service_type === 'tagesbetreuung' && l.day_care_mode === 'once')
+    .map((l) => l.pet_id)
+
+  if (oncePetIds.length > 0) {
+    const allDates: string[] = []
+    for (const petId of oncePetIds) {
+      for (const d of input.dayCareOnceDates[petId] || []) {
+        allDates.push(toIsoDate(d))
+      }
+    }
+    if (allDates.length === 0) return null
+    allDates.sort()
+    return { start: allDates[0], end: allDates[allDates.length - 1] }
+  }
+
+  const recurringPetIds = input.petLines
+    .filter((l) => l.service_type === 'tagesbetreuung' && l.day_care_mode === 'recurring')
+    .map((l) => l.pet_id)
+
+  if (recurringPetIds.length > 0) {
+    const starts: string[] = []
+    for (const petId of recurringPetIds) {
+      const d = input.dayCareRecurring[petId]?.startDate
+      if (d) starts.push(toIsoDate(d))
+    }
+    if (starts.length === 0) return null
+    starts.sort()
+    return { start: starts[0], end: starts[starts.length - 1] }
+  }
+
+  return null
+}
+
 export const BOOKING_ESTIMATE_DISCLAIMER =
   'Die angezeigten Beträge sind eine unverbindliche Orientierung auf Basis deiner hinterlegten Preise. Sie stellen weder ein Angebot noch einen verbindlichen Preis dar. Endgültiger Leistungsumfang und Rechnungsbetrag legen wir nach Prüfung deiner Anfrage fest – unter anderem je Tarifstufe, Betreuungstagen, Zusatzleistungen pro Tier und individuellen Vereinbarungen. Abweichungen bleiben vorbehalten.'
 
@@ -257,10 +302,12 @@ export function estimateBookingCosts(input: BookingEstimateInput): BookingEstima
     }
   }
 
-  const hasHundRange = input.petLines.some((l) => l.service_type === 'hundepension')
-  if (hasHundRange && input.dateRange?.from && input.dropOffTime && input.pickUpTime) {
-    const start = toIsoDate(input.dateRange.from)
-    const end = toIsoDate(input.dateRange.to ?? input.dateRange.from)
+  const pickupSpan = resolvePickupDateSpan(input)
+  const needsPickupEstimate = input.petLines.some(
+    (l) => l.service_type === 'hundepension' || l.service_type === 'tagesbetreuung'
+  )
+  if (needsPickupEstimate && pickupSpan && input.dropOffTime && input.pickUpTime) {
+    const { start, end } = pickupSpan
     const outOfHoursFee = resolveOutOfHoursPickupUnitPrice(input.prices, input.categories)
 
     const dropEval = evaluatePickupTimeOnDate(start, input.dropOffTime, holidaySet)

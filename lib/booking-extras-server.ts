@@ -19,6 +19,33 @@ export async function loadBookingExtraCatalogForCustomer(
   customerGroupId: string | null,
   serviceTypes: ServiceType[]
 ): Promise<{ categories: BookingExtraCategory[]; prices: BookingExtraPrice[] }> {
+  const base = await loadBookingExtraCatalogBase(
+    supabase,
+    customerId,
+    customerGroupId,
+    serviceTypes
+  )
+  return {
+    categories: base.categories,
+    prices: filterCustomerSelectableExtraPrices(base.prices),
+  }
+}
+
+export async function loadBookingExtraCatalogForAdmin(
+  supabase: SupabaseClient,
+  customerId: string,
+  customerGroupId: string | null,
+  serviceTypes: ServiceType[]
+): Promise<{ categories: BookingExtraCategory[]; prices: BookingExtraPrice[] }> {
+  return loadBookingExtraCatalogBase(supabase, customerId, customerGroupId, serviceTypes)
+}
+
+async function loadBookingExtraCatalogBase(
+  supabase: SupabaseClient,
+  customerId: string,
+  customerGroupId: string | null,
+  serviceTypes: ServiceType[]
+): Promise<{ categories: BookingExtraCategory[]; prices: BookingExtraPrice[] }> {
   const [categoriesRes, pricesRes] = await Promise.all([
     supabase.from('price_categories').select('*').order('sort_order', { ascending: true }),
     supabase.from('prices').select('*').order('sort_order', { ascending: true }),
@@ -39,10 +66,12 @@ export async function loadBookingExtraCatalogForCustomer(
   const groupOverrideMap = new Map<string, any>()
 
   const [customerPricesRes, groupPricesRes] = await Promise.all([
-    supabase
-      .from('customer_prices')
-      .select('price_id, price, discount_type, discount_value')
-      .eq('customer_id', customerId),
+    customerId
+      ? supabase
+          .from('customer_prices')
+          .select('price_id, price, discount_type, discount_value')
+          .eq('customer_id', customerId)
+      : Promise.resolve({ data: [] as any[], error: null }),
     customerGroupId
       ? supabase
           .from('group_prices')
@@ -83,9 +112,7 @@ export async function loadBookingExtraCatalogForCustomer(
 
   return {
     categories: extraCategories,
-    prices: filterCustomerSelectableExtraPrices(
-      filterBookableExtraPrices(resolvedPrices, categoryIds)
-    ),
+    prices: filterBookableExtraPrices(resolvedPrices, categoryIds),
   }
 }
 

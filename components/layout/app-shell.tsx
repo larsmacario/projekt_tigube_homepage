@@ -8,12 +8,13 @@ import {
 import { Separator } from "@/components/ui/separator"
 import { useSidebarPersist } from "@/hooks/use-sidebar-persist"
 import { AppSidebar } from "@/components/layout/app-sidebar"
-import type { NavItem } from "@/lib/nav-types"
+import type { NavBadgeKey, NavItem } from "@/lib/nav-types"
 
 type AppShellProps = {
   title: string
   homeHref: string
   navItems: NavItem[]
+  navBadgeValues?: Partial<Record<NavBadgeKey, number>>
   userEmail?: string | null
   onLogout: () => void
   banner?: React.ReactNode
@@ -24,6 +25,7 @@ export function AppShell({
   title,
   homeHref,
   navItems,
+  navBadgeValues,
   userEmail,
   onLogout,
   banner,
@@ -47,6 +49,7 @@ export function AppShell({
         title={title}
         homeHref={homeHref}
         items={navItems}
+        navBadgeValues={navBadgeValues}
         userEmail={userEmail}
         onLogout={onLogout}
       />

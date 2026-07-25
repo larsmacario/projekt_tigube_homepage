@@ -1,4 +1,5 @@
 import type { BookingRequest, BookingStatus } from '@/lib/types'
+import { startOfDay } from '@/lib/vacation-dates'
 
 export interface BookingRequestGroup {
   key: string
@@ -55,4 +56,47 @@ export function formatGroupPetServiceSummary(group: BookingRequestGroup): string
   return group.bookings
     .map((b) => `${b.pet?.name || 'Unbekannt'} (${b.service_type})`)
     .join(', ')
+}
+
+function parseIsoDateLocal(iso: string): Date {
+  const [y, m, d] = iso.split('-').map(Number)
+  return startOfDay(new Date(y, m - 1, d))
+}
+
+export interface CategorizedBookingGroups {
+  open: BookingRequestGroup[]
+  future: BookingRequestGroup[]
+  current: BookingRequestGroup[]
+  past: BookingRequestGroup[]
+}
+
+export function categorizeBookingGroups(
+  groups: BookingRequestGroup[],
+  referenceDate: Date = new Date()
+): CategorizedBookingGroups {
+  const today = startOfDay(referenceDate)
+  const open: BookingRequestGroup[] = []
+  const future: BookingRequestGroup[] = []
+  const current: BookingRequestGroup[] = []
+  const past: BookingRequestGroup[] = []
+
+  for (const group of groups) {
+    if (group.status === 'pending') {
+      open.push(group)
+      continue
+    }
+
+    const start = parseIsoDateLocal(group.start_date)
+    const end = group.end_date ? parseIsoDateLocal(group.end_date) : null
+
+    if (end && end < today) {
+      past.push(group)
+    } else if (start > today) {
+      future.push(group)
+    } else {
+      current.push(group)
+    }
+  }
+
+  return { open, future, current, past }
 }

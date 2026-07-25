@@ -29,9 +29,10 @@ async function checkAdminAuth(supabase: any, accessToken: string | undefined) {
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id: bookingId } = await params
     const { client: supabase, accessToken } = await getServerClient(request)
     const authResult = await checkAdminAuth(supabase, accessToken)
     
@@ -42,7 +43,6 @@ export async function PATCH(
       )
     }
 
-    const bookingId = params.id
     const body = await request.json()
     const { status, admin_notes } = body
 

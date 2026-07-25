@@ -32,6 +32,9 @@ import {
   formatCustomerAddress,
   isCustomerProfileComplete,
 } from '@/lib/customer-profile-complete'
+import { LegalContent } from '@/components/legal-content'
+import { resolveBetreuungsvertragLegal } from '@/lib/betreuungsvertrag'
+import { buildBetreuungsvertragPdf } from '@/lib/betreuungsvertrag-pdf'
 
 function ProfileContent() {
   const searchParams = useSearchParams()
@@ -95,6 +98,10 @@ function ProfileContent() {
   const [isPolling, setIsPolling] = useState(false)
   const [fotoVideoConsent, setFotoVideoConsent] = useState(false)
   const [dataConsent, setDataConsent] = useState(false)
+  const [contractLegal, setContractLegal] = useState<{ title: string; content: string } | null>(
+    null
+  )
+  const [contractLegalLoading, setContractLegalLoading] = useState(false)
   const desktopCanvasRef = useRef<HTMLCanvasElement>(null)
   const [showPetForm, setShowPetForm] = useState(false)
   const [editingPetId, setEditingPetId] = useState<string | null>(null)
@@ -120,6 +127,31 @@ function ProfileContent() {
       loadPets()
     }
   }, [step, customer])
+
+  useEffect(() => {
+    if (step !== 3) return
+    let cancelled = false
+    async function loadContractLegal() {
+      setContractLegalLoading(true)
+      try {
+        const response = await fetch('/api/cms?key=agb')
+        const json = await response.json().catch(() => ({}))
+        const resolved = resolveBetreuungsvertragLegal(json.data ?? null)
+        if (!cancelled) setContractLegal(resolved)
+      } catch (error) {
+        console.error('Error loading contract legal content:', error)
+        if (!cancelled) {
+          setContractLegal(resolveBetreuungsvertragLegal(null))
+        }
+      } finally {
+        if (!cancelled) setContractLegalLoading(false)
+      }
+    }
+    void loadContractLegal()
+    return () => {
+      cancelled = true
+    }
+  }, [step])
 
   useEffect(() => {
     if (loading || step !== 3) return
@@ -486,383 +518,20 @@ function ProfileContent() {
         return
       }
 
-      // 1. PDF generieren
-      const { jsPDF } = await import('jspdf')
-      const doc = new jsPDF()
-
-      // Hilfsfunktion für Seitenhintergrund & Ränder
-      const drawHeaderFooter = (pageNumber: number) => {
-        doc.setFont('Helvetica', 'normal')
-        doc.setFontSize(8)
-        doc.setTextColor(120, 120, 120)
-        doc.text('© tierischgutbetreut GmbH 2026', 20, 285)
-        doc.text(`Seite ${pageNumber}`, 180, 285)
-        doc.setTextColor(0, 0, 0)
+      // 1. PDF generieren (Vertragstext = CMS `/agb`, ergänzt um Vertragsparteien & Unterschrift)
+      if (!contractLegal) {
+        throw new Error('Vertragstext konnte nicht geladen werden. Bitte Seite neu laden.')
       }
 
-      // --- SEITE 1: STAMMDATEN & VERTRAGSPARTNER ---
-      doc.setFont('Helvetica', 'bold')
-      doc.setFontSize(22)
-      doc.text('BETREUUNGSVERTRAG', 20, 25)
-      doc.setFontSize(14)
-      doc.text('für den Hundeurlaub in der Pension', 20, 33)
-      doc.setFont('Helvetica', 'bold')
-      doc.setFontSize(10)
-      doc.text('tierisch gut betreut Gesellschaft mit beschränkter Haftung', 20, 42)
-      doc.setFont('Helvetica', 'normal')
-      doc.text('Tamara Pfaff & Gabriel Haaga, Iznangerstr. 32, 78345 Moos', 20, 47)
-      doc.line(20, 50, 190, 50)
-
-      // Auftraggeber
-      doc.setFont('Helvetica', 'bold')
-      doc.setFontSize(12)
-      doc.text('Auftraggeber (Tierhalter):', 20, 60)
-      doc.setFont('Helvetica', 'normal')
-      doc.setFontSize(10)
-      doc.text(`Name: ${pdfPersonal.vorname || ''} ${pdfPersonal.nachname || ''}`, 20, 67)
-      doc.text(
-        `Anschrift: ${pdfPersonal.strasse || ''} ${pdfPersonal.hausnummer || ''}, ${pdfPersonal.plz || ''} ${pdfPersonal.ort || ''}`,
-        20,
-        74
-      )
-      doc.text(`Telefon: ${pdfPersonal.telefonnummer || ''}`, 20, 81)
-      doc.text(`E-Mail: ${pdfPersonal.email || ''}`, 20, 88)
-
-      // Betreute Hunde
-      doc.setFont('Helvetica', 'bold')
-      doc.setFontSize(12)
-      doc.text('Es soll(en) folgende(r) Hund(e) betreut werden:', 20, 100)
-      
-      let yOffset = 108
-      pets.forEach((pet, index) => {
-        if (yOffset > 240) {
-          drawHeaderFooter(1)
-          doc.addPage()
-          yOffset = 20
-        }
-        
-        doc.setFont('Helvetica', 'bold')
-        doc.setFontSize(11)
-        doc.text(`Hund ${index + 1}: ${pet.name}`, 20, yOffset)
-        doc.setFont('Helvetica', 'normal')
-        doc.setFontSize(9)
-        yOffset += 6
-        
-        doc.text(`Tierart: ${pet.tierart || '-'} | Rasse: ${pet.rasse || '-'} | Farbe: ${pet.farbe || '-'} | Geb.-Datum: ${pet.geburtsdatum ? new Date(pet.geburtsdatum).toLocaleDateString('de-DE') : '-'}`, 20, yOffset)
-        yOffset += 5
-        doc.text(`Geschlecht: ${pet.geschlecht || '-'} | Kastriert: ${pet.kastriert ? 'Ja' : 'Nein'} | Ableinbar: ${pet.ableinbar || '-'}`, 20, yOffset)
-        yOffset += 5
-        doc.text(`Chip-Nr: ${pet.chip_nummer || '-'} | Fütterung: ${pet.fütterungszeiten || '-'} | Menge: ${pet.futtermenge || '-'}`, 20, yOffset)
-        yOffset += 5
-        
-        const details = `Besonderheiten / Medikamente / Unverträglichkeiten: ${pet.besonderheiten || pet.medikamente || 'Keine'}`
-        const splitDetails = doc.splitTextToSize(details, 170)
-        splitDetails.forEach((line: string) => {
-          doc.text(line, 20, yOffset)
-          yOffset += 5
-        })
-        yOffset += 4
+      const pdfBlob = await buildBetreuungsvertragPdf({
+        title: contractLegal.title,
+        contractHtml: contractLegal.content,
+        party: pdfPersonal,
+        pets,
+        fotoVideoConsent,
+        signatureDataUrl: signatureImage,
+        signedAt: new Date(),
       })
-
-      // Notfallkontakt & Verpflichtung auf Seite 1
-      if (yOffset > 240) {
-        drawHeaderFooter(1)
-        doc.addPage()
-        yOffset = 20
-      }
-
-      doc.setFont('Helvetica', 'bold')
-      doc.setFontSize(11)
-      doc.text('Im Notfall zu verständigen (Vertrauensperson):', 20, yOffset)
-      doc.setFont('Helvetica', 'normal')
-      doc.setFontSize(9)
-      yOffset += 6
-      doc.text(`Name: ${pdfPersonal.notfall_kontakt_name || '-'} | Telefonnummer: ${pdfPersonal.notfallnummer || '-'}`, 20, yOffset)
-      
-      yOffset += 12
-      doc.setFont('Helvetica', 'bold')
-      const complianceText = 'Der Hundehalter verpflichtet sich dazu, uns darüber zu informieren, wenn sich zwischen 2 Betreuungen etwas an den o.g. Angaben ändert. Die Änderung greift ab der darauffolgenden Betreuung.'
-      const splitCompliance = doc.splitTextToSize(complianceText, 170)
-      splitCompliance.forEach((line: string) => {
-        doc.text(line, 20, yOffset)
-        yOffset += 5
-      })
-
-      drawHeaderFooter(1)
-
-      // --- SEITE 2: ZUSICHERUNGEN & PFLICHTEN ---
-      doc.addPage()
-      doc.setFont('Helvetica', 'bold')
-      doc.setFontSize(14)
-      doc.text('Zusicherungen und Pflichten beider Parteien', 20, 25)
-      
-      doc.setFont('Helvetica', 'bold')
-      doc.setFontSize(10)
-      doc.text('(1) Der Tierbesitzer sichert zu, dass', 20, 35)
-      
-      doc.setFont('Helvetica', 'normal')
-      doc.setFontSize(9)
-      let textY = 42
-      const assurances = [
-        '• der Hund sein Eigentum ist und er über diesen frei verfügen kann.',
-        '• der Hund stubenrein ist, nicht inkontinent ist oder in geschlossenen Räumen markiert.',
-        '• das Tier über eine gültige Impfung gegen Hepatitis, Parvovirose, Leptospirose, Staupe und Zwingerhusten verfügt. Der Impfpass wird vor jedem Aufenthalt zur Durchsicht digital im Kundenportal hochgeladen.',
-        '• der Hund wurmfrei ist (Entwurmung oder Kot-Test) und frei von ansteckenden Krankheiten und Ungeziefer ist, wobei die letzte Entwurmung/Kotuntersuchung nicht länger als drei Monate zurückliegt.',
-        '• Mittel zur Floh- und Zeckenprophylaxe vorher verabreicht wurden und noch Schutz besteht.',
-        '• der Hund gesund ist. Falls Krankheiten/Gebrechen bekannt sind, sind diese im Kundenprofil aufgeführt.',
-        '• eine ordentliche Tierhalter-Haftpflichtversicherung besteht und die Folgeprämien bezahlt sind, sodass ein aktueller Versicherungsschutz besteht (Nachweis auf Wunsch vorzulegen).',
-        '• der Hund steuerlich gemeldet ist.',
-        '• alle Angaben vollständig und wahrheitsgetreu gemacht wurden. Der Tierhalter verpflichtet sich, etwaige Änderungen unverzüglich mitzuteilen.'
-      ]
-
-      assurances.forEach(item => {
-        const splitItem = doc.splitTextToSize(item, 170)
-        splitItem.forEach((line: string) => {
-          doc.text(line, 20, textY)
-          textY += 5
-        })
-        textY += 2
-      })
-
-      textY += 4
-      doc.setFont('Helvetica', 'bold')
-      doc.text('(2)', 20, textY)
-      doc.setFont('Helvetica', 'normal')
-      const para2 = 'Je nach Schwere der Erkrankung des Hundes ist tierisch gut betreut Gesellschaft mit beschränkter Haftung berechtigt, sowohl am Abgabetag als auch bei nachträglicher Feststellung sofort vom Vertrag zurückzutreten bzw. das Tier in tierärztliche Betreuung zu geben. Hier ist auf das Wohl des Tieres von beiden Vertragsparteien zu achten. Eventuell anfallende Mehrkosten sind vom Tierbesitzer zu tragen.'
-      const splitPara2 = doc.splitTextToSize(para2, 160)
-      splitPara2.forEach((line: string) => {
-        doc.text(line, 27, textY)
-        textY += 5
-      })
-
-      textY += 2
-      doc.setFont('Helvetica', 'bold')
-      doc.text('(3)', 20, textY)
-      doc.setFont('Helvetica', 'normal')
-      const para3 = 'Der Tierbesitzer haftet für anfallende Kosten, falls durch eine polizeiliche Kontrolle der Hund nicht oder unzureichend gekennzeichnet (Chip/Tattoo) ist.'
-      const splitPara3 = doc.splitTextToSize(para3, 160)
-      splitPara3.forEach((line: string) => {
-        doc.text(line, 27, textY)
-        textY += 5
-      })
-
-      textY += 2
-      doc.setFont('Helvetica', 'bold')
-      doc.text('(4)', 20, textY)
-      doc.setFont('Helvetica', 'normal')
-      const para4 = 'tierisch gut betreut Gesellschaft mit beschränkter Haftung verpflichtet sich, das Tier art- und verhaltensgerecht laut Tierschutzgesetz, sowie dessen Nebenbestimmungen zu betreuen.'
-      const splitPara4 = doc.splitTextToSize(para4, 160)
-      splitPara4.forEach((line: string) => {
-        doc.text(line, 27, textY)
-        textY += 5
-      })
-
-      drawHeaderFooter(2)
-
-      // --- SEITE 3: VERTRAULICHKEIT & HAFTUNG ---
-      doc.addPage()
-      doc.setFont('Helvetica', 'bold')
-      doc.setFontSize(14)
-      doc.text('Vertraulichkeit und Sorgfalt beider Parteien', 20, 25)
-      
-      doc.setFont('Helvetica', 'normal')
-      doc.setFontSize(9)
-      textY = 35
-
-      const sectionsPage3 = [
-        { num: '(1)', text: 'tierisch gut betreut Gesellschaft mit beschränkter Haftung verpflichtet sich, über alle ihr im Rahmen ihrer Tätigkeit für den Tierbesitzer auf Grundlage dieses Vertrages bekannt gewordenen Informationen auch nach Ablauf der Vertragsdauer Stillschweigen zu bewahren. Gleiches gilt umgekehrt.' },
-        { num: '(2)', text: 'tierisch gut betreut Gesellschaft mit beschränkter Haftung verpflichtet sich auch, die anvertrauten Tiere nur mit größter Sorgfalt zu behandeln.' },
-        { num: '(3)', text: 'Der Tierbesitzer erklärt sich mit der Aufnahme und (elektronischen) Speicherung der in diesem Vertrag und ggf. in der Zusatzvereinbarung erhobenen Daten einverstanden. Die Daten dürfen im Rahmen der Vertragsabwicklung bspw. im Krankheitsfall an den Tierarzt weitergegeben werden.' }
-      ]
-
-      sectionsPage3.forEach(sec => {
-        doc.setFont('Helvetica', 'bold')
-        doc.text(sec.num, 20, textY)
-        doc.setFont('Helvetica', 'normal')
-        const splitText = doc.splitTextToSize(sec.text, 160)
-        splitText.forEach((line: string) => {
-          doc.text(line, 27, textY)
-          textY += 5
-        })
-        textY += 3
-      })
-
-      textY += 4
-      doc.setFont('Helvetica', 'bold')
-      doc.setFontSize(14)
-      doc.text('Haftung beider Parteien', 20, textY)
-      textY += 10
-      doc.setFontSize(9)
-
-      const liabilitySections = [
-        { num: '(1)', text: 'tierisch gut betreut Gesellschaft mit beschränkter Haftung bestätigt, dass eine Betriebshaftpflichtversicherung besteht.' },
-        { num: '(2)', text: 'tierisch gut betreut Gesellschaft mit beschränkter Haftung haftet für Sachschäden und Schäden an den in Obhut gegebenen Hunden nur soweit, als diese Schäden auf Vorsatz oder grob fahrlässiges Handeln der Betreuungsperson oder deren Erfüllungsgehilfen zurückzuführen sind.' },
-        { num: '(3)', text: 'tierisch gut betreut Gesellschaft mit beschränkter Haftung haftet nicht für durch die Tiere verursachte Schäden oder Kosten. Sie ist von sämtlichen mit dem Betreuungstier in Verbindung stehenden Ansprüchen Dritter seitens des Tierbesitzers freizustellen. Trotz größter Sorgfalt kann das Risiko eines Entlaufens oder Erkrankung nicht gänzlich ausgeschlossen werden. Eine Haftung seitens tierisch gut betreut Gesellschaft mit beschränkter Haftung besteht jedoch nicht.' },
-        { num: '(4)', text: 'Für Schäden, welche ein Hund verursacht, die nicht oder nicht ausreichend durch die Hundehaftpflichtversicherung oder private Haftpflichtversicherung abgedeckt sind, haftet allein der Tierbesitzer.' }
-      ]
-
-      liabilitySections.forEach(sec => {
-        doc.setFont('Helvetica', 'bold')
-        doc.text(sec.num, 20, textY)
-        doc.setFont('Helvetica', 'normal')
-        const splitText = doc.splitTextToSize(sec.text, 160)
-        splitText.forEach((line: string) => {
-          doc.text(line, 27, textY)
-          textY += 5
-        })
-        textY += 3
-      })
-
-      textY += 4
-      doc.setFont('Helvetica', 'bold')
-      doc.setFontSize(14)
-      doc.text('Information', 20, textY)
-      textY += 10
-      doc.setFontSize(9)
-
-      const infoSections = [
-        { num: '(1)', text: 'tierisch gut betreut Gesellschaft mit beschränkter Haftung verpflichtet sich, bei Auftreten von schwerwiegenden Problemen (plötzliche Krankheit des Tieres, auffällige Verhaltensänderung, etc.) den Tierbesitzer oder dessen Kontaktperson umgehend zu benachrichtigen.' },
-        { num: '(2)', text: 'Der Tierbesitzer hat das Recht, sich während der Betreuungszeit bei der Betreuungsperson nach dem Wohl des Tieres zu erkundigen. tierisch gut betreut Gesellschaft mit beschränkter Haftung verpflichtet sich, wahrheitsgemäße Aussagen hierüber zu machen.' }
-      ]
-
-      infoSections.forEach(sec => {
-        doc.setFont('Helvetica', 'bold')
-        doc.text(sec.num, 20, textY)
-        doc.setFont('Helvetica', 'normal')
-        const splitText = doc.splitTextToSize(sec.text, 160)
-        splitText.forEach((line: string) => {
-          doc.text(line, 27, textY)
-          textY += 5
-        })
-        textY += 3
-      })
-
-      drawHeaderFooter(3)
-
-      // --- SEITE 4: NOTFALL & STORNIERUNG ---
-      doc.addPage()
-      doc.setFont('Helvetica', 'normal')
-      doc.setFontSize(9)
-      textY = 25
-
-      doc.setFont('Helvetica', 'bold')
-      doc.text('(3)', 20, textY)
-      doc.setFont('Helvetica', 'normal')
-      const page4Para3 = 'Der Tierbesitzer hat eine Vertrauensperson zu benennen, welche tierisch gut betreut Gesellschaft mit beschränkter Haftung kontaktieren kann falls eine Situation eintritt, welche schnelles Handeln erfordert und der Tierbesitzer nicht erreichbar ist.'
-      const splitPage4Para3 = doc.splitTextToSize(page4Para3, 160)
-      splitPage4Para3.forEach((line: string) => {
-        doc.text(line, 27, textY)
-        textY += 5
-      })
-
-      textY += 6
-      doc.setFont('Helvetica', 'bold')
-      doc.setFontSize(14)
-      doc.text('Notfall', 20, textY)
-      textY += 10
-      doc.setFontSize(9)
-
-      const emergencySections = [
-        { num: '(1)', text: 'Der Tierhalter erklärt sich damit einverstanden, dass in Notfällen und bei akuten Erkrankungen oder Verletzungen die erforderliche Behandlung bei einem Tierarzt erfolgt, der von tierisch gut betreut Gesellschaft mit beschränkter Haftung bestimmt wird. Für diesen Fall ist tierisch gut betreut Gesellschaft mit beschränkter Haftung ausdrücklich ermächtigt, im Namen und auf Rechnung des Kunden eine Tierarztpraxis/-klinik mit der tierärztlichen Versorgung und Behandlung des Tieres zu beauftragen. Die Kosten übernimmt der Tierhalter.' },
-        { num: '(2)', text: 'Die Kostenübernahme seitens des Halters gilt auch für einen nötigen Transport mit der Tierrettung Südbaden e.V.' },
-        { num: '(3)', text: 'Im Falle einer tierärztlichen Behandlung übernimmt die entscheidungsermächtigte Person die Bezahlung der Tierarztkosten, sollte dieser nicht auf Rechnung arbeiten.' }
-      ]
-
-      emergencySections.forEach(sec => {
-        doc.setFont('Helvetica', 'bold')
-        doc.text(sec.num, 20, textY)
-        doc.setFont('Helvetica', 'normal')
-        const splitText = doc.splitTextToSize(sec.text, 160)
-        splitText.forEach((line: string) => {
-          doc.text(line, 27, textY)
-          textY += 5
-        })
-        textY += 3
-      })
-
-      textY += 6
-      doc.setFont('Helvetica', 'bold')
-      doc.setFontSize(14)
-      doc.text('STORNIERUNG', 20, textY)
-      textY += 10
-      doc.setFontSize(9)
-
-      const cancellationTexts = [
-        '• 15 Tage und mehr vor Check-In: 100% Rückerstattung (kostenlos)',
-        '• 14 - 7 Tage vor Check-In: 50% Rückerstattung / Stornogebühr',
-        '• 6 Tage und weniger vor Check-In: keine Rückerstattung (100% der Buchungssumme)',
-        '',
-        'Absagen werden jeweils bis 18h berücksichtigt - auch dann, wenn sie an einem Sonn-/Feiertag oder in unserem Urlaub getätigt werden. Die Stornierung muss grundsätzlich in schriftlicher Form per Mail oder WhatsApp erfolgen.',
-        'Bei frühzeitiger Abholung gibt es keine Rückerstattung der gebuchten Tage. Dies gilt auch, wenn ein Hund später als zum vereinbarten Datum in Betreuung gebracht wird.'
-      ]
-
-      cancellationTexts.forEach(line => {
-        if (!line) {
-          textY += 3
-          return
-        }
-        const splitText = doc.splitTextToSize(line, 170)
-        splitText.forEach((lineText: string) => {
-          doc.text(lineText, 20, textY)
-          textY += 5
-        })
-      })
-
-      drawHeaderFooter(4)
-
-      // --- SEITE 5: DATENSCHUTZ & UNTERSCHRIFT ---
-      doc.addPage()
-      doc.setFont('Helvetica', 'bold')
-      doc.setFontSize(14)
-      doc.text('Datenschutz', 20, 25)
-      doc.setFontSize(11)
-      doc.text('Nutzung personenbezogener Daten, Fotos und Videos', 20, 33)
-      
-      doc.setFont('Helvetica', 'normal')
-      doc.setFontSize(9)
-      doc.text('Der Tierbesitzer ist damit einverstanden,', 20, 42)
-      textY = 50
-      doc.setFontSize(9)
-
-      const privacySections = [
-        { num: '(1)', text: 'dass tierisch gut betreut Gesellschaft mit beschränkter Haftung personenbezogene Daten speichern und verarbeiten darf. Die Daten dürfen nicht an dritte Personen weitergegeben werden, und sind auf Aufforderung unverzüglich zu löschen.' },
-        { num: '(2)', text: `dass Fotos und Videos von dem betreuten Tier/den betreuten Tieren in die Homepage, etc. von tierisch gut betreut Gesellschaft mit beschränkter Haftung eingestellt werden dürfen. Der Tierbesitzer bleibt hierbei anonym und es wird ausschließlich der Name des Tieres, Tierart, Rasse sowie Datum/Zeitraum veröffentlicht. \nStatus der Einwilligung: ${fotoVideoConsent ? 'JA, erteilt.' : 'NEIN, widersprochen.'}` }
-      ]
-
-      privacySections.forEach(sec => {
-        doc.setFont('Helvetica', 'bold')
-        doc.text(sec.num, 20, textY)
-        doc.setFont('Helvetica', 'normal')
-        const splitText = doc.splitTextToSize(sec.text, 160)
-        splitText.forEach((line: string) => {
-          doc.text(line, 27, textY)
-          textY += 5
-        })
-        textY += 3
-      })
-
-      textY += 15
-      doc.setFont('Helvetica', 'bold')
-      doc.setFontSize(11)
-      doc.text('Unterschrift des Tierbesitzers (digital geleistet):', 20, textY)
-      textY += 6
-
-      // Füge das Unterschriftsbild ein (komprimiert, um PDF-Größe gering zu halten)
-      const { compressSignatureForPdf } = await import('@/lib/signature-image')
-      const compressedSignature = await compressSignatureForPdf(signatureImage)
-      const signatureFormat = compressedSignature.startsWith('data:image/jpeg') ? 'JPEG' : 'PNG'
-      doc.addImage(compressedSignature, signatureFormat, 20, textY, 60, 25)
-      
-      textY += 33
-      doc.setFont('Helvetica', 'normal')
-      doc.setFontSize(10)
-      doc.text(`Datum: ${new Date().toLocaleDateString('de-DE')}`, 20, textY)
-      doc.text('Ort: Moos', 100, textY)
-
-      drawHeaderFooter(5)
-
-      // 2. In File konvertieren
-      const pdfBlob = doc.output('blob')
       const pdfFile = new File([pdfBlob], 'Betreuungsvertrag.pdf', { type: 'application/pdf' })
 
       // 3. In Storage hochladen & Dokumenteintrag erstellen
@@ -2021,9 +1690,13 @@ function ProfileContent() {
         <div className="space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle>BETREUUNGSVERTRAG für den Hundeurlaub in der Pension</CardTitle>
+              <CardTitle>{contractLegal?.title ?? 'Betreuungsvertrag'}</CardTitle>
               <CardDescription>
-                Bitte lies den Vertrag aufmerksam durch. Du kannst direkt hier unterschreiben oder den QR-Code nutzen, um bequem auf deinem Smartphone zu signieren.
+                Bitte lies den Vertrag aufmerksam durch (gleicher Text wie unter{' '}
+                <a href="/agb" target="_blank" rel="noopener noreferrer" className="text-sage-700 underline">
+                  /agb
+                </a>
+                ). Du kannst direkt hier unterschreiben oder den QR-Code nutzen, um bequem auf deinem Smartphone zu signieren.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
@@ -2043,36 +1716,23 @@ function ProfileContent() {
                   <span className="font-medium">E-Mail:</span> {personalData.email || '—'}
                 </p>
               </div>
-              {/* Vertragstext Box */}
-              <div className="border rounded-lg p-4 bg-sage-50 text-sm text-sage-800 space-y-4">
-                <h3 className="font-bold text-base border-b pb-2">Zusicherungen und Pflichten beider Parteien</h3>
-                <p>
-                  <strong>(1) Der Tierbesitzer sichert zu, dass:</strong>
-                  <br />
-                  - der Hund sein Eigentum ist und er über diesen frei verfügen kann.
-                  <br />
-                  - der Hund stubenrein ist, nicht inkontinent ist oder in geschlossenen Räumen markiert.
-                  <br />
-                  - das Tier über eine gültige Impfung gegen Hepatitis, Parvovirose, Leptospirose, Staupe und Zwingerhusten verfügt. Der Impfpass wird vor jedem Aufenthalt zur Durchsicht an tierisch gut betreut Gesellschaft mit beschränkter Haftung per Mail zugesandt oder hochgeladen.
-                  <br />
-                  - der Hund wurmfrei ist (Entwurmung oder negativer Kot-Test nicht älter als drei Monate).
+              {contractLegalLoading ? (
+                <div className="flex justify-center py-12">
+                  <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-sage-600" />
+                </div>
+              ) : contractLegal ? (
+                <div className="border rounded-lg p-4 bg-sage-50 max-h-[min(60vh,640px)] overflow-y-auto">
+                  <LegalContent html={contractLegal.content} className="text-sm" />
+                </div>
+              ) : (
+                <p className="text-sm text-red-600">
+                  Vertragstext konnte nicht geladen werden. Bitte lade die Seite neu oder öffne{' '}
+                  <a href="/agb" className="underline">
+                    /agb
+                  </a>
+                  .
                 </p>
-                <p>
-                  <strong>(2) Erkrankungen & Tierarzt:</strong>
-                  <br />
-                  Je nach Schwere der Erkrankung ist tierisch gut betreut Gesellschaft mit beschränkter Haftung berechtigt, vom Vertrag zurückzutreten oder das Tier in tierärztliche Betreuung zu geben. Die anfallenden Kosten werden vom Tierbesitzer getragen.
-                </p>
-                <p>
-                  <strong>(3) Haftung:</strong>
-                  <br />
-                  tierisch gut betreut Gesellschaft mit beschränkter Haftung haftet für Sachschäden und Schäden an den Hunden nur bei Vorsatz oder grober Fahrlässigkeit. Für Schäden, die der Hund verursacht, haftet allein der Tierbesitzer.
-                </p>
-                <p>
-                  <strong>(4) Notfall-Vollmacht:</strong>
-                  <br />
-                  Der Tierhalter erklärt sich einverstanden, dass in Notfällen die erforderliche Behandlung bei einem Tierarzt oder in einer Tierklinik erfolgt. Die Kosten übernimmt der Tierhalter.
-                </p>
-              </div>
+              )}
 
               {/* Einverständniserklärungen */}
               <div className="space-y-4 pt-4 border-t">
@@ -2209,7 +1869,9 @@ function ProfileContent() {
                 </Button>
                 <Button
                   onClick={handleFinishOnboarding}
-                  disabled={saving || !dataConsent || !signatureImage}
+                  disabled={
+                    saving || !dataConsent || !signatureImage || !contractLegal || contractLegalLoading
+                  }
                   className="flex-1 bg-sage-600 hover:bg-sage-700 text-lg py-6 text-white"
                 >
                   {saving ? 'Vertrag wird übermittelt...' : '✓ Vertrag unterzeichnen & Onboarding abschließen'}

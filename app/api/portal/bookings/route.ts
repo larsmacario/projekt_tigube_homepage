@@ -19,8 +19,38 @@ import { randomUUID } from 'crypto'
 import { buildBookingRequestEmailContent } from '@/lib/booking-request-email'
 import { sendBookingRequestEmails } from '@/lib/email'
 import { isValidTimeHHmm } from '@/lib/pickup-time-surcharge'
+import type { SupabaseClient } from '@supabase/supabase-js'
 
 export const runtime = 'nodejs'
+
+async function enrichBookingsWithRequestGroups(
+  supabase: SupabaseClient,
+  bookings: Array<{ request_group_id?: string | null }>
+) {
+  const groupIds = [
+    ...new Set(bookings.map((b) => b.request_group_id).filter(Boolean)),
+  ] as string[]
+
+  let groupById = new Map<
+    string,
+    { id: string; customer_id: string; drop_off_time: string | null; pick_up_time: string | null; created_at: string }
+  >()
+
+  if (groupIds.length > 0) {
+    const { data: groups } = await supabase
+      .from('booking_request_groups')
+      .select('id, customer_id, drop_off_time, pick_up_time, created_at')
+      .in('id', groupIds)
+    if (groups) {
+      groupById = new Map(groups.map((g) => [g.id, g]))
+    }
+  }
+
+  return bookings.map((b) => ({
+    ...b,
+    request_group: b.request_group_id ? groupById.get(b.request_group_id) ?? null : null,
+  }))
+}
 
 async function notifyBookingRequestByEmail(
   customer: { email: string; vorname: string | null; nachname: string },
@@ -147,10 +177,12 @@ export async function GET(request: NextRequest) {
         throw basicError
       }
 
-      return NextResponse.json({ bookings: basicBookings || [] })
+      const bookings = basicBookings || []
+      return NextResponse.json({ bookings: await enrichBookingsWithRequestGroups(supabase, bookings) })
     }
 
-    return NextResponse.json({ bookings: data || [] })
+    const bookings = data || []
+    return NextResponse.json({ bookings: await enrichBookingsWithRequestGroups(supabase, bookings) })
   } catch (error: any) {
     console.error('Error fetching bookings:', error)
     return NextResponse.json(
@@ -248,17 +280,21 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: lineValidation.error }, { status: 400 })
       }
 
-      const needsHundPickupTimes =
-        Boolean(groupRange) && petLines.some((l) => l.service_type === 'hundepension')
+      const needsPickupTimes =
+        (Boolean(groupRange) && petLines.some((l) => l.service_type === 'hundepension')) ||
+        petLines.some((l) => l.service_type === 'tagesbetreuung')
 
-      if (needsHundPickupTimes) {
+      if (needsPickupTimes) {
         const dropOff =
           typeof dropOffTimePayload === 'string' ? dropOffTimePayload.trim() : ''
         const pickUp =
           typeof pickUpTimePayload === 'string' ? pickUpTimePayload.trim() : ''
         if (!dropOff || !pickUp) {
           return NextResponse.json(
-            { error: 'Bring- und Holzeiten sind für die Urlaubsbetreuung erforderlich.' },
+            {
+              error:
+                'Bring- und Holzeiten sind für Hundepension und Tagesbetreuung erforderlich.',
+            },
             { status: 400 }
           )
         }
@@ -358,14 +394,14 @@ export async function POST(request: NextRequest) {
       const allowedPetIds = new Set(petLines.map((line) => line.pet_id))
 
       const pickupTimesForEmail =
-        needsHundPickupTimes && typeof dropOffTimePayload === 'string' && typeof pickUpTimePayload === 'string'
+        needsPickupTimes && typeof dropOffTimePayload === 'string' && typeof pickUpTimePayload === 'string'
           ? {
               drop_off_time: dropOffTimePayload.trim(),
               pick_up_time: pickUpTimePayload.trim(),
             }
           : null
 
-      if (needsHundPickupTimes && pickupTimesForEmail) {
+      if (needsPickupTimes && pickupTimesForEmail) {
         const adminClient = getAdminDbClient()
         const { error: groupError } = await adminClient.from('booking_request_groups').insert({
           id: requestGroupId,

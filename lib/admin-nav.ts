@@ -22,7 +22,7 @@ export const adminNavItems: NavItem[] = [
   { label: "NewsBar", href: "/admin/newsbar", icon: Megaphone },
   { label: "Eigenschaften", href: "/admin/properties", icon: List },
   { label: "Preise", href: "/admin/prices", icon: Euro },
-  { label: "Buchungen", href: "/admin/bookings", icon: Calendar },
+  { label: "Buchungen", href: "/admin/bookings", icon: Calendar, badgeKey: "pendingBookings" },
   { label: "E-Mails", href: "/admin/newsletter", icon: Mail },
   { label: "CMS", href: "/admin/cms", icon: FileText },
   { label: "Einstellungen", href: "/admin/einstellungen", icon: Settings },

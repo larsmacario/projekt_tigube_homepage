@@ -66,6 +66,71 @@ const STEPS = [
   { id: 4, label: 'Übersicht & Kosten' },
 ] as const
 
+function PickupTimesFields({
+  dropOffTime,
+  pickUpTime,
+  onDropOffChange,
+  onPickUpChange,
+  compact = false,
+}: {
+  dropOffTime: string
+  pickUpTime: string
+  onDropOffChange: (value: string) => void
+  onPickUpChange: (value: string) => void
+  compact?: boolean
+}) {
+  const hint = (
+    <p className="text-sm text-sage-600">
+      Wann möchtest du deinen Hund bringen und wieder abholen? Standardzeiten findest du im
+      Kundenportal unter „Bring- und Holzeiten“. Bei Tagesbetreuung gilt: erster bzw. letzter
+      Betreuungstag.
+    </p>
+  )
+
+  const fields = (
+    <>
+      <div className="space-y-1">
+        <Label htmlFor="drop-off-time">Bringen (am ersten Tag)</Label>
+        <Input
+          id="drop-off-time"
+          type="time"
+          value={dropOffTime}
+          onChange={(e) => onDropOffChange(e.target.value)}
+          className="bg-white"
+          required
+        />
+      </div>
+      <div className="space-y-1">
+        <Label htmlFor="pick-up-time">Abholen (am letzten Tag)</Label>
+        <Input
+          id="pick-up-time"
+          type="time"
+          value={pickUpTime}
+          onChange={(e) => onPickUpChange(e.target.value)}
+          className="bg-white"
+          required
+        />
+      </div>
+    </>
+  )
+
+  if (compact) {
+    return (
+      <div className="space-y-4">
+        {hint}
+        {fields}
+      </div>
+    )
+  }
+
+  return (
+    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+      <div className="md:col-span-2">{hint}</div>
+      {fields}
+    </div>
+  )
+}
+
 export interface PetServiceLine {
   pet_id: string
   service_type: ServiceType | ''
@@ -139,6 +204,13 @@ export function PortalBookingWizard({
   const hundepensionRange = useMemo(
     () => resolvedPetLines.some((l) => l.service_type === 'hundepension'),
     [resolvedPetLines]
+  )
+
+  const needsPickupTimes = useMemo(
+    () =>
+      hundepensionRange ||
+      resolvedPetLines.some((l) => l.service_type === 'tagesbetreuung'),
+    [resolvedPetLines, hundepensionRange]
   )
 
   const dayCareOnceLines = useMemo(
@@ -400,24 +472,6 @@ export function PortalBookingWizard({
         })
         return false
       }
-      if (hundepensionRange) {
-        if (!dropOffTime.trim() || !pickUpTime.trim()) {
-          toast({
-            title: 'Fehler',
-            description: 'Bitte gib Bring- und Holzeiten für die Urlaubsbetreuung an.',
-            variant: 'destructive',
-          })
-          return false
-        }
-        if (!isValidTimeHHmm(dropOffTime) || !isValidTimeHHmm(pickUpTime)) {
-          toast({
-            title: 'Fehler',
-            description: 'Bring- und Holzeiten müssen im Format HH:MM sein.',
-            variant: 'destructive',
-          })
-          return false
-        }
-      }
     }
 
     for (const line of dayCareOnceLines) {
@@ -481,6 +535,26 @@ export function PortalBookingWizard({
         variant: 'destructive',
       })
       return false
+    }
+
+    if (needsPickupTimes) {
+      if (!dropOffTime.trim() || !pickUpTime.trim()) {
+        toast({
+          title: 'Fehler',
+          description:
+            'Bitte gib Bring- und Holzeiten für Hundepension oder Tagesbetreuung an.',
+          variant: 'destructive',
+        })
+        return false
+      }
+      if (!isValidTimeHHmm(dropOffTime) || !isValidTimeHHmm(pickUpTime)) {
+        toast({
+          title: 'Fehler',
+          description: 'Bring- und Holzeiten müssen im Format HH:MM sein.',
+          variant: 'destructive',
+        })
+        return false
+      }
     }
 
     return true
@@ -568,8 +642,8 @@ export function PortalBookingWizard({
           message: message || null,
           pets: petsPayload,
           extras,
-          drop_off_time: hundepensionRange && dropOffTime ? dropOffTime : null,
-          pick_up_time: hundepensionRange && pickUpTime ? pickUpTime : null,
+          drop_off_time: needsPickupTimes && dropOffTime ? dropOffTime : null,
+          pick_up_time: needsPickupTimes && pickUpTime ? pickUpTime : null,
         }),
       })
 
@@ -830,54 +904,45 @@ export function PortalBookingWizard({
           {rangePetLines.length > 0 && (
             <div className="space-y-3">
               <Label>Zeitraum (Urlaubs- / Katzenbetreuung)</Label>
-              <div className="flex justify-center rounded-xl border border-sage-200/80 bg-sage-50/80 p-3">
-                <BookingRangeCalendar
-                  selected={dateRange}
-                  onSelect={handleRangeSelect}
-                  disabled={isDateUnavailable}
-                  vacationPeriods={availability.vacationPeriods}
-                  closedDates={availability.closedDates}
-                  publicHolidays={availability.publicHolidays}
-                  defaultMonth={calendarDefaultMonth}
-                  month={calendarMonth}
-                  onMonthChange={setCalendarMonth}
-                />
-              </div>
-              {dateRange?.from && (
-                <p className="text-muted-foreground text-center text-sm">
-                  {formatDateRangeDE(dateRange.from, dateRange.to ?? dateRange.from)}
-                </p>
-              )}
-              {hundepensionRange && (
-                <div className="grid gap-4 sm:grid-cols-2 rounded-lg border border-sage-200 bg-white p-4">
-                  <p className="sm:col-span-2 text-sm text-sage-600">
-                    Wann möchtest du deinen Hund bringen und wieder abholen? Standardzeiten findest
-                    du im Kundenportal unter „Bring- und Holzeiten“.
-                  </p>
-                  <div className="space-y-1">
-                    <Label htmlFor="drop-off-time">Bringen (am ersten Tag)</Label>
-                    <Input
-                      id="drop-off-time"
-                      type="time"
-                      value={dropOffTime}
-                      onChange={(e) => setDropOffTime(e.target.value)}
-                      className="bg-white"
-                      required
+              <div
+                className={
+                  needsPickupTimes
+                    ? 'flex flex-col gap-6 lg:flex-row lg:items-start'
+                    : undefined
+                }
+              >
+                <div className="min-w-0 flex-1 space-y-3">
+                  <div className="flex justify-center rounded-xl border border-sage-200/80 bg-sage-50/80 p-3">
+                    <BookingRangeCalendar
+                      selected={dateRange}
+                      onSelect={handleRangeSelect}
+                      disabled={isDateUnavailable}
+                      vacationPeriods={availability.vacationPeriods}
+                      closedDates={availability.closedDates}
+                      publicHolidays={availability.publicHolidays}
+                      defaultMonth={calendarDefaultMonth}
+                      month={calendarMonth}
+                      onMonthChange={setCalendarMonth}
                     />
                   </div>
-                  <div className="space-y-1">
-                    <Label htmlFor="pick-up-time">Abholen (am letzten Tag)</Label>
-                    <Input
-                      id="pick-up-time"
-                      type="time"
-                      value={pickUpTime}
-                      onChange={(e) => setPickUpTime(e.target.value)}
-                      className="bg-white"
-                      required
-                    />
-                  </div>
+                  {dateRange?.from && (
+                    <p className="text-muted-foreground text-center text-sm lg:text-left">
+                      {formatDateRangeDE(dateRange.from, dateRange.to ?? dateRange.from)}
+                    </p>
+                  )}
                 </div>
-              )}
+                {needsPickupTimes && (
+                  <div className="w-full shrink-0 rounded-lg border border-sage-200 bg-white p-4 lg:w-[min(100%,20rem)]">
+                    <PickupTimesFields
+                      dropOffTime={dropOffTime}
+                      pickUpTime={pickUpTime}
+                      onDropOffChange={setDropOffTime}
+                      onPickUpChange={setPickUpTime}
+                      compact
+                    />
+                  </div>
+                )}
+              </div>
             </div>
           )}
 
@@ -984,6 +1049,17 @@ export function PortalBookingWizard({
               </div>
             )
           })}
+
+          {needsPickupTimes && rangePetLines.length === 0 && (
+            <div className="rounded-lg border border-sage-200 bg-white p-4">
+              <PickupTimesFields
+                dropOffTime={dropOffTime}
+                pickUpTime={pickUpTime}
+                onDropOffChange={setDropOffTime}
+                onPickUpChange={setPickUpTime}
+              />
+            </div>
+          )}
 
           <div className="flex flex-wrap gap-3 text-xs text-sage-600">
             <span className="inline-flex items-center gap-1">

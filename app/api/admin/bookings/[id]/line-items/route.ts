@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerClient, getAdminDbClient } from '@/lib/admin-auth'
+import { loadBookingExtraCatalogForAdmin } from '@/lib/booking-extras-server'
+import { uniqueServiceTypesFromPetLines } from '@/lib/booking-extras'
+import type { ServiceType } from '@/lib/types'
 
 async function checkAdminAuth(supabase: any, accessToken: string | undefined) {
   if (!accessToken) {
@@ -66,6 +69,16 @@ async function getBookingGroupContext(bookingId: string) {
     .eq('request_group_id', groupKey)
     .order('created_at', { ascending: true })
 
+  let customerGroupId: string | null = null
+  if (booking.customer_id) {
+    const { data: contact } = await admin
+      .from('contacts')
+      .select('customer_group_id')
+      .eq('id', booking.customer_id)
+      .maybeSingle()
+    customerGroupId = contact?.customer_group_id ?? null
+  }
+
   return {
     error: null,
     status: 200,
@@ -73,14 +86,16 @@ async function getBookingGroupContext(bookingId: string) {
     requestGroupId: groupKey,
     siblings: siblings || [],
     lineItems: lineItems || [],
+    customerGroupId,
   }
 }
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params
     const { client: supabase, accessToken } = await getServerClient(request)
     const authResult = await checkAdminAuth(supabase, accessToken)
 
@@ -88,15 +103,32 @@ export async function GET(
       return NextResponse.json({ error: authResult.error }, { status: authResult.status })
     }
 
-    const ctx = await getBookingGroupContext(params.id)
+    const ctx = await getBookingGroupContext(id)
     if (ctx.error) {
       return NextResponse.json({ error: ctx.error }, { status: ctx.status })
     }
+
+    const admin = getAdminDbClient()
+    const serviceTypes = uniqueServiceTypesFromPetLines(
+      (ctx.siblings || []).map((s: { service_type: ServiceType }) => ({
+        service_type: s.service_type,
+      }))
+    )
+
+    const extra_catalog = ctx.booking!.customer_id
+      ? await loadBookingExtraCatalogForAdmin(
+          admin,
+          ctx.booking.customer_id,
+          ctx.customerGroupId,
+          serviceTypes
+        )
+      : { categories: [], prices: [] }
 
     return NextResponse.json({
       request_group_id: ctx.requestGroupId,
       siblings: ctx.siblings,
       line_items: ctx.lineItems,
+      extra_catalog,
     })
   } catch (error: any) {
     console.error('Error loading line items:', error)
@@ -109,9 +141,10 @@ export async function GET(
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params
     const { client: supabase, accessToken } = await getServerClient(request)
     const authResult = await checkAdminAuth(supabase, accessToken)
 
@@ -119,7 +152,7 @@ export async function POST(
       return NextResponse.json({ error: authResult.error }, { status: authResult.status })
     }
 
-    const ctx = await getBookingGroupContext(params.id)
+    const ctx = await getBookingGroupContext(id)
     if (ctx.error || !ctx.requestGroupId) {
       return NextResponse.json({ error: ctx.error }, { status: ctx.status })
     }
@@ -196,9 +229,10 @@ export async function POST(
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params
     const { client: supabase, accessToken } = await getServerClient(request)
     const authResult = await checkAdminAuth(supabase, accessToken)
 
@@ -213,7 +247,7 @@ export async function PATCH(
       return NextResponse.json({ error: 'line_item_id fehlt' }, { status: 400 })
     }
 
-    const ctx = await getBookingGroupContext(params.id)
+    const ctx = await getBookingGroupContext(id)
     if (ctx.error) {
       return NextResponse.json({ error: ctx.error }, { status: ctx.status })
     }
@@ -252,9 +286,10 @@ export async function PATCH(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params
     const { client: supabase, accessToken } = await getServerClient(request)
     const authResult = await checkAdminAuth(supabase, accessToken)
 
@@ -269,7 +304,7 @@ export async function DELETE(
       return NextResponse.json({ error: 'line_item_id fehlt' }, { status: 400 })
     }
 
-    const ctx = await getBookingGroupContext(params.id)
+    const ctx = await getBookingGroupContext(id)
     if (ctx.error) {
       return NextResponse.json({ error: ctx.error }, { status: ctx.status })
     }

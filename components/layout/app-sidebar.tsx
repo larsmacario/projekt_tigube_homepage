@@ -11,18 +11,20 @@ import {
   SidebarGroupContent,
   SidebarHeader,
   SidebarMenu,
+  SidebarMenuBadge,
   SidebarMenuButton,
   SidebarMenuItem,
   SidebarRail,
   SidebarSeparator,
   useSidebar,
 } from "@/components/ui/sidebar"
-import { isNavActive, type NavItem } from "@/lib/nav-types"
+import { isNavActive, type NavBadgeKey, type NavItem } from "@/lib/nav-types"
 
 type AppSidebarProps = {
   title: string
   homeHref: string
   items: NavItem[]
+  navBadgeValues?: Partial<Record<NavBadgeKey, number>>
   userEmail?: string | null
   onLogout: () => void
 }
@@ -31,6 +33,7 @@ export function AppSidebar({
   title,
   homeHref,
   items,
+  navBadgeValues,
   userEmail,
   onLogout,
 }: AppSidebarProps) {
@@ -69,6 +72,10 @@ export function AppSidebar({
               {items.map((item) => {
                 const active = pathname ? isNavActive(pathname, item) : false
                 const Icon = item.icon
+                const badgeCount =
+                  item.badgeKey != null ? navBadgeValues?.[item.badgeKey] : undefined
+                const showBadge =
+                  typeof badgeCount === "number" && badgeCount > 0
 
                 return (
                   <SidebarMenuItem key={item.href}>
@@ -78,6 +85,11 @@ export function AppSidebar({
                         <span>{item.label}</span>
                       </Link>
                     </SidebarMenuButton>
+                    {showBadge && (
+                      <SidebarMenuBadge className="bg-yellow-100 text-yellow-900">
+                        {badgeCount > 99 ? "99+" : badgeCount}
+                      </SidebarMenuBadge>
+                    )}
                   </SidebarMenuItem>
                 )
               })}

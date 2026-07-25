@@ -22,11 +22,9 @@ import { readApiResponse } from '@/lib/read-api-response'
 import { startOfDay, toIsoDate } from '@/lib/vacation-dates'
 import { getVacationPeriodsInRange } from '@/lib/booking-availability'
 import type { VacationDate } from '@/lib/vacation-dates'
-import {
-  groupBookingsForDisplay,
-  type BookingRequestGroup,
-} from '@/lib/booking-request-groups'
+import { groupBookingsForDisplay } from '@/lib/booking-request-groups'
 import { formatDayCareBookingSummary } from '@/lib/day-care-booking'
+import { BookingGroupListCard } from '@/components/booking/booking-group-list-card'
 
 interface PortalAvailability {
   vacationPeriods: Array<{ start_date: string; end_date: string; label: string }>
@@ -70,54 +68,6 @@ function getStatusLabel(status: string) {
     default:
       return status
   }
-}
-
-function groupPetSummary(group: BookingRequestGroup): string {
-  return group.bookings
-    .map((b) => `${b.pet?.name || 'Unbekannt'} · ${getServiceLabel(b.service_type)}`)
-    .join(' · ')
-}
-
-function BookingGroupCard({
-  group,
-  muted,
-  onSelect,
-}: {
-  group: BookingRequestGroup
-  muted?: boolean
-  onSelect: (booking: BookingRequest) => void
-}) {
-  return (
-    <div
-      className={`cursor-pointer rounded-lg border border-sage-200 p-4 hover:bg-sage-50 ${muted ? 'opacity-75' : ''}`}
-      onClick={() => onSelect(group.bookings[0])}
-    >
-      <div className="flex items-start justify-between gap-2">
-        <div>
-          <p className="font-semibold text-sage-900">
-            {group.bookings.length > 1 ? 'Gruppenanfrage' : group.bookings[0].pet?.name || 'Unbekannt'}
-          </p>
-          <p className="text-sm text-sage-600">{groupPetSummary(group)}</p>
-          <p className="mt-1 text-sm text-sage-600">
-            {new Date(group.start_date).toLocaleDateString('de-DE')} –{' '}
-            {group.end_date
-              ? new Date(group.end_date).toLocaleDateString('de-DE')
-              : 'laufend'}
-          </p>
-          {group.bookings.map((b) => {
-            const dc = formatDayCareBookingSummary(b)
-            if (!dc) return null
-            return (
-              <p key={b.id} className="text-xs text-sage-600">
-                {dc}
-              </p>
-            )
-          })}
-        </div>
-        <Badge className={getStatusColor(group.status)}>{getStatusLabel(group.status)}</Badge>
-      </div>
-    </div>
-  )
 }
 
 export default function BookingsPage() {
@@ -294,7 +244,7 @@ export default function BookingsPage() {
             {futureGroups.length > 0 ? (
               <div className="space-y-3">
                 {futureGroups.map((group) => (
-                  <BookingGroupCard
+                  <BookingGroupListCard
                     key={group.key}
                     group={group}
                     onSelect={setSelectedBooking}
@@ -315,7 +265,7 @@ export default function BookingsPage() {
             {currentGroups.length > 0 ? (
               <div className="space-y-3">
                 {currentGroups.map((group) => (
-                  <BookingGroupCard
+                  <BookingGroupListCard
                     key={group.key}
                     group={group}
                     onSelect={setSelectedBooking}
@@ -336,7 +286,7 @@ export default function BookingsPage() {
             {pastGroups.length > 0 ? (
               <div className="space-y-3">
                 {pastGroups.map((group) => (
-                  <BookingGroupCard
+                  <BookingGroupListCard
                     key={group.key}
                     group={group}
                     muted

@@ -3,12 +3,18 @@
 import { useState, useMemo } from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
 import { CapacityIndicator } from '@/components/capacity-indicator'
+import { BookingWeekTimeGrid } from '@/components/booking-week-time-grid'
 import type { BookingRequest, CalendarDay } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { isDateInVacationPeriods } from '@/lib/booking-availability'
+import {
+  buildWeekCalendarEvents,
+  getMondayOfWeek,
+  getWeekIsoDates,
+  isBookingActiveOnIsoDate,
+} from '@/lib/booking-week-calendar-events'
 import { toIsoDate } from '@/lib/vacation-dates'
 
 interface BookingCalendarProps {
@@ -54,19 +60,6 @@ export function BookingCalendar({
         return 'bg-yellow-100 text-yellow-800 border-yellow-300'
       default:
         return 'bg-sage-100 text-sage-800 border-sage-300'
-    }
-  }
-
-  const getStatusLabel = (status: string) => {
-    switch (status) {
-      case 'approved':
-        return 'Genehmigt'
-      case 'rejected':
-        return 'Abgelehnt'
-      case 'pending':
-        return 'Ausstehend'
-      default:
-        return status
     }
   }
 
@@ -123,44 +116,48 @@ export function BookingCalendar({
   }, [currentDate, bookings, capacityData])
 
   // Berechne Wochentage für Wochenansicht
+  const weekMonday = useMemo(() => getMondayOfWeek(currentDate), [currentDate])
+
   const weekDays = useMemo(() => {
-    const year = currentDate.getFullYear()
-    const month = currentDate.getMonth()
-    const date = currentDate.getDate()
-    const current = new Date(year, month, date)
-    
-    // Finde Montag der aktuellen Woche
-    const day = current.getDay()
-    const diff = current.getDate() - day + (day === 0 ? -6 : 1)
-    const monday = new Date(current.setDate(diff))
-    
+    const weekIsoDates = getWeekIsoDates(weekMonday)
     const days: CalendarDay[] = []
+
     for (let i = 0; i < 7; i++) {
-      const date = new Date(monday)
-      date.setDate(monday.getDate() + i)
-      const dateStr = date.toISOString().split('T')[0]
-      
-      const dayBookings = bookings.filter(b => {
-        const start = new Date(b.start_date)
-        const end = new Date(b.end_date)
-        return date >= start && date <= end
-      })
-      
-      const capacity = capacityData.find(c => c.date === dateStr)
-      
+      const date = new Date(weekMonday)
+      date.setDate(weekMonday.getDate() + i)
+      const dateStr = weekIsoDates[i]
+
+      const dayBookings = bookings.filter((b) => isBookingActiveOnIsoDate(b, dateStr))
+
+      const capacity = capacityData.find((c) => c.date === dateStr)
+
       days.push({
         date: new Date(date),
         bookings: dayBookings,
         capacity: {
-          current: capacity?.current || dayBookings.filter(b => b.status === 'approved').length,
+          current: capacity?.current || dayBookings.filter((b) => b.status === 'approved').length,
           max: capacity?.max || 0,
           serviceType: capacity?.serviceType,
         },
       })
     }
-    
+
     return days
-  }, [currentDate, bookings, capacityData])
+  }, [weekMonday, bookings, capacityData])
+
+  const weekCalendarEvents = useMemo(
+    () =>
+      buildWeekCalendarEvents(bookings, getWeekIsoDates(weekMonday), {
+        isAdmin,
+        getServiceLabel,
+      }),
+    [bookings, weekMonday, isAdmin]
+  )
+
+  const weekDates = useMemo(
+    () => weekDays.map((d) => d.date),
+    [weekDays]
+  )
 
   const navigateMonth = (direction: 'prev' | 'next') => {
     setCurrentDate(prev => {
@@ -234,84 +231,15 @@ export function BookingCalendar({
           </div>
         </div>
 
-        <div className="grid grid-cols-7 gap-2">
-          {weekDays.map((day, idx) => {
-            const dateStr = toIsoDate(day.date)
-            const isVacation = isDateInVacationPeriods(dateStr, vacationPeriods)
-            const isClosed = !isVacation && closedDates.includes(dateStr)
-
-            return (
-              <Card
-                key={idx}
-                className={cn(
-                  'transition-colors',
-                  !isVacation && !isClosed && 'cursor-pointer hover:border-sage-400',
-                  isVacation && 'border-amber-300 bg-amber-100',
-                  isClosed && 'border-sage-300 bg-sage-200',
-                  day.date.toDateString() === new Date().toDateString() && 'border-sage-600 border-2'
-                )}
-                onClick={() => {
-                  if (!isVacation && !isClosed) onSelectDate?.(day.date)
-                }}
-              >
-              <CardContent className="p-3">
-                <div className="text-center mb-2">
-                  <p className="text-sm font-semibold text-sage-600">{weekDayNames[idx]}</p>
-                  <p className="text-lg font-bold text-sage-900">{day.date.getDate()}</p>
-                  {isVacation && (
-                    <p className="mt-1 text-xs font-bold text-amber-900">
-                      Betriebsferien
-                    </p>
-                  )}
-                  {isClosed && (
-                    <p className="mt-1 text-xs font-bold text-sage-700">
-                      Geschlossen
-                    </p>
-                  )}
-                </div>
-                
-                {isAdmin && day.capacity.max > 0 && (
-                  <CapacityIndicator
-                    current={day.capacity.current}
-                    max={day.capacity.max}
-                    serviceType={day.capacity.serviceType}
-                    className="mb-2"
-                    showLabel={false}
-                  />
-                )}
-                
-                <div className="space-y-1">
-                  {day.bookings.slice(0, 3).map(booking => (
-                    <div
-                      key={booking.id}
-                      className={cn(
-                        'text-xs p-1 rounded border cursor-pointer',
-                        getStatusColor(booking.status)
-                      )}
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        onSelectBooking?.(booking)
-                      }}
-                    >
-                      <p className="font-medium truncate">
-                        {isAdmin && booking.pet ? booking.pet.name : getServiceLabel(booking.service_type)}
-                      </p>
-                      <Badge variant="outline" className="text-xs mt-1">
-                        {getStatusLabel(booking.status)}
-                      </Badge>
-                    </div>
-                  ))}
-                  {day.bookings.length > 3 && (
-                    <p className="text-xs text-sage-600 text-center">
-                      +{day.bookings.length - 3} weitere
-                    </p>
-                  )}
-                </div>
-              </CardContent>
-              </Card>
-            )
-          })}
-        </div>
+        <BookingWeekTimeGrid
+          weekDates={weekDates}
+          events={weekCalendarEvents}
+          vacationPeriods={vacationPeriods}
+          closedDates={closedDates}
+          getStatusColor={getStatusColor}
+          onSelectBooking={onSelectBooking}
+          onSelectDate={onSelectDate}
+        />
       </div>
     )
   }

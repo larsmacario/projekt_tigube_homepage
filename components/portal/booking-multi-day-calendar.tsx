@@ -19,6 +19,7 @@ interface BookingMultiDayCalendarProps {
   disabled?: Matcher | Matcher[]
   vacationPeriods?: BookingVacationPeriod[]
   closedDates?: string[]
+  publicHolidays?: import('@/components/portal/booking-range-calendar').BookingPublicHoliday[]
   defaultMonth?: Date
   month?: Date
   onMonthChange?: (month: Date) => void
@@ -31,14 +32,23 @@ export function BookingMultiDayCalendar({
   disabled,
   vacationPeriods = [],
   closedDates = [],
+  publicHolidays = [],
   defaultMonth,
   month,
   onMonthChange,
   className,
 }: BookingMultiDayCalendarProps) {
+  const holidayMap = useMemo(() => {
+    const map = new Map<string, string>()
+    for (const h of publicHolidays) {
+      map.set(h.date, h.name || 'Feiertag')
+    }
+    return map
+  }, [publicHolidays])
+
   const DayButtonComponent = useMemo(
-    () => createBookingVacationDayButton(vacationPeriods, closedDates),
-    [vacationPeriods, closedDates]
+    () => createBookingVacationDayButton(vacationPeriods, closedDates, holidayMap),
+    [vacationPeriods, closedDates, holidayMap]
   )
 
   return (

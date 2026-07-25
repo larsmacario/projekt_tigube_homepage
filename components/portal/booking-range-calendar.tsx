@@ -26,9 +26,15 @@ export const bookingRangeCalendarClassNames = {
     '!ring-0 !ring-offset-0 focus:!ring-0 focus-visible:!ring-0 data-[range-middle=true]:!bg-accent data-[range-start=true]:!bg-primary data-[range-end=true]:!bg-primary',
 }
 
+export type BookingPublicHoliday = {
+  date: string
+  name?: string
+}
+
 export function createBookingVacationDayButton(
   vacationPeriods: BookingVacationPeriod[],
-  closedDates: string[]
+  closedDates: string[],
+  publicHolidayByDate: Map<string, string> = new Map()
 ) {
   return function BookingVacationDayButton({
     day,
@@ -39,6 +45,8 @@ export function createBookingVacationDayButton(
     const isoDate = toIsoDate(day.date)
     const isVacation = isDateInVacationPeriods(isoDate, vacationPeriods)
     const isClosed = !isVacation && closedDates.includes(isoDate)
+    const holidayName = publicHolidayByDate.get(isoDate)
+    const isHoliday = Boolean(holidayName) && !isVacation
     const isPast = Boolean(modifiers.disabled) && !isVacation && !isClosed
 
     return (
@@ -66,6 +74,9 @@ export function createBookingVacationDayButton(
             '!cursor-not-allowed border border-amber-300 !bg-amber-100 !text-amber-950 hover:!bg-amber-100 hover:!text-amber-950 opacity-100',
           isClosed &&
             '!cursor-not-allowed border border-sage-300 !bg-sage-200 !text-sage-800 hover:!bg-sage-200 hover:!text-sage-800 opacity-100',
+          isHoliday &&
+            !modifiers.selected &&
+            '!border-violet-300 !bg-violet-50 !text-violet-950 hover:!bg-violet-100',
           isPast && 'text-muted-foreground opacity-40',
           className
         )}
@@ -84,6 +95,11 @@ export function createBookingVacationDayButton(
             Geschlossen
           </span>
         ) : null}
+        {isHoliday && !isVacation && !isClosed ? (
+          <span className="max-w-[3.1rem] text-center text-[0.48rem] font-semibold leading-tight text-violet-800">
+            Feiertag
+          </span>
+        ) : null}
       </Button>
     )
   }
@@ -95,6 +111,7 @@ interface BookingRangeCalendarProps {
   disabled?: Matcher | Matcher[]
   vacationPeriods?: BookingVacationPeriod[]
   closedDates?: string[]
+  publicHolidays?: BookingPublicHoliday[]
   defaultMonth?: Date
   month?: Date
   onMonthChange?: (month: Date) => void
@@ -107,14 +124,23 @@ export function BookingRangeCalendar({
   disabled,
   vacationPeriods = [],
   closedDates = [],
+  publicHolidays = [],
   defaultMonth,
   month,
   onMonthChange,
   className,
 }: BookingRangeCalendarProps) {
+  const holidayMap = useMemo(() => {
+    const map = new Map<string, string>()
+    for (const h of publicHolidays) {
+      map.set(h.date, h.name || 'Feiertag')
+    }
+    return map
+  }, [publicHolidays])
+
   const DayButtonComponent = useMemo(
-    () => createBookingVacationDayButton(vacationPeriods, closedDates),
-    [vacationPeriods, closedDates]
+    () => createBookingVacationDayButton(vacationPeriods, closedDates, holidayMap),
+    [vacationPeriods, closedDates, holidayMap]
   )
 
   return (

@@ -16,6 +16,7 @@ export default function robots(): MetadataRoute.Robots {
           '/signature/',
           '/login/',
           '/onboarding/',
+          '/rechtliches/',
         ],
       },
     ],

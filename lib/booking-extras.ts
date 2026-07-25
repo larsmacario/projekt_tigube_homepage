@@ -1,4 +1,5 @@
 import { resolvePriceOverride, type CatalogPriceRow } from '@/lib/price-override'
+import { resolveCatalogPercentageRate } from '@/lib/price-catalog-policy'
 import type { ServiceType } from '@/lib/types'
 
 export interface BookingExtraCategory {
@@ -19,6 +20,7 @@ export interface BookingExtraPrice extends CatalogPriceRow {
   sort_order: number
   final_price: number | null
   catalog_price: number | null
+  customer_selectable?: boolean
 }
 
 export interface BookingExtraSelection {
@@ -108,6 +110,12 @@ export function filterBookableExtraPrices(
     .sort((a, b) => a.sort_order - b.sort_order)
 }
 
+export function filterCustomerSelectableExtraPrices(
+  prices: BookingExtraPrice[]
+): BookingExtraPrice[] {
+  return prices.filter((p) => p.customer_selectable !== false)
+}
+
 export function resolveExtraPriceForCustomer(
   catalog: BookingExtraPrice,
   groupOverride: { price_id: string; price: number | null; discount_type?: string | null; discount_value?: number | null } | null,
@@ -115,7 +123,7 @@ export function resolveExtraPriceForCustomer(
 ): number | null {
   const resolved = resolvePriceOverride(catalog, groupOverride, customerOverride)
   if (catalog.price_type === 'percentage') {
-    return catalog.price
+    return resolveCatalogPercentageRate(catalog) ?? catalog.price
   }
   return resolved.final_price ?? catalog.price
 }
@@ -203,11 +211,16 @@ export function buildCustomerLineItemsFromSelections(
 export function getBookableExtrasForService(
   prices: BookingExtraPrice[],
   categories: BookingExtraCategory[],
-  serviceType: ServiceType
+  serviceType: ServiceType,
+  options?: { portalOnly?: boolean }
 ): BookingExtraPrice[] {
   const extraCategories = filterExtraCategoriesForServices(categories, [serviceType])
   const categoryIds = new Set(extraCategories.map((c) => c.id))
-  return filterBookableExtraPrices(prices, categoryIds)
+  let list = filterBookableExtraPrices(prices, categoryIds)
+  if (options?.portalOnly) {
+    list = filterCustomerSelectableExtraPrices(list)
+  }
+  return list
 }
 
 export function uniqueServiceTypesFromPetLines(

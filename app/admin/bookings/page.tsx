@@ -528,6 +528,16 @@ export default function AdminBookingsPage() {
                       : 'laufend'}
                   </p>
                 </div>
+                {selectedBooking.request_group?.drop_off_time &&
+                  selectedBooking.request_group?.pick_up_time && (
+                    <div>
+                      <Label>Bring- & Holzeiten</Label>
+                      <p className="font-medium">
+                        Bringen: {selectedBooking.request_group.drop_off_time} Uhr · Abholen:{' '}
+                        {selectedBooking.request_group.pick_up_time} Uhr
+                      </p>
+                    </div>
+                  )}
                 {formatDayCareBookingSummary(selectedBooking) && (
                   <div className="sm:col-span-2">
                     <Label>Tagesbetreuung</Label>

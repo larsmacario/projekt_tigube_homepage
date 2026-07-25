@@ -13,7 +13,8 @@ export function ConditionalLayout({ children }: { children: React.ReactNode }) {
                            pathname?.startsWith('/login') ||
                            pathname?.startsWith('/portal') ||
                            pathname?.startsWith('/admin') ||
-                           pathname?.startsWith('/signature')
+                           pathname?.startsWith('/signature') ||
+                           pathname?.startsWith('/rechtliches')
 
   if (hideNavAndFooter) {
     return <>{children}</>

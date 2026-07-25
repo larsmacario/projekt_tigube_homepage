@@ -5,6 +5,7 @@ import {
   collectExtraCatalogServiceTypes,
   computeLineItemSnapshot,
   filterBookableExtraPrices,
+  filterCustomerSelectableExtraPrices,
   filterExtraCategoriesForServices,
   isExtraServiceCategory,
   serviceTypeForExtraCatalog,
@@ -85,6 +86,41 @@ describe('booking-extras', () => {
     const result = filterBookableExtraPrices(prices, new Set(['1']))
     expect(result).toHaveLength(1)
     expect(result[0].id).toBe('p1')
+  })
+
+  it('filters non-selectable extras for portal', () => {
+    const prices = [
+      {
+        id: 'p1',
+        category_id: '1',
+        name: 'A',
+        description: null,
+        price: 5,
+        price_type: 'fixed' as const,
+        unit: null,
+        note: null,
+        sort_order: 1,
+        final_price: 5,
+        catalog_price: 5,
+        customer_selectable: true,
+      },
+      {
+        id: 'p2',
+        category_id: '1',
+        name: 'B',
+        description: null,
+        price: 10,
+        price_type: 'fixed' as const,
+        unit: null,
+        note: null,
+        sort_order: 2,
+        final_price: 10,
+        catalog_price: 10,
+        customer_selectable: false,
+      },
+    ]
+    expect(filterCustomerSelectableExtraPrices(prices)).toHaveLength(1)
+    expect(filterCustomerSelectableExtraPrices(prices)[0].id).toBe('p1')
   })
 
   it('computes fixed and percentage line snapshots', () => {

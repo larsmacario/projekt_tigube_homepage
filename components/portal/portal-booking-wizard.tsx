@@ -22,9 +22,11 @@ import { Calendar } from '@/components/ui/calendar'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { useToast } from '@/hooks/use-toast'
 import { authenticatedFetch } from '@/lib/authenticated-fetch'
+import { isValidTimeHHmm } from '@/lib/pickup-time-surcharge'
 import { readApiResponse } from '@/lib/read-api-response'
 import {
   filterBookableExtraPrices,
+  filterCustomerSelectableExtraPrices,
   filterExtraCategoriesForServices,
   flattenPetExtraSelections,
   getBookableExtrasForService,
@@ -73,6 +75,7 @@ export interface PetServiceLine {
 interface PortalAvailability {
   vacationPeriods: Array<{ start_date: string; end_date: string; label: string }>
   closedDates: string[]
+  publicHolidays: Array<{ date: string; name?: string }>
 }
 
 interface PortalBookingWizardProps {
@@ -99,7 +102,10 @@ export function PortalBookingWizard({
   const [availability, setAvailability] = useState<PortalAvailability>({
     vacationPeriods: [],
     closedDates: [],
+    publicHolidays: [],
   })
+  const [dropOffTime, setDropOffTime] = useState('')
+  const [pickUpTime, setPickUpTime] = useState('')
   const [extraPrices, setExtraPrices] = useState<BookingExtraPrice[]>([])
   const [catalogPrices, setCatalogPrices] = useState<BookingExtraPrice[]>([])
   const [priceCategories, setPriceCategories] = useState<BookingExtraCategory[]>([])
@@ -127,6 +133,11 @@ export function PortalBookingWizard({
 
   const rangePetLines = useMemo(
     () => resolvedPetLines.filter((l) => isRangeService(l.service_type as ServiceType)),
+    [resolvedPetLines]
+  )
+
+  const hundepensionRange = useMemo(
+    () => resolvedPetLines.some((l) => l.service_type === 'hundepension'),
     [resolvedPetLines]
   )
 
@@ -162,6 +173,7 @@ export function PortalBookingWizard({
       const { data, error } = await readApiResponse<{
         vacationPeriods?: PortalAvailability['vacationPeriods']
         closedDates?: string[]
+        publicHolidays?: PortalAvailability['publicHolidays']
         error?: string
       }>(response)
 
@@ -173,6 +185,7 @@ export function PortalBookingWizard({
       setAvailability({
         vacationPeriods: data?.vacationPeriods || [],
         closedDates: data?.closedDates || [],
+        publicHolidays: data?.publicHolidays || [],
       })
     } catch (error) {
       console.error('Error loading availability:', error)
@@ -197,7 +210,9 @@ export function PortalBookingWizard({
       setCatalogPrices(prices)
       const extraCategories = filterExtraCategoriesForServices(categories, serviceTypes)
       const categoryIds = new Set(extraCategories.map((c) => c.id))
-      setExtraPrices(filterBookableExtraPrices(prices, categoryIds))
+      setExtraPrices(
+        filterCustomerSelectableExtraPrices(filterBookableExtraPrices(prices, categoryIds))
+      )
     } catch (error) {
       console.error('Error loading prices:', error)
     } finally {
@@ -233,7 +248,8 @@ export function PortalBookingWizard({
         const petExtraPrices = getBookableExtrasForService(
           catalog,
           priceCategories,
-          line.service_type as ServiceType
+          line.service_type as ServiceType,
+          { portalOnly: true }
         )
 
         for (const priceId of Object.keys(selections)) {
@@ -383,6 +399,24 @@ export function PortalBookingWizard({
           variant: 'destructive',
         })
         return false
+      }
+      if (hundepensionRange) {
+        if (!dropOffTime.trim() || !pickUpTime.trim()) {
+          toast({
+            title: 'Fehler',
+            description: 'Bitte gib Bring- und Holzeiten für die Urlaubsbetreuung an.',
+            variant: 'destructive',
+          })
+          return false
+        }
+        if (!isValidTimeHHmm(dropOffTime) || !isValidTimeHHmm(pickUpTime)) {
+          toast({
+            title: 'Fehler',
+            description: 'Bring- und Holzeiten müssen im Format HH:MM sein.',
+            variant: 'destructive',
+          })
+          return false
+        }
       }
     }
 
@@ -534,6 +568,8 @@ export function PortalBookingWizard({
           message: message || null,
           pets: petsPayload,
           extras,
+          drop_off_time: hundepensionRange && dropOffTime ? dropOffTime : null,
+          pick_up_time: hundepensionRange && pickUpTime ? pickUpTime : null,
         }),
       })
 
@@ -801,6 +837,7 @@ export function PortalBookingWizard({
                   disabled={isDateUnavailable}
                   vacationPeriods={availability.vacationPeriods}
                   closedDates={availability.closedDates}
+                  publicHolidays={availability.publicHolidays}
                   defaultMonth={calendarDefaultMonth}
                   month={calendarMonth}
                   onMonthChange={setCalendarMonth}
@@ -810,6 +847,36 @@ export function PortalBookingWizard({
                 <p className="text-muted-foreground text-center text-sm">
                   {formatDateRangeDE(dateRange.from, dateRange.to ?? dateRange.from)}
                 </p>
+              )}
+              {hundepensionRange && (
+                <div className="grid gap-4 sm:grid-cols-2 rounded-lg border border-sage-200 bg-white p-4">
+                  <p className="sm:col-span-2 text-sm text-sage-600">
+                    Wann möchtest du deinen Hund bringen und wieder abholen? Standardzeiten findest
+                    du im Kundenportal unter „Bring- und Holzeiten“.
+                  </p>
+                  <div className="space-y-1">
+                    <Label htmlFor="drop-off-time">Bringen (am ersten Tag)</Label>
+                    <Input
+                      id="drop-off-time"
+                      type="time"
+                      value={dropOffTime}
+                      onChange={(e) => setDropOffTime(e.target.value)}
+                      className="bg-white"
+                      required
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="pick-up-time">Abholen (am letzten Tag)</Label>
+                    <Input
+                      id="pick-up-time"
+                      type="time"
+                      value={pickUpTime}
+                      onChange={(e) => setPickUpTime(e.target.value)}
+                      className="bg-white"
+                      required
+                    />
+                  </div>
+                </div>
               )}
             </div>
           )}
@@ -836,6 +903,7 @@ export function PortalBookingWizard({
                     disabled={isDateUnavailable}
                     vacationPeriods={availability.vacationPeriods}
                     closedDates={availability.closedDates}
+                    publicHolidays={availability.publicHolidays}
                     defaultMonth={calendarDefaultMonth}
                     month={calendarMonth}
                     onMonthChange={setCalendarMonth}
@@ -926,6 +994,10 @@ export function PortalBookingWizard({
               <span className="inline-block size-3 rounded-sm border border-sage-300 bg-sage-200" />
               Schließtag
             </span>
+            <span className="inline-flex items-center gap-1">
+              <span className="inline-block size-3 rounded-sm border border-violet-300 bg-violet-50" />
+              Feiertag (Baden-Württemberg)
+            </span>
           </div>
         </div>
       )}
@@ -934,15 +1006,15 @@ export function PortalBookingWizard({
         <div className="space-y-6">
           <p className="text-sm text-sage-600">
             Zusatzleistungen wählst du pro Tier. Wir schlagen Mengen aus deinem Zeitraum vor (z. B.
-            Tage oder Fütterungen pro Tag) – du kannst jede Menge jederzeit anpassen. Prozentzuschläge
-            beziehen sich auf den jeweiligen Tagespreis des Tieres.
+            Tage oder Fütterungen pro Tag) – du kannst jede Menge jederzeit anpassen.
           </p>
           {resolvedPetLines.map((line) => {
             const pet = pets.find((p) => p.id === line.pet_id)
             const petExtraPrices = getBookableExtrasForService(
               catalogPrices.length > 0 ? catalogPrices : extraPrices,
               priceCategories,
-              line.service_type as ServiceType
+              line.service_type as ServiceType,
+              { portalOnly: true }
             )
             const petSelections = selectedExtrasByPet[line.pet_id] || {}
 
@@ -1070,6 +1142,9 @@ export function PortalBookingWizard({
           selectedExtrasByPet={selectedExtrasByPet}
           catalogPrices={catalogPrices}
           priceCategories={priceCategories}
+          publicHolidays={availability.publicHolidays}
+          dropOffTime={dropOffTime}
+          pickUpTime={pickUpTime}
           message={message}
           onMessageChange={setMessage}
           pricesLoading={pricesLoading}

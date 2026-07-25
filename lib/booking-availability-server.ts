@@ -12,6 +12,10 @@ import {
 import type { ServiceType } from '@/lib/types'
 import type { VacationDate } from '@/lib/vacation-dates'
 import { loadPublicVacationDates } from '@/lib/public-vacation-dates'
+import {
+  getPublicHolidaysInRange,
+  type PublicHolidayEntry,
+} from '@/lib/public-holidays-de'
 
 async function loadVacationDates(adminClient: SupabaseClient): Promise<VacationDate[]> {
   try {
@@ -119,6 +123,7 @@ export async function validateBookingAvailabilityForDateListServer(
 export interface PortalAvailabilitySnapshot {
   vacationPeriods: Array<{ start_date: string; end_date: string; label: string }>
   closedDates: string[]
+  publicHolidays: PublicHolidayEntry[]
 }
 
 export async function getPortalAvailabilitySnapshot(
@@ -142,10 +147,18 @@ export async function getPortalAvailabilitySnapshot(
 
   const vacationPeriods = getVacationPeriodsInRange(vacations, fromDate, toDate)
 
+  let publicHolidays: PublicHolidayEntry[] = []
+  try {
+    publicHolidays = await getPublicHolidaysInRange(fromDate, toDate)
+  } catch (error) {
+    console.error('Failed to load public holidays:', error)
+  }
+
   if (!serviceType) {
     return {
       vacationPeriods,
       closedDates: [],
+      publicHolidays,
     }
   }
 
@@ -159,12 +172,14 @@ export async function getPortalAvailabilitySnapshot(
     return {
       vacationPeriods,
       closedDates: getBlockedDatesForService(context, serviceType, fromDate, toDate),
+      publicHolidays,
     }
   } catch (error) {
     console.error('Failed to load closed dates for service:', error)
     return {
       vacationPeriods,
       closedDates: [],
+      publicHolidays,
     }
   }
 }
@@ -195,5 +210,6 @@ export async function getPortalAvailabilitySnapshotForServices(
   return {
     vacationPeriods,
     closedDates: [...closedSet].sort(),
+    publicHolidays: snapshots[0]?.publicHolidays ?? [],
   }
 }

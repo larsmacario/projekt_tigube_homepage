@@ -77,7 +77,30 @@ export async function GET(request: NextRequest) {
       throw error
     }
 
-    return NextResponse.json({ bookings: data || [] })
+    const bookings = data || []
+    const groupIds = [
+      ...new Set(
+        bookings.map((b: { request_group_id?: string | null }) => b.request_group_id).filter(Boolean)
+      ),
+    ] as string[]
+
+    let groupById = new Map<string, { id: string; drop_off_time: string | null; pick_up_time: string | null }>()
+    if (groupIds.length > 0) {
+      const { data: groups } = await supabase
+        .from('booking_request_groups')
+        .select('id, drop_off_time, pick_up_time')
+        .in('id', groupIds)
+      if (groups) {
+        groupById = new Map(groups.map((g) => [g.id, g]))
+      }
+    }
+
+    const enriched = bookings.map((b: { request_group_id?: string | null }) => ({
+      ...b,
+      request_group: b.request_group_id ? groupById.get(b.request_group_id) ?? null : null,
+    }))
+
+    return NextResponse.json({ bookings: enriched })
   } catch (error: any) {
     console.error('Error fetching bookings:', error)
     return NextResponse.json(

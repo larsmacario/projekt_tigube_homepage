@@ -11,6 +11,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useToast } from '@/hooks/use-toast'
 import { Plus, Trash2 } from 'lucide-react'
 import { authenticatedFetch } from '@/lib/authenticated-fetch'
+import { Checkbox } from '@/components/ui/checkbox'
+import {
+  FIXED_PERCENTAGE_SURCHARGE_RATE,
+  formatFixedPercentageLabel,
+} from '@/lib/price-catalog-policy'
 import {
   emptyPriceOverrideForm,
   formToOverrideRow,
@@ -30,6 +35,7 @@ interface Price {
   unit: string | null
   note: string | null
   sort_order: number
+  customer_selectable?: boolean
 }
 
 interface PriceCategory {
@@ -505,7 +511,7 @@ export default function PricesPage() {
     if (price.price === null) return ''
     
     if (price.price_type === 'percentage') {
-      return `+${price.price}%${price.unit ? ` ${price.unit}` : ''}`
+      return formatFixedPercentageLabel(FIXED_PERCENTAGE_SURCHARGE_RATE)
     }
     
     if (price.price_type === 'per_unit') {
@@ -513,6 +519,10 @@ export default function PricesPage() {
     }
     
     return `${price.price.toFixed(2).replace('.', ',')}€${price.unit ? ` ${price.unit}` : ''}`
+  }
+
+  function isExtraCategory(category: PriceCategory): boolean {
+    return category.name.toLowerCase().includes('zusatz')
   }
 
   if (loading) {
@@ -733,17 +743,38 @@ export default function PricesPage() {
                               />
                             </div>
                             {price.price_type !== 'text' ? (
-                              <div>
-                                <Label htmlFor={`price-${price.id}`}>Preis</Label>
-                                <Input
-                                  id={`price-${price.id}`}
-                                  type="number"
-                                  step="0.01"
-                                  value={price.price || ''}
-                                  onChange={(e) => updatePrice(price.id, 'price', e.target.value ? parseFloat(e.target.value) : null)}
-                                  className="bg-white"
-                                />
-                              </div>
+                              price.price_type === 'percentage' ? (
+                                <div>
+                                  <Label htmlFor={`price-${price.id}`}>Preis</Label>
+                                  <Input
+                                    id={`price-${price.id}`}
+                                    value={String(FIXED_PERCENTAGE_SURCHARGE_RATE)}
+                                    disabled
+                                    className="bg-sage-50"
+                                  />
+                                  <p className="text-xs text-sage-500 mt-1">
+                                    {formatFixedPercentageLabel(FIXED_PERCENTAGE_SURCHARGE_RATE)} (fest)
+                                  </p>
+                                </div>
+                              ) : (
+                                <div>
+                                  <Label htmlFor={`price-${price.id}`}>Preis</Label>
+                                  <Input
+                                    id={`price-${price.id}`}
+                                    type="number"
+                                    step="0.01"
+                                    value={price.price || ''}
+                                    onChange={(e) =>
+                                      updatePrice(
+                                        price.id,
+                                        'price',
+                                        e.target.value ? parseFloat(e.target.value) : null
+                                      )
+                                    }
+                                    className="bg-white"
+                                  />
+                                </div>
+                              )
                             ) : (
                               <div className="flex items-end pb-2">
                                 <span className="text-sm text-sage-500 italic">Textbasierter Preis</span>
@@ -833,6 +864,32 @@ export default function PricesPage() {
                                 onChange={(e) => updatePrice(price.id, 'note', e.target.value)}
                                 className="bg-white"
                               />
+                            </div>
+                          )}
+
+                          {isExtraCategory(category) && price.price_type !== 'text' && (
+                            <div className="flex items-start gap-2 pt-1">
+                              <Checkbox
+                                id={`customer_selectable-${price.id}`}
+                                checked={price.customer_selectable !== false}
+                                disabled={price.price_type === 'percentage'}
+                                onCheckedChange={(checked) =>
+                                  updatePrice(price.id, 'customer_selectable', checked === true)
+                                }
+                              />
+                              <div className="grid gap-0.5 leading-none">
+                                <Label
+                                  htmlFor={`customer_selectable-${price.id}`}
+                                  className="text-sm font-normal cursor-pointer"
+                                >
+                                  Im Kundenportal wählbar
+                                </Label>
+                                {price.price_type === 'percentage' ? (
+                                  <p className="text-xs text-sage-500">
+                                    Sonn-/Feiertagszuschlag erscheint automatisch in der Buchungsübersicht.
+                                  </p>
+                                ) : null}
+                              </div>
                             </div>
                           )}
 

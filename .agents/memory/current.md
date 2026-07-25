@@ -1,6 +1,7 @@
 # Aktueller Stand
 
 ## Letzte Änderungen
+- Link-Hub `/rechtliches` (WhatsApp): ohne Nav/Footer, Linktree-UI + minimale Unterseiten für Betreuungsvertrag, Datenschutz, Impressum (CMS-Inhalte).
 - Portal-Buchungswizard (4 Schritte): Kostenschätzung, Zusatzleistungen pro Tier, Mengen-Vorschlag am Zeitraum (`lib/booking-extra-quantity.ts`), Override durch Kunde.
 - Nach Buchungsanfrage: SMTP an `SMTP_TO` (info@…) und Bestätigung an Kunden-E-Mail (`sendBookingRequestEmails`, `lib/booking-request-email.ts`, `/api/portal/bookings`).
 - Migration `extra_feeding_quantity_hint` auf Remote angewendet (Fütterung: „1 Fütterung pro Tag“ in Preisbeschreibung).

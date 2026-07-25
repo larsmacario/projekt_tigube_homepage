@@ -308,10 +308,19 @@ export interface BookingRequest {
   request_group_id: string | null
   created_at: string
   updated_at: string
+  request_group?: BookingRequestGroup | null
   // Joined data
   customer?: Customer
   pet?: Pet
   responded_by_user?: User
+}
+
+export interface BookingRequestGroup {
+  id: string
+  customer_id: string
+  drop_off_time: string | null
+  pick_up_time: string | null
+  created_at: string
 }
 
 export type BookingLineItemSource = 'customer' | 'admin'

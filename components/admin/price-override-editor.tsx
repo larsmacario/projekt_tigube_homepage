@@ -15,6 +15,11 @@ import {
   type PriceOverrideDiscountType,
   type PriceOverrideRow,
 } from '@/lib/price-override'
+import {
+  FIXED_PERCENTAGE_SURCHARGE_RATE,
+  formatFixedPercentageLabel,
+  isFixedPercentageCatalogPrice,
+} from '@/lib/price-catalog-policy'
 
 export type PriceOverrideFormState = {
   price: string
@@ -65,6 +70,27 @@ interface CatalogPriceLike {
   unit: string | null
 }
 
+function FixedPercentageCatalogInfo({
+  catalogPrice,
+  categoryName,
+}: {
+  catalogPrice: CatalogPriceLike
+  categoryName?: string
+}) {
+  return (
+    <div className="flex flex-col gap-2 p-3 border border-sage-100 rounded-lg bg-sage-50/40">
+      <div>
+        <p className="font-semibold text-sage-900">{catalogPrice.name}</p>
+        <p className="text-xs text-sage-500">
+          {categoryName ? `Kategorie: ${categoryName} · ` : ''}
+          {formatFixedPercentageLabel(FIXED_PERCENTAGE_SURCHARGE_RATE)} (fest, nicht über Gruppen- oder
+          Kundenpreise änderbar)
+        </p>
+      </div>
+    </div>
+  )
+}
+
 interface PriceOverrideEditorRowProps {
   catalogPrice: CatalogPriceLike
   categoryName?: string
@@ -80,6 +106,12 @@ export function PriceOverrideEditorRow({
   onChange,
   groupOverride = null,
 }: PriceOverrideEditorRowProps) {
+  if (isFixedPercentageCatalogPrice(catalogPrice)) {
+    return (
+      <FixedPercentageCatalogInfo catalogPrice={catalogPrice} categoryName={categoryName} />
+    )
+  }
+
   const customerOverride = formToOverrideRow(catalogPrice.id, form)
   const resolved = resolvePriceOverride(
     catalogPrice,
@@ -175,6 +207,10 @@ export function GroupPriceOverrideEditorRow({
   form,
   onChange,
 }: GroupPriceOverrideEditorRowProps) {
+  if (isFixedPercentageCatalogPrice(catalogPrice)) {
+    return <FixedPercentageCatalogInfo catalogPrice={catalogPrice} />
+  }
+
   const groupOverride = formToOverrideRow(catalogPrice.id, form)
   const resolved = resolvePriceOverride(catalogPrice, groupOverride, null)
 

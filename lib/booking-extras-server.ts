@@ -2,6 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import {
   buildCustomerLineItemsFromSelections,
   filterBookableExtraPrices,
+  filterCustomerSelectableExtraPrices,
   filterExtraCategoriesForServices,
   resolveExtraPriceForCustomer,
   type BookingExtraCategory,
@@ -76,12 +77,15 @@ export async function loadBookingExtraCatalogForCustomer(
       ...p,
       catalog_price: p.price,
       final_price: finalPrice,
+      customer_selectable: p.customer_selectable !== false,
     }
   })
 
   return {
     categories: extraCategories,
-    prices: filterBookableExtraPrices(resolvedPrices, categoryIds),
+    prices: filterCustomerSelectableExtraPrices(
+      filterBookableExtraPrices(resolvedPrices, categoryIds)
+    ),
   }
 }
 
@@ -92,8 +96,12 @@ export function validateExtraSelections(
   const priceById = new Map(allowedPrices.map((p) => [p.id, p]))
 
   for (const selection of selections) {
-    if (!priceById.has(selection.price_id)) {
+    const price = priceById.get(selection.price_id)
+    if (!price) {
       return { valid: false, error: 'Ungültige Zusatzleistung ausgewählt.' }
+    }
+    if (price.customer_selectable === false) {
+      return { valid: false, error: 'Diese Zusatzleistung kann nicht online gebucht werden.' }
     }
     const qty = selection.quantity ?? 1
     if (qty <= 0 || Number.isNaN(qty)) {

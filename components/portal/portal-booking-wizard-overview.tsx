@@ -60,6 +60,9 @@ export interface PortalBookingWizardOverviewProps {
   selectedExtrasByPet: PetExtraSelections
   catalogPrices: BookingExtraPrice[]
   priceCategories: BookingExtraCategory[]
+  publicHolidays?: Array<{ date: string; name?: string }>
+  dropOffTime?: string
+  pickUpTime?: string
   message: string
   onMessageChange: (value: string) => void
   pricesLoading?: boolean
@@ -77,6 +80,9 @@ export function PortalBookingWizardOverview({
   selectedExtrasByPet,
   catalogPrices,
   priceCategories,
+  publicHolidays = [],
+  dropOffTime = '',
+  pickUpTime = '',
   message,
   onMessageChange,
   pricesLoading,
@@ -96,6 +102,9 @@ export function PortalBookingWizardOverview({
         selectedExtrasByPet,
         prices: catalogPrices,
         categories: priceCategories,
+        publicHolidays,
+        dropOffTime: dropOffTime || null,
+        pickUpTime: pickUpTime || null,
       }),
     [
       pets,
@@ -106,6 +115,9 @@ export function PortalBookingWizardOverview({
       selectedExtrasByPet,
       catalogPrices,
       priceCategories,
+      publicHolidays,
+      dropOffTime,
+      pickUpTime,
     ]
   )
 
@@ -130,6 +142,11 @@ export function PortalBookingWizardOverview({
         {rangePetLines.length > 0 && dateRange?.from && (
           <p className="mt-2">
             Zeitraum: {formatDateRangeDE(dateRange.from, dateRange.to ?? dateRange.from)}
+          </p>
+        )}
+        {dropOffTime && pickUpTime && rangePetLines.some((l) => l.service_type === 'hundepension') && (
+          <p className="mt-2">
+            Bringen: {dropOffTime} Uhr · Abholen: {pickUpTime} Uhr
           </p>
         )}
         {dayCareOnceLines.map((line) => {

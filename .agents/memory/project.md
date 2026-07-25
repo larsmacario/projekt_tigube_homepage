@@ -21,7 +21,7 @@ Website und Verwaltungsportal für einen Tierbetreuungsservice. Das CRM verwalte
 - Admin-Impfübersicht unter `/admin/impfungen` via `/api/admin/vaccinations/upcoming`.
 - Kundenportal: Mehr-Tier-Buchungsanfragen unter `/portal/bookings` (Wizard, Verfügbarkeit, gruppierte `bookings` + optionale `booking_line_items` für Zusatzleistungen/Rechnungsvorbereitung). Nach POST versendet `/api/portal/bookings` per SMTP intern (`SMTP_TO`) und Bestätigung an die Kunden-E-Mail (`lib/booking-request-email.ts`).
 - SevDesk (Rechnungen): API-Key verschlüsselt im Supabase Vault; Status in `sevdesk_settings`; Verwaltung `/admin/einstellungen`; HTTP-Client `lib/sevdesk.ts`; `prices.sevdesk_article_id` für Artikel-Mapping. Automatische Rechnungserstellung aus Buchungen folgt separat.
-- Pflegevertrag nach Onboarding: PDF in `customer-documents`, Versand über `/api/portal/contracts/send-email` und `lib/contract-email.ts` (Storage-Download); Status `contract_email_*` auf `contacts`; Admin `/api/admin/customers/[id]/resend-contract-email`.
+- Betreuungsvertrag nach Onboarding: PDF in `customer-documents`, Versand über `/api/portal/contracts/send-email` und `lib/contract-email.ts` (Storage-Download); Status `contract_email_*` auf `contacts`; Admin `/api/admin/customers/[id]/resend-contract-email`.
 - Preis-Katalog: `prices` + Overrides in `customer_prices` / `group_prices` (optional Sonderpreis und Rabatt €/%); effektive Anzeige über `lib/price-override.ts` und `/api/prices` (Kunde schlägt Gruppe).
 
 ## Entscheidungen & Constraints

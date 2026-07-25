@@ -103,6 +103,8 @@ export async function PUT(request: NextRequest) {
             note: price.note,
             sort_order: price.sort_order,
             category_id: price.category_id,
+            customer_selectable:
+              price.customer_selectable !== undefined ? price.customer_selectable : true,
           })
           .eq('id', price.id)
       )

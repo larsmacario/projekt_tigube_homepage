@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerClient } from '@/lib/admin-auth'
 import { resolvePriceOverride } from '@/lib/price-override'
+import {
+  isFixedPercentageCatalogPrice,
+  resolveCatalogPercentageRate,
+} from '@/lib/price-catalog-policy'
 
 // Öffentlicher Zugriff für Kundenportal
 export async function GET(request: NextRequest) {
@@ -67,6 +71,27 @@ export async function GET(request: NextRequest) {
     }
 
     const prices = (defaultPrices || []).map((p: any) => {
+      if (isFixedPercentageCatalogPrice(p)) {
+        const rate = resolveCatalogPercentageRate(p)
+        return {
+          ...p,
+          catalog_price: p.price,
+          price: rate,
+          final_price: rate,
+          base_price: p.price,
+          base_source: 'catalog',
+          special_price: null,
+          special_price_source: null,
+          discount_type: null,
+          discount_value: null,
+          discount_source: null,
+          discount_amount: null,
+          is_override: false,
+          override_type: null,
+          customer_selectable: p.customer_selectable !== false,
+        }
+      }
+
       const resolved = resolvePriceOverride(
         p,
         groupOverrideMap.get(p.id),
@@ -88,6 +113,7 @@ export async function GET(request: NextRequest) {
         final_price: resolved.final_price,
         is_override: resolved.is_override,
         override_type: resolved.override_type,
+        customer_selectable: p.customer_selectable !== false,
       }
     })
 

@@ -4,10 +4,26 @@ import { iterateIsoDateRange } from '@/lib/booking-availability'
 import {
   computeLineItemSnapshot,
   filterBookableExtraPrices,
+  filterCustomerSelectableExtraPrices,
   filterExtraCategoriesForServices,
   type BookingExtraCategory,
   type BookingExtraPrice,
 } from '@/lib/booking-extras'
+import {
+  computeSundayHolidaySurchargeTotal,
+  countSurchargeDaysInList,
+  countSurchargeDaysInRange,
+  WEEKEND_SURCHARGE_FOOTNOTE,
+} from '@/lib/booking-sunday-holiday-surcharge'
+import { buildPublicHolidayDateSet } from '@/lib/public-holidays-de'
+import {
+  evaluatePickupTimeOnDate,
+  needsOutOfHoursPickupFee,
+  PICKUP_TIME_EARLY_ARRIVAL_NOTE,
+  PICKUP_TIME_MIDDAY_NOTE,
+  resolveOutOfHoursPickupUnitPrice,
+} from '@/lib/pickup-time-surcharge'
+import { FIXED_PERCENTAGE_SURCHARGE_RATE } from '@/lib/price-catalog-policy'
 import { formatWeekdayList } from '@/lib/day-care-booking'
 import { formatEuro } from '@/lib/price-override'
 import type { DayCareMode, Pet, ServiceType } from '@/lib/types'
@@ -56,6 +72,11 @@ export interface BookingEstimateInput {
   selectedExtrasByPet: Record<string, Record<string, number>>
   prices: BookingExtraPrice[]
   categories: BookingExtraCategory[]
+  /** ISO-Daten gesetzlicher Feiertage (BW) im Buchungszeitraum */
+  publicHolidays?: Array<{ date: string; name?: string }>
+  /** HH:mm – nur Urlaubsbetreuung mit Zeitraum */
+  dropOffTime?: string | null
+  pickUpTime?: string | null
 }
 
 function isGrundpreisCategory(category: BookingExtraCategory): boolean {
@@ -110,8 +131,35 @@ export function estimateBookingCosts(input: BookingEstimateInput): BookingEstima
   const serviceTypes = [...new Set(input.petLines.map((l) => l.service_type))]
   const extraCategories = filterExtraCategoriesForServices(input.categories, serviceTypes)
   const extraCategoryIds = new Set(extraCategories.map((c) => c.id))
-  const extraPrices = filterBookableExtraPrices(input.prices, extraCategoryIds)
+  const extraPrices = filterCustomerSelectableExtraPrices(
+    filterBookableExtraPrices(input.prices, extraCategoryIds)
+  )
   const extraById = new Map(extraPrices.map((p) => [p.id, p]))
+  const holidaySet = buildPublicHolidayDateSet(
+    (input.publicHolidays || []).map((h) => ({ date: h.date, name: h.name || '' }))
+  )
+  let addedWeekendSurchargeNote = false
+
+  function appendWeekendSurcharge(petName: string, surchargeDays: number, dailyUp: number) {
+    if (surchargeDays <= 0) return
+    const surchargePerDay = (dailyUp * FIXED_PERCENTAGE_SURCHARGE_RATE) / 100
+    const lineTotal = computeSundayHolidaySurchargeTotal(surchargeDays, dailyUp)
+    if (lineTotal == null) return
+    addChargeLine(
+      lines,
+      `${petName}: Sonn- und Feiertagszuschlag`,
+      surchargeDays,
+      surchargePerDay,
+      `${FIXED_PERCENTAGE_SURCHARGE_RATE} % vom Tagespreis`
+    )
+    if (!addedWeekendSurchargeNote) {
+      lines.push({
+        kind: 'note',
+        label: WEEKEND_SURCHARGE_FOOTNOTE,
+      })
+      addedWeekendSurchargeNote = true
+    }
+  }
 
   for (const line of input.petLines) {
     const pet = input.pets.find((p) => p.id === line.pet_id)
@@ -141,6 +189,7 @@ export function estimateBookingCosts(input: BookingEstimateInput): BookingEstima
           kind: 'note',
           label: HUND_GRUNDPREISE_TIER_NOTE,
         })
+        appendWeekendSurcharge(petName, countSurchargeDaysInRange(start, end, holidaySet), up)
       }
     } else if (line.service_type === 'tagesbetreuung' && line.day_care_mode === 'once') {
       const dates = (input.dayCareOnceDates[line.pet_id] || []).map((d) => toIsoDate(d))
@@ -157,6 +206,7 @@ export function estimateBookingCosts(input: BookingEstimateInput): BookingEstima
           kind: 'note',
           label: HUND_GRUNDPREISE_TIER_NOTE,
         })
+        appendWeekendSurcharge(petName, countSurchargeDaysInList(dates, holidaySet), up)
       }
     } else if (line.service_type === 'tagesbetreuung' && line.day_care_mode === 'recurring') {
       const cfg = input.dayCareRecurring[line.pet_id]
@@ -204,6 +254,46 @@ export function estimateBookingCosts(input: BookingEstimateInput): BookingEstima
         unitPrice: snapshot.unit_price,
         lineTotal: snapshot.line_total,
       })
+    }
+  }
+
+  const hasHundRange = input.petLines.some((l) => l.service_type === 'hundepension')
+  if (hasHundRange && input.dateRange?.from && input.dropOffTime && input.pickUpTime) {
+    const start = toIsoDate(input.dateRange.from)
+    const end = toIsoDate(input.dateRange.to ?? input.dateRange.from)
+    const outOfHoursFee = resolveOutOfHoursPickupUnitPrice(input.prices, input.categories)
+
+    const dropEval = evaluatePickupTimeOnDate(start, input.dropOffTime, holidaySet)
+    const pickEval = evaluatePickupTimeOnDate(end, input.pickUpTime, holidaySet)
+
+    if (needsOutOfHoursPickupFee(dropEval)) {
+      addChargeLine(
+        lines,
+        'Bringen außerhalb Standardzeit (geschätzt)',
+        1,
+        outOfHoursFee,
+        'pro Termin'
+      )
+    }
+    if (needsOutOfHoursPickupFee(pickEval)) {
+      addChargeLine(
+        lines,
+        'Abholen außerhalb Standardzeit (geschätzt)',
+        1,
+        outOfHoursFee,
+        'pro Termin'
+      )
+    }
+
+    const notes = new Set<string>()
+    if (dropEval.middayAppointmentNote || pickEval.middayAppointmentNote) {
+      notes.add(PICKUP_TIME_MIDDAY_NOTE)
+    }
+    if (dropEval.earlyArrivalNote || pickEval.earlyArrivalNote) {
+      notes.add(PICKUP_TIME_EARLY_ARRIVAL_NOTE)
+    }
+    for (const note of notes) {
+      lines.push({ kind: 'note', label: note })
     }
   }
 

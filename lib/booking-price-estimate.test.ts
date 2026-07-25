@@ -51,10 +51,18 @@ describe('estimateBookingCosts', () => {
       })
     )
 
-    const charge = result.lines.find((l) => l.kind === 'charge')
-    expect(charge?.quantity).toBe(3)
-    expect(charge?.lineTotal).toBe(120)
-    expect(result.total).toBe(120)
+    const pensionCharge = result.lines.find(
+      (l) => l.kind === 'charge' && l.label.includes('Standard Pension')
+    )
+    expect(pensionCharge?.quantity).toBe(3)
+    expect(pensionCharge?.lineTotal).toBe(120)
+
+    const weekendCharge = result.lines.find(
+      (l) => l.kind === 'charge' && l.label.includes('Sonn- und Feiertagszuschlag')
+    )
+    expect(weekendCharge?.quantity).toBe(2)
+    expect(weekendCharge?.lineTotal).toBe(40)
+    expect(result.total).toBe(160)
   })
 
   it('adds katzen note without charge', () => {

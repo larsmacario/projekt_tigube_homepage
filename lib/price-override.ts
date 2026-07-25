@@ -11,6 +11,7 @@ export interface CatalogPriceRow {
   id: string
   price: number | null
   price_type: 'fixed' | 'percentage' | 'per_unit' | 'text'
+  customer_selectable?: boolean
 }
 
 export interface ResolvedPriceOverride {

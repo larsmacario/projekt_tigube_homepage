@@ -18,6 +18,7 @@ import { randomUUID } from 'crypto'
 
 import { buildBookingRequestEmailContent } from '@/lib/booking-request-email'
 import { sendBookingRequestEmails } from '@/lib/email'
+import { isValidTimeHHmm } from '@/lib/pickup-time-surcharge'
 
 export const runtime = 'nodejs'
 
@@ -25,7 +26,8 @@ async function notifyBookingRequestByEmail(
   customer: { email: string; vorname: string | null; nachname: string },
   message: string | null,
   bookings: unknown[],
-  lineItems?: Array<{ label: string; quantity: number; unit?: string | null }>
+  lineItems?: Array<{ label: string; quantity: number; unit?: string | null }>,
+  pickupTimes?: { drop_off_time: string | null; pick_up_time: string | null }
 ) {
   if (!customer.email?.trim()) {
     console.warn('Buchungsanfrage ohne Kunden-E-Mail – kein Versand')
@@ -41,6 +43,8 @@ async function notifyBookingRequestByEmail(
     message,
     bookings: bookings as Parameters<typeof buildBookingRequestEmailContent>[0]['bookings'],
     lineItems,
+    dropOffTime: pickupTimes?.drop_off_time ?? null,
+    pickUpTime: pickupTimes?.pick_up_time ?? null,
   })
 
   const deliveries = await sendBookingRequestEmails(content)
@@ -213,6 +217,8 @@ export async function POST(request: NextRequest) {
       message,
       pets: petsPayload,
       extras: extrasPayload,
+      drop_off_time: dropOffTimePayload,
+      pick_up_time: pickUpTimePayload,
     } = bookingData
 
     const isBatch = Array.isArray(petsPayload) && petsPayload.length > 0
@@ -240,6 +246,28 @@ export async function POST(request: NextRequest) {
       const lineValidation = validatePortalPetLines(petLines, groupRange)
       if (!lineValidation.valid) {
         return NextResponse.json({ error: lineValidation.error }, { status: 400 })
+      }
+
+      const needsHundPickupTimes =
+        Boolean(groupRange) && petLines.some((l) => l.service_type === 'hundepension')
+
+      if (needsHundPickupTimes) {
+        const dropOff =
+          typeof dropOffTimePayload === 'string' ? dropOffTimePayload.trim() : ''
+        const pickUp =
+          typeof pickUpTimePayload === 'string' ? pickUpTimePayload.trim() : ''
+        if (!dropOff || !pickUp) {
+          return NextResponse.json(
+            { error: 'Bring- und Holzeiten sind für die Urlaubsbetreuung erforderlich.' },
+            { status: 400 }
+          )
+        }
+        if (!isValidTimeHHmm(dropOff) || !isValidTimeHHmm(pickUp)) {
+          return NextResponse.json(
+            { error: 'Bring- und Holzeiten müssen im Format HH:MM vorliegen.' },
+            { status: 400 }
+          )
+        }
       }
 
       const petIds = petLines.map((l) => l.pet_id)
@@ -328,6 +356,27 @@ export async function POST(request: NextRequest) {
       const extras = Array.isArray(extrasPayload) ? extrasPayload : []
       const requestGroupId = randomUUID()
       const allowedPetIds = new Set(petLines.map((line) => line.pet_id))
+
+      const pickupTimesForEmail =
+        needsHundPickupTimes && typeof dropOffTimePayload === 'string' && typeof pickUpTimePayload === 'string'
+          ? {
+              drop_off_time: dropOffTimePayload.trim(),
+              pick_up_time: pickUpTimePayload.trim(),
+            }
+          : null
+
+      if (needsHundPickupTimes && pickupTimesForEmail) {
+        const adminClient = getAdminDbClient()
+        const { error: groupError } = await adminClient.from('booking_request_groups').insert({
+          id: requestGroupId,
+          customer_id: customer.id,
+          drop_off_time: pickupTimesForEmail.drop_off_time,
+          pick_up_time: pickupTimesForEmail.pick_up_time,
+        })
+        if (groupError) {
+          throw groupError
+        }
+      }
 
       let extraValidation:
         | { valid: true; priceById: Map<string, import('@/lib/booking-extras').BookingExtraPrice> }
@@ -420,7 +469,8 @@ export async function POST(request: NextRequest) {
             customer,
             message || null,
             createdBookings,
-            lineItems || []
+            lineItems || [],
+            pickupTimesForEmail ?? undefined
           )
 
           return NextResponse.json({
@@ -434,7 +484,8 @@ export async function POST(request: NextRequest) {
           customer,
           message || null,
           createdBookings,
-          lineItemsToInsert.length > 0 ? lineItemsToInsert : undefined
+          lineItemsToInsert.length > 0 ? lineItemsToInsert : undefined,
+          pickupTimesForEmail ?? undefined
         )
 
         return NextResponse.json({

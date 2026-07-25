@@ -56,6 +56,8 @@ export type BookingRequestEmailContent = {
   message: string | null
   petLines: BookingRequestEmailPetLine[]
   extras: BookingRequestEmailExtraLine[]
+  dropOffTime?: string | null
+  pickUpTime?: string | null
 }
 
 export function buildBookingRequestEmailContent(input: {
@@ -74,6 +76,8 @@ export function buildBookingRequestEmailContent(input: {
     > & { pet?: { name?: string | null } | null }
   >
   lineItems?: Array<{ label: string; quantity: number; unit?: string | null }>
+  dropOffTime?: string | null
+  pickUpTime?: string | null
 }): BookingRequestEmailContent {
   const petLines = input.bookings.map((b) => ({
     petName: b.pet?.name || 'Tier',
@@ -93,6 +97,8 @@ export function buildBookingRequestEmailContent(input: {
     message: input.message,
     petLines,
     extras,
+    dropOffTime: input.dropOffTime ?? null,
+    pickUpTime: input.pickUpTime ?? null,
   }
 }
 
@@ -113,6 +119,10 @@ export function bookingRequestEmailPlainText(content: BookingRequestEmailContent
       const unit = extra.unit ? ` ${extra.unit}` : ''
       lines.push(`- ${extra.label}: ${extra.quantity}${unit}`)
     }
+  }
+
+  if (content.dropOffTime && content.pickUpTime) {
+    lines.push('', `Bringen: ${content.dropOffTime} Uhr · Abholen: ${content.pickUpTime} Uhr`)
   }
 
   if (content.message?.trim()) {
@@ -155,6 +165,11 @@ export function bookingRequestInternalHtml(content: BookingRequestEmailContent):
           .join('')}</ul>`
       : ''
 
+  const pickupBlock =
+    content.dropOffTime && content.pickUpTime
+      ? `<p><strong>Bringen:</strong> ${escapeHtml(content.dropOffTime)} Uhr · <strong>Abholen:</strong> ${escapeHtml(content.pickUpTime)} Uhr</p>`
+      : ''
+
   const messageBlock = content.message?.trim()
     ? `<h3>Nachricht</h3><p>${toHtml(content.message.trim())}</p>`
     : ''
@@ -169,6 +184,7 @@ export function bookingRequestInternalHtml(content: BookingRequestEmailContent):
     </ul>
     <h3>Leistungen</h3>
     ${bookingRequestEmailHtmlPetLines(content)}
+    ${pickupBlock}
     ${extrasBlock}
     ${messageBlock}
   `
@@ -188,6 +204,11 @@ export function bookingRequestEmailHtmlBody(
           .join('')}</ul>`
       : ''
 
+  const pickupBlock =
+    content.dropOffTime && content.pickUpTime
+      ? `<p><strong>Bringen:</strong> ${escapeHtml(content.dropOffTime)} Uhr · <strong>Abholen:</strong> ${escapeHtml(content.pickUpTime)} Uhr</p>`
+      : ''
+
   const messageBlock = content.message?.trim()
     ? `<h3>Nachricht</h3><p>${toHtml(content.message.trim())}</p>`
     : ''
@@ -197,6 +218,7 @@ export function bookingRequestEmailHtmlBody(
     <p>${toHtml(options.intro)}</p>
     <h3>Leistungen</h3>
     ${bookingRequestEmailHtmlPetLines(content)}
+    ${pickupBlock}
     ${extrasBlock}
     ${messageBlock}
   `
@@ -221,6 +243,9 @@ export function customerConfirmationPlainText(content: BookingRequestEmailConten
             return `- ${e.label}: ${e.quantity}${unit}`
           }),
         ]
+      : []),
+    ...(content.dropOffTime && content.pickUpTime
+      ? ['', `Bringen: ${content.dropOffTime} Uhr · Abholen: ${content.pickUpTime} Uhr`]
       : []),
     ...(content.message?.trim() ? ['', `Deine Nachricht: ${content.message.trim()}`] : []),
     '',

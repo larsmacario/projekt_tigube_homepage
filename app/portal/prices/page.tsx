@@ -5,6 +5,10 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { authenticatedFetch } from '@/lib/authenticated-fetch'
 import { formatDiscountLabel, formatEuro } from '@/lib/price-override'
+import {
+  FIXED_PERCENTAGE_SURCHARGE_RATE,
+  formatFixedPercentageLabel,
+} from '@/lib/price-catalog-policy'
 
 interface Price {
   id: string
@@ -24,6 +28,7 @@ interface Price {
   final_price?: number | null
   is_override?: boolean
   override_type?: 'individual' | 'group' | null
+  customer_selectable?: boolean
 }
 
 interface PriceCategory {
@@ -65,7 +70,7 @@ export default function PricesPage() {
     if (catalogAmount === null) return ''
 
     if (price.price_type === 'percentage') {
-      return `+${catalogAmount}%${price.unit ? ` ${price.unit}` : ''}`
+      return formatFixedPercentageLabel(FIXED_PERCENTAGE_SURCHARGE_RATE)
     }
 
     if (price.price_type === 'per_unit') {
@@ -78,6 +83,10 @@ export default function PricesPage() {
   function renderPriceColumn(price: Price) {
     if (price.price_type === 'text') {
       return <p className="text-sm text-sage-700 whitespace-pre-wrap">{price.description}</p>
+    }
+
+    if (price.price_type === 'percentage') {
+      return <p className="text-lg font-bold text-sage-900">{formatCatalogPrice(price)}</p>
     }
 
     if (price.is_override && price.base_price != null) {
@@ -167,6 +176,13 @@ export default function PricesPage() {
                 {price.note && (
                   <p className="text-xs text-sage-500 italic mt-0.5">{price.note}</p>
                 )}
+                {price.price_type !== 'text' &&
+                  price.price_type !== 'percentage' &&
+                  price.customer_selectable === false && (
+                    <p className="text-xs text-sage-500 mt-0.5">
+                      Wird bei Bedarf durch uns ergänzt (nicht im Buchungswizard wählbar).
+                    </p>
+                  )}
               </div>
 
               <div className="flex flex-col items-start sm:items-end min-w-[120px]">

@@ -21,16 +21,14 @@ export async function RechtlichesHub() {
   return (
     <RechtlichesShell variant="hub">
       <div className="flex flex-col items-center text-center mb-8">
-        <div className="relative h-24 w-24 rounded-full overflow-hidden ring-4 ring-white shadow-md mb-4">
-          <Image
-            src="/images/tigube_logo_hund.jpg"
-            alt="tierisch gut betreut"
-            fill
-            className="object-cover"
-            sizes="96px"
-            priority
-          />
-        </div>
+        <Image
+          src="/images/tigube_logo_hund.jpg"
+          alt="tierisch gut betreut"
+          width={120}
+          height={120}
+          className="h-24 w-auto object-contain mb-4"
+          priority
+        />
         <h1 className="text-xl font-raleway font-black text-sage-900">tierisch gut betreut</h1>
         <p className="mt-2 text-sm text-sage-600">Rechtliche Informationen</p>
       </div>

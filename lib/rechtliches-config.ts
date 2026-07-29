@@ -15,7 +15,7 @@ export const RECHTLICHES_LINKS: RechtlichesLink[] = [
   {
     href: '/rechtliches/betreuungsvertrag',
     cmsKey: 'agb',
-    label: 'Betreuungsvertrag',
+    label: 'AGB',
   },
   {
     href: '/rechtliches/datenschutz',

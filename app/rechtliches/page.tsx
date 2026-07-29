@@ -7,12 +7,12 @@ export const dynamic = 'force-dynamic'
 export const metadata: Metadata = {
   title: 'Rechtliches - tierisch gut betreut',
   description:
-    'Betreuungsvertrag, Datenschutzerklärung und Impressum der tierisch gut betreut GmbH.',
+    'AGB, Datenschutzerklärung und Impressum der tierisch gut betreut GmbH.',
   ...RECHTLICHES_NOINDEX,
   openGraph: {
     title: 'Rechtliches - tierisch gut betreut',
     description:
-      'Betreuungsvertrag, Datenschutzerklärung und Impressum der tierisch gut betreut GmbH.',
+      'AGB, Datenschutzerklärung und Impressum der tierisch gut betreut GmbH.',
     url: '/rechtliches',
     images: [
       {

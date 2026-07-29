@@ -33,4 +33,10 @@ describe('betreuungsvertrag-html', () => {
     expect(stornierungIdx).toBeGreaterThan(0)
     expect(datenschutzIdx).toBeGreaterThan(stornierungIdx)
   })
+
+  it('enthält Schulferien-Stornofristen im Standard-AGB-Text', () => {
+    expect(agbHtml).toContain('Schulferien des Landes BW')
+    expect(agbHtml).toContain('ACHTUNG')
+    expect(agbHtml).toContain('Mail oder WhatsApp')
+  })
 })

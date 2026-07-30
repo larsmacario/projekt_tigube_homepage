@@ -26,10 +26,12 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog'
 import { CollapsibleAdminCard } from '@/components/admin/collapsible-admin-card'
+import { Switch } from '@/components/ui/switch'
 import { useToast } from '@/hooks/use-toast'
 import { authenticatedFetch } from '@/lib/authenticated-fetch'
-import type { SevdeskContact, SevdeskPart, SevdeskSettings } from '@/lib/types'
-import { Loader2, RefreshCw } from 'lucide-react'
+import type { SevdeskContact, SevdeskPart, SevdeskSettings, SiteSettings, WaitlistCmsContent } from '@/lib/types'
+import { ExternalLink, Loader2, RefreshCw } from 'lucide-react'
+import Link from 'next/link'
 
 function formatDateTime(iso: string | null | undefined): string {
   if (!iso) return '—'
@@ -54,6 +56,9 @@ export default function AdminEinstellungenPage() {
   const { toast } = useToast()
   const [loading, setLoading] = useState(true)
   const [settings, setSettings] = useState<SevdeskSettings | null>(null)
+  const [waitlistSettings, setWaitlistSettings] = useState<SiteSettings | null>(null)
+  const [waitlistTexts, setWaitlistTexts] = useState<WaitlistCmsContent | null>(null)
+  const [waitlistSaving, setWaitlistSaving] = useState(false)
   const [apiKeyInput, setApiKeyInput] = useState('')
   const [saving, setSaving] = useState(false)
   const [testing, setTesting] = useState(false)
@@ -63,6 +68,16 @@ export default function AdminEinstellungenPage() {
   const [parts, setParts] = useState<SevdeskPart[]>([])
   const [loadingContacts, setLoadingContacts] = useState(false)
   const [loadingParts, setLoadingParts] = useState(false)
+
+  const loadWaitlistSettings = useCallback(async () => {
+    const response = await authenticatedFetch('/api/admin/settings/waitlist')
+    const data = await response.json()
+    if (!response.ok) {
+      throw new Error(data.error || 'Wartelisten-Einstellungen konnten nicht geladen werden')
+    }
+    setWaitlistSettings(data.settings ?? null)
+    setWaitlistTexts(data.texts ?? null)
+  }, [])
 
   const loadSettings = useCallback(async () => {
     const response = await authenticatedFetch('/api/admin/integrations/sevdesk')
@@ -74,7 +89,7 @@ export default function AdminEinstellungenPage() {
   }, [])
 
   useEffect(() => {
-    loadSettings()
+    Promise.all([loadSettings(), loadWaitlistSettings()])
       .catch((error) => {
         console.error(error)
         toast({
@@ -84,7 +99,37 @@ export default function AdminEinstellungenPage() {
         })
       })
       .finally(() => setLoading(false))
-  }, [loadSettings, toast])
+  }, [loadSettings, loadWaitlistSettings, toast])
+
+  async function handleWaitlistToggle(enabled: boolean) {
+    setWaitlistSaving(true)
+    try {
+      const response = await authenticatedFetch('/api/admin/settings/waitlist', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ waitlistEnabled: enabled }),
+      })
+      const data = await response.json()
+      if (!response.ok) {
+        throw new Error(data.error || 'Speichern fehlgeschlagen')
+      }
+      setWaitlistSettings(data.settings ?? null)
+      toast({
+        title: enabled ? 'Warteliste aktiviert' : 'Warteliste deaktiviert',
+        description: enabled
+          ? 'Neue Anfragen werden als Wartelisten-Einträge gespeichert.'
+          : 'Das Anfrageformular verhält sich wieder wie gewohnt.',
+      })
+    } catch (error) {
+      toast({
+        title: 'Fehler',
+        description: error instanceof Error ? error.message : 'Speichern fehlgeschlagen',
+        variant: 'destructive',
+      })
+    } finally {
+      setWaitlistSaving(false)
+    }
+  }
 
   async function handleSaveKey() {
     setSaving(true)
@@ -230,9 +275,61 @@ export default function AdminEinstellungenPage() {
       <div>
         <h1 className="text-2xl font-semibold text-sage-900">Einstellungen</h1>
         <p className="text-sage-600 mt-1">
-          Externe Integrationen für Rechnungen und Abrechnung vorbereiten.
+          Globale Optionen und externe Integrationen für Rechnungen und Abrechnung.
         </p>
       </div>
+
+      <Card>
+        <CardHeader>
+          <div className="flex flex-wrap items-center gap-3 justify-between">
+            <div>
+              <CardTitle>Wartelisten-Modus</CardTitle>
+              <CardDescription className="mt-1">
+                Wenn aktiv, informiert das Anfrageformular über die Warteliste und speichert neue
+                Eingänge getrennt von regulären Leads.
+              </CardDescription>
+            </div>
+            <Badge variant={waitlistSettings?.waitlist_enabled ? 'default' : 'secondary'}>
+              {waitlistSettings?.waitlist_enabled ? 'Aktiv' : 'Inaktiv'}
+            </Badge>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center justify-between gap-4 max-w-xl">
+            <div className="space-y-1">
+              <Label htmlFor="waitlist-enabled">Warteliste für Kennenlernen</Label>
+              <p className="text-xs text-sage-500">
+                Betrifft alle öffentlichen Anfrageformulare auf der Website.
+              </p>
+            </div>
+            <Switch
+              id="waitlist-enabled"
+              checked={Boolean(waitlistSettings?.waitlist_enabled)}
+              disabled={waitlistSaving}
+              onCheckedChange={handleWaitlistToggle}
+            />
+          </div>
+
+          {waitlistTexts && (
+            <div className="rounded-lg border border-sage-200 bg-sage-50/60 p-4 text-sm text-sage-700 space-y-2 max-w-2xl">
+              <p className="font-medium text-sage-900">Aktuelle Formular-Vorschau</p>
+              <p>
+                <span className="font-medium">Titel:</span> {waitlistTexts.formTitle}
+              </p>
+              <p>
+                <span className="font-medium">Hinweis:</span> {waitlistTexts.formHint}
+              </p>
+            </div>
+          )}
+
+          <Button variant="outline" asChild>
+            <Link href="/admin/cms">
+              <ExternalLink className="h-4 w-4 mr-2" />
+              Wartelisten-Texte im CMS bearbeiten
+            </Link>
+          </Button>
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>

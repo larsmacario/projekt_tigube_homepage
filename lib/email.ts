@@ -12,6 +12,7 @@ import {
   bookingRequestInternalHtml,
   customerConfirmationPlainText,
 } from '@/lib/booking-request-email'
+import { DEFAULT_WAITLIST_CMS, type WaitlistCmsContent } from '@/lib/waitlist-defaults'
 
 const LEAD_CONFIRMATION_BANNER_CID = 'lead-confirmation-banner'
 const LEAD_CONFIRMATION_BANNER_ALT =
@@ -35,6 +36,8 @@ export type LeadEmailData = {
   intaktKastriert?: string | null
   alter?: string | null
   ferienKonflikt?: boolean
+  waitlistMode?: boolean
+  waitlistTexts?: WaitlistCmsContent
 }
 
 export type EmailDelivery = {
@@ -232,7 +235,9 @@ function internalText(data: LeadEmailData): string {
   return [
     data.ferienKonflikt
       ? 'Lead-Anfrage – an tigube.de weitergeleitet (Betriebsferien-Konflikt)'
-      : 'Neue Lead-Anfrage',
+      : data.waitlistMode
+        ? 'Neue Wartelisten-Anmeldung'
+        : 'Neue Lead-Anfrage',
     '',
     `Name: ${data.vorname || ''} ${data.name}`.trim(),
     `E-Mail: ${data.email}`,
@@ -339,15 +344,22 @@ export async function sendLeadEmails(data: LeadEmailData): Promise<LeadEmailDeli
 
   const fullName = [data.vorname, data.name].filter(Boolean).join(' ')
   const service = serviceLabel(data.service)
+  const waitlistTexts = data.waitlistTexts ?? DEFAULT_WAITLIST_CMS
   const internalSubject = data.ferienKonflikt
     ? `Weitergeleitet an tigube.de: ${fullName || data.email}`
-    : `Neue Lead-Anfrage: ${fullName || data.email}`
+    : data.waitlistMode
+      ? `Warteliste: ${fullName || data.email}`
+      : `Neue Lead-Anfrage: ${fullName || data.email}`
   const internalHeading = data.ferienKonflikt
     ? 'Lead-Anfrage – an tigube.de weitergeleitet'
-    : 'Neue Lead-Anfrage'
+    : data.waitlistMode
+      ? 'Neue Wartelisten-Anmeldung'
+      : 'Neue Lead-Anfrage'
   const conflictNotice = data.ferienKonflikt
     ? '<p><strong>Hinweis:</strong> Der Lead hat angegeben, dass der Betreuungszeitraum in die Betriebsferien fällt. Es wurde kein Bestätigungsmail versendet.</p>'
-    : ''
+    : data.waitlistMode
+      ? '<p><strong>Hinweis:</strong> Diese Anfrage wurde im Wartelisten-Modus eingereicht.</p>'
+      : ''
 
   const internal = await transporter
     .sendMail({
@@ -384,6 +396,48 @@ export async function sendLeadEmails(data: LeadEmailData): Promise<LeadEmailDeli
       internal,
       confirmation: { status: 'sent', error: null },
     }
+  }
+
+  if (data.waitlistMode) {
+    const confirmation = await transporter
+      .sendMail({
+        from: config.from,
+        to: data.email,
+        subject: waitlistTexts.emailSubject,
+        text: [
+          `Hallo${fullName ? ` ${fullName}` : ''},`,
+          '',
+          waitlistTexts.emailIntro,
+          '',
+          'Zusammenfassung Deiner Anmeldung:',
+          `Leistung: ${service}`,
+          `Nachricht: ${data.message}`,
+          `Beste Erreichbarkeit: ${data.availability}`,
+          '',
+          'Herzliche Grüße',
+          'Tamara und Gabriel von tierisch gut betreut GmbH',
+        ].join('\n'),
+        html: `
+          <p>Hallo${fullName ? ` ${escapeHtml(fullName)}` : ''},</p>
+          <p>${toHtml(waitlistTexts.emailIntro)}</p>
+          <h3>Zusammenfassung Deiner Anmeldung</h3>
+          <ul>
+            <li><strong>Leistung:</strong> ${escapeHtml(service)}</li>
+            <li><strong>Nachricht:</strong> ${toHtml(data.message)}</li>
+            <li><strong>Beste Erreichbarkeit:</strong> ${toHtml(data.availability)}</li>
+          </ul>
+          <p>Herzliche Grüße<br>Tamara und Gabriel von tierisch gut betreut GmbH</p>
+          ${leadConfirmationBannerHtml()}
+        `,
+        attachments: [getLeadConfirmationBannerAttachment()],
+      })
+      .then((): EmailDelivery => ({ status: 'sent', error: null }))
+      .catch((error: unknown): EmailDelivery => ({
+        status: 'failed',
+        error: error instanceof Error ? error.message : 'Interner SMTP-Fehler',
+      }))
+
+    return { internal, confirmation }
   }
 
   const confirmation = await transporter

@@ -7,6 +7,7 @@ export const NEWSLETTER_GROUP_OPTIONS = [
   { id: 'active_customers', label: 'Aktive Kunden' },
   { id: 'leads', label: 'Leads' },
   { id: 'lost', label: 'Verlorene Kontakte' },
+  { id: 'waitlist', label: 'Warteliste' },
 ] as const
 
 export type NewsletterGroupId = (typeof NEWSLETTER_GROUP_OPTIONS)[number]['id']
@@ -65,6 +66,9 @@ async function fetchGroupContacts(adminClient: SupabaseClient, groupId: string):
       break
     case 'lost':
       query = query.eq('contact_type', 'lost')
+      break
+    case 'waitlist':
+      query = query.eq('contact_type', 'waitlist')
       break
     case 'all_contacts':
     default:

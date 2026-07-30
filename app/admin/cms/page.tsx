@@ -115,11 +115,21 @@ interface LegalData {
   content?: string
 }
 
+interface WaitlistData {
+  formTitle?: string
+  formHint?: string
+  formDescription?: string
+  successMessage?: string
+  emailSubject?: string
+  emailIntro?: string
+}
+
 const CMS_SECTION_LABELS: Record<string, string> = {
   homepage: 'Startseite',
   hundepension: 'Hundepension',
   katzenbetreuung: 'Katzenbetreuung',
   kundenportal: 'Kundenportal',
+  waitlist: 'Warteliste',
   impressum: 'Impressum',
   datenschutz: 'Datenschutz',
   agb: 'AGB',
@@ -361,6 +371,7 @@ export default function CMSPage() {
   const kpData: KundenportalData = mergeKundenportalData(
     cmsData['kundenportal'] as KundenportalData | undefined
   )
+  const wData: WaitlistData = cmsData['waitlist'] || {}
 
   return (
     <div className="space-y-8">
@@ -375,6 +386,7 @@ export default function CMSPage() {
           <TabsTrigger value="hundepension" className="data-[state=active]:bg-sage-600 data-[state=active]:text-white">Hundepension</TabsTrigger>
           <TabsTrigger value="katzenbetreuung" className="data-[state=active]:bg-sage-600 data-[state=active]:text-white">Katzenbetreuung</TabsTrigger>
           <TabsTrigger value="kundenportal" className="data-[state=active]:bg-sage-600 data-[state=active]:text-white">Kundenportal</TabsTrigger>
+          <TabsTrigger value="waitlist" className="data-[state=active]:bg-sage-600 data-[state=active]:text-white">Warteliste</TabsTrigger>
           <TabsTrigger value="agb" className="data-[state=active]:bg-sage-600 data-[state=active]:text-white">AGB</TabsTrigger>
           <TabsTrigger value="datenschutz" className="data-[state=active]:bg-sage-600 data-[state=active]:text-white">Datenschutz</TabsTrigger>
           <TabsTrigger value="impressum" className="data-[state=active]:bg-sage-600 data-[state=active]:text-white">Impressum</TabsTrigger>
@@ -555,6 +567,81 @@ export default function CMSPage() {
               <div className="flex justify-end pt-6 border-t">
                 <Button disabled={saving} onClick={() => handleSave('homepage')} className="bg-sage-600 hover:bg-sage-700 text-white">
                   {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Startseite Speichern
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="waitlist" className="space-y-6 mt-6">
+          <Card className="border-sage-200">
+            <CardHeader className="bg-sage-50/50 border-b border-sage-100">
+              <CardTitle className="text-xl text-sage-900 font-raleway flex items-center gap-2">
+                <FileText className="h-5 w-5" /> Wartelisten-Texte
+              </CardTitle>
+              <CardDescription>
+                Diese Texte erscheinen im Anfrageformular und in der Wartelisten-Bestätigungs-E-Mail,
+                wenn der Wartelisten-Modus unter Einstellungen aktiv ist.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="pt-6 space-y-6">
+              <div className="space-y-2">
+                <Label htmlFor="waitlist-formTitle">Formular-Titel</Label>
+                <Input
+                  id="waitlist-formTitle"
+                  value={wData.formTitle || ''}
+                  onChange={(e) => updateData('waitlist', 'formTitle', e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="waitlist-formHint">Hinweis-Banner</Label>
+                <Textarea
+                  id="waitlist-formHint"
+                  value={wData.formHint || ''}
+                  onChange={(e) => updateData('waitlist', 'formHint', e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="waitlist-formDescription">Formular-Beschreibung</Label>
+                <Textarea
+                  id="waitlist-formDescription"
+                  value={wData.formDescription || ''}
+                  onChange={(e) => updateData('waitlist', 'formDescription', e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="waitlist-successMessage">Erfolgsmeldung nach Absenden</Label>
+                <Textarea
+                  id="waitlist-successMessage"
+                  value={wData.successMessage || ''}
+                  onChange={(e) => updateData('waitlist', 'successMessage', e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="waitlist-emailSubject">E-Mail-Betreff (Bestätigung)</Label>
+                <Input
+                  id="waitlist-emailSubject"
+                  value={wData.emailSubject || ''}
+                  onChange={(e) => updateData('waitlist', 'emailSubject', e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="waitlist-emailIntro">E-Mail-Einleitung (Bestätigung)</Label>
+                <Textarea
+                  id="waitlist-emailIntro"
+                  rows={5}
+                  value={wData.emailIntro || ''}
+                  onChange={(e) => updateData('waitlist', 'emailIntro', e.target.value)}
+                />
+              </div>
+
+              <div className="flex justify-end pt-6 border-t">
+                <Button
+                  disabled={saving}
+                  onClick={() => handleSave('waitlist')}
+                  className="bg-sage-600 hover:bg-sage-700 text-white"
+                >
+                  {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Wartelisten-Texte speichern
                 </Button>
               </div>
             </CardContent>

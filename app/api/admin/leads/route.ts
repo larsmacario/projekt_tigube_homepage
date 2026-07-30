@@ -1,41 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerClient, getAdminDbClient } from '@/lib/admin-auth'
+import { getAdminDbClient, getServerClient, requireAdmin } from '@/lib/admin-auth'
 import { LEAD_EDITABLE_FIELDS, pickAllowedFields } from '@/lib/contact-editable-fields'
 
 export async function GET(request: NextRequest) {
   try {
-    const { client: supabase, accessToken } = await getServerClient(request)
-
-    if (!accessToken) {
-      return NextResponse.json(
-        { error: 'Nicht autorisiert - Keine Session gefunden' },
-        { status: 401 }
-      )
+    const auth = await requireAdmin(request)
+    if ('error' in auth) {
+      return NextResponse.json({ error: auth.error }, { status: auth.status })
     }
 
-    // Prüfe ob User eingeloggt ist
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
-
-    if (authError || !user) {
-      return NextResponse.json(
-        { error: 'Nicht autorisiert' },
-        { status: 401 }
-      )
-    }
-
-    // Prüfe Admin-Rechte
-    const { data: userData, error: userError } = await supabase
-      .from('users')
-      .select('role')
-      .eq('id', user.id)
-      .single()
-
-    if (userError || !userData || userData.role !== 'admin') {
-      return NextResponse.json(
-        { error: 'Nicht autorisiert' },
-        { status: 403 }
-      )
-    }
+    const supabase = auth.client
 
     const { searchParams } = new URL(request.url)
     const status = searchParams.get('status')
@@ -48,10 +22,12 @@ export async function GET(request: NextRequest) {
 
     if (typeFilter === 'lost') {
       query = query.eq('contact_type', 'lost')
+    } else if (typeFilter === 'waitlist') {
+      query = query.eq('contact_type', 'waitlist')
     } else if (typeFilter === 'lead') {
       query = query.eq('contact_type', 'lead')
     } else {
-      query = query.in('contact_type', ['lead', 'lost'])
+      query = query.in('contact_type', ['lead', 'lost', 'waitlist'])
     }
 
     if (status && typeFilter !== 'lost') {
@@ -166,7 +142,7 @@ export async function PUT(request: NextRequest) {
       .from('contacts')
       .update(updates)
       .eq('id', id)
-      .in('contact_type', ['lead', 'lost'])
+      .in('contact_type', ['lead', 'lost', 'waitlist'])
       .select()
       .single()
 

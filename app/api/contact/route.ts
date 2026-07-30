@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { sendLeadEmails } from '@/lib/email'
 import { buildReferredLeadMessage } from '@/lib/vacation-dates'
+import { getPublicWaitlistConfig, isWaitlistEnabled } from '@/lib/waitlist-settings'
+import type { ContactType } from '@/lib/types'
 
 export const runtime = 'nodejs'
 
@@ -87,12 +89,26 @@ export async function POST(request: NextRequest) {
     )
 
     const ferienKonflikt = formData.ferienKonflikt === true
+    const waitlistEnabled = await isWaitlistEnabled(supabase)
+    const waitlistConfig = waitlistEnabled ? await getPublicWaitlistConfig(supabase) : null
+
     const storedMessage = ferienKonflikt
       ? buildReferredLeadMessage(formData.message)
       : formData.message
 
+    let contactType: ContactType = 'lead'
+    let contactStatus: 'new' | null = 'new'
+
+    if (ferienKonflikt) {
+      contactType = 'lost'
+      contactStatus = null
+    } else if (waitlistEnabled) {
+      contactType = 'waitlist'
+      contactStatus = 'new'
+    }
+
     const { data: lead, error: dbError } = await supabase.from('contacts').insert({
-      contact_type: ferienKonflikt ? 'lost' : 'lead',
+      contact_type: contactType,
       nachname: formData.name,
       vorname: formData.vorname ?? null,
       email: formData.email,
@@ -113,7 +129,7 @@ export async function POST(request: NextRequest) {
       ip_address: request.headers.get('x-forwarded-for') || request.headers.get('x-real-ip') || null,
       user_agent: request.headers.get('user-agent') || null,
       timestamp: formData.timestamp || new Date().toISOString(),
-      status: ferienKonflikt ? null : 'new',
+      status: contactStatus,
     }).select('id').single()
 
     if (dbError) {
@@ -131,10 +147,14 @@ export async function POST(request: NextRequest) {
       email: formData.email,
     })
 
+    const isWaitlistSubmission = waitlistEnabled && !ferienKonflikt
+
     const deliveries = await sendLeadEmails({
       ...formData,
       message: storedMessage,
       ferienKonflikt,
+      waitlistMode: isWaitlistSubmission,
+      waitlistTexts: waitlistConfig?.texts,
     })
     const { error: deliveryStatusError } = await supabase
       .from('contacts')

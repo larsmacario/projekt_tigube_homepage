@@ -17,6 +17,7 @@ import {
   TIGUBE_URL,
   type VacationDate,
 } from "@/lib/vacation-dates"
+import { DEFAULT_WAITLIST_CMS, type WaitlistCmsContent } from "@/lib/waitlist-defaults"
 
 export type ContactFormProps = {
   /** Vorauswahl z. B. auf /hundepension oder /katzenbetreuung */
@@ -62,25 +63,38 @@ export function ContactForm({
   }))
 
   const [vacationDates, setVacationDates] = useState<VacationDate[]>([])
+  const [waitlistEnabled, setWaitlistEnabled] = useState(false)
+  const [waitlistTexts, setWaitlistTexts] = useState<WaitlistCmsContent>(DEFAULT_WAITLIST_CMS)
   const [step, setStep] = useState<1 | 2>(1)
   const [ferienAntwort, setFerienAntwort] = useState<"" | "ausserhalb" | "innerhalb">("")
-  const [submitOutcome, setSubmitOutcome] = useState<"normal" | "referred" | null>(null)
+  const [submitOutcome, setSubmitOutcome] = useState<"normal" | "referred" | "waitlist" | null>(null)
 
   const futureVacationPeriods = getFutureVacationPeriods(vacationDates)
 
   useEffect(() => {
-    async function loadVacationData() {
+    async function loadFormConfig() {
       try {
-        const response = await fetch('/api/newsbar')
-        const data = await response.json()
-        if (data.settings && data.vacationDates) {
-          setVacationDates(data.vacationDates)
+        const [newsbarResponse, settingsResponse] = await Promise.all([
+          fetch('/api/newsbar'),
+          fetch('/api/settings/public'),
+        ])
+        const newsbarData = await newsbarResponse.json()
+        if (newsbarData.settings && newsbarData.vacationDates) {
+          setVacationDates(newsbarData.vacationDates)
+        }
+
+        const settingsData = await settingsResponse.json()
+        if (settingsResponse.ok) {
+          setWaitlistEnabled(Boolean(settingsData.waitlistEnabled))
+          if (settingsData.texts) {
+            setWaitlistTexts(settingsData.texts)
+          }
         }
       } catch (error) {
-        console.error('Error loading vacation dates for contact form:', error)
+        console.error('Error loading contact form configuration:', error)
       }
     }
-    loadVacationData()
+    loadFormConfig()
   }, [])
 
   const [availabilityDays, setAvailabilityDays] = useState<string[]>([])
@@ -214,6 +228,12 @@ export function ContactForm({
           message:
             "Vielen Dank für Ihre Angaben. In den genannten Betriebsferien können wir leider keine Betreuung anbieten. Über tigube finden Sie alternative Betreuungspersonen in Ihrer Nähe.",
         })
+      } else if (waitlistEnabled) {
+        setSubmitOutcome("waitlist")
+        setSubmitStatus({
+          type: "success",
+          message: waitlistTexts.successMessage,
+        })
       } else {
         setSubmitOutcome("normal")
         setSubmitStatus({
@@ -301,6 +321,17 @@ export function ContactForm({
       onSubmit={step === 1 ? handleContinue : handleSubmit}
       className={cn(m ? "space-y-4" : "space-y-6")}
     >
+      {waitlistEnabled && (
+        <div
+          className={cn(
+            "rounded-lg border border-amber-200 bg-amber-50 text-amber-950",
+            m ? "p-2.5 text-xs sm:text-sm" : "p-4 text-sm"
+          )}
+        >
+          <p className="font-medium">{waitlistTexts.formHint}</p>
+        </div>
+      )}
+
       {step === 1 && (
         <>
       <div className={grid2}>
@@ -991,7 +1022,9 @@ export function ContactForm({
                 ? "Wird gesendet..."
                 : ferienAntwort === "innerhalb"
                   ? "Weiter zur Alternative"
-                  : "Anfrage absenden"}
+                  : waitlistEnabled
+                    ? "Auf Warteliste setzen"
+                    : "Anfrage absenden"}
             </Button>
           </div>
         </>
@@ -1019,8 +1052,13 @@ export function ContactForm({
             m ? "text-base sm:text-lg" : "text-xl"
           )}
         >
-          Unverbindliche Anfrage
+          {waitlistEnabled ? waitlistTexts.formTitle : "Unverbindliche Anfrage"}
         </CardTitle>
+        {waitlistEnabled && waitlistTexts.formDescription && (
+          <p className={cn("text-sage-600", m ? "text-xs sm:text-sm mt-1" : "text-sm mt-2")}>
+            {waitlistTexts.formDescription}
+          </p>
+        )}
       </CardHeader>
       <CardContent className={cn(m && "p-4 pt-0 sm:p-5 sm:pt-0")}>
         {formInner}

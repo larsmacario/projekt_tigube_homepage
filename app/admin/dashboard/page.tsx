@@ -6,6 +6,7 @@ import type { Contact, UpcomingVaccinationRow, UpcomingVaccinationSummary } from
 import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { authenticatedFetch } from '@/lib/authenticated-fetch'
+import { readApiResponse } from '@/lib/read-api-response'
 import {
   UpcomingVaccinationSummaryCards,
   UpcomingVaccinationsTable,
@@ -33,85 +34,74 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
+    let cancelled = false
+
     async function loadData() {
       try {
-        // Lade alle Leads für Statistiken
-        const allResponse = await authenticatedFetch('/api/admin/leads', {
-          credentials: 'include',
-        })
-        let allData: { leads?: Contact[]; error?: string } = {}
-        try {
-          allData = await allResponse.json()
-        } catch {
-          console.error('Dashboard: Antwort ist kein gültiges JSON (/api/admin/leads)')
+        const allResponse = await authenticatedFetch('/api/admin/leads')
+        const { data: allData, error: allError } = await readApiResponse<{ leads?: Contact[]; error?: string }>(
+          allResponse
+        )
+        if (allError) {
+          console.error('Dashboard: Leads konnten nicht geladen werden:', allError)
         }
 
-        const custResp = await authenticatedFetch('/api/admin/customers', { credentials: 'include' })
-        let custData: { customers?: unknown[]; error?: string } = {}
-        try {
-          custData = await custResp.json()
-        } catch {
-          console.error('Dashboard: Antwort ist kein gültiges JSON (/api/admin/customers)')
+        const custResp = await authenticatedFetch('/api/admin/customers')
+        const { data: custData, error: custError } = await readApiResponse<{ customers?: unknown[]; error?: string }>(
+          custResp
+        )
+        if (custError) {
+          console.error('Dashboard: Kunden konnten nicht geladen werden:', custError)
         }
 
-        if (!allResponse.ok && allData.error) {
-          console.error('Leads API:', allResponse.status, allData.error)
-        }
-        if (!custResp.ok && custData.error) {
-          console.error('Kunden API:', custResp.status, custData.error)
-        }
-
-        if (allData.leads) {
-          const allLeads = allData.leads as Contact[]
-          
-          // Berechne Statistiken
-          const newCount = allLeads.filter(l => l.status === 'new').length
-          const contactedCount = allLeads.filter(l => l.status === 'contacted').length
+        if (allData?.leads) {
+          const allLeads = allData.leads
 
           setStats({
-            new: newCount,
-            contacted: contactedCount,
-            converted: (custData.customers || []).length,
+            new: allLeads.filter((l) => l.status === 'new').length,
+            contacted: allLeads.filter((l) => l.status === 'contacted').length,
+            converted: (custData?.customers || []).length,
             total: allLeads.length,
           })
         }
 
-        const newResponse = await authenticatedFetch('/api/admin/leads?status=new', {
-          credentials: 'include',
-        })
-        let newData: { leads?: Contact[]; error?: string } = {}
-        try {
-          newData = await newResponse.json()
-        } catch {
-          console.error('Dashboard: Antwort ist kein gültiges JSON (/api/admin/leads?status=new)')
-        }
-        if (!newResponse.ok && newData.error) {
-          console.error('Leads API (neu):', newResponse.status, newData.error)
+        const newResponse = await authenticatedFetch('/api/admin/leads?status=new')
+        const { data: newData, error: newError } = await readApiResponse<{ leads?: Contact[]; error?: string }>(
+          newResponse
+        )
+        if (newError) {
+          console.error('Dashboard: Neue Leads konnten nicht geladen werden:', newError)
         }
 
-        if (newData.leads) {
-          const newLeads = newData.leads as Contact[]
-          // Zeige alle neuen Leads (oder die neuesten 10)
-          setRecentLeads(newLeads.slice(0, 10))
+        if (newData?.leads) {
+          setRecentLeads(newData.leads.slice(0, 10))
         }
 
         const vaccinationResponse = await authenticatedFetch(
-          '/api/admin/vaccinations/upcoming?days=90&status=all&type=all',
-          { credentials: 'include' }
+          '/api/admin/vaccinations/upcoming?days=90&status=all&type=all'
         )
-        const vaccinationData = await vaccinationResponse.json()
-        if (vaccinationResponse.ok) {
+        const { data: vaccinationData } = await readApiResponse<{
+          rows?: UpcomingVaccinationRow[]
+          summary?: UpcomingVaccinationSummary
+        }>(vaccinationResponse)
+        if (vaccinationData) {
           setVaccinationRows(vaccinationData.rows || [])
           setVaccinationSummary(vaccinationData.summary || EMPTY_VACCINATION_SUMMARY)
         }
       } catch (error) {
         console.error('Error loading dashboard data:', error)
       } finally {
-        setLoading(false)
+        if (!cancelled) {
+          setLoading(false)
+        }
       }
     }
 
     loadData()
+
+    return () => {
+      cancelled = true
+    }
   }, [])
 
   if (loading) {

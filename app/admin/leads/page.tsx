@@ -16,11 +16,16 @@ import {
   SYSTEM_DEFAULT_VIEW_ID,
 } from '@/lib/table-view-utils'
 import { authenticatedFetch } from '@/lib/authenticated-fetch'
+import { readApiResponse } from '@/lib/read-api-response'
 
 const ACTIVE_VIEW_STORAGE_KEY = 'lead-table-active-view-id'
 
+function isAbortError(error: unknown): boolean {
+  return error instanceof DOMException && error.name === 'AbortError'
+}
+
 export default function LeadsPage() {
-  const [leads, setLeads] = useState<Record<string, any>[]>([])
+  const [leads, setLeads] = useState<Record<string, unknown>[]>([])
   const [propertyDefinitions, setPropertyDefinitions] = useState<PropertyDefinition[]>([])
   const [views, setViews] = useState<AdminTableView[]>([])
   const [catalog, setCatalog] = useState<TableColumn[]>([])
@@ -29,6 +34,7 @@ export default function LeadsPage() {
   const [loading, setLoading] = useState(true)
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const [typeFilter, setTypeFilter] = useState<string>('all')
+  const [reloadKey, setReloadKey] = useState(0)
   const { toast } = useToast()
 
   const displayColumns = useMemo(
@@ -36,10 +42,14 @@ export default function LeadsPage() {
     [catalog, viewConfig]
   )
 
-  const loadViews = useCallback(async (nextCatalog: TableColumn[]) => {
-    const response = await authenticatedFetch('/api/admin/table-views?entity_type=lead')
-    const data = await response.json()
-    const loadedViews: AdminTableView[] = data.views || []
+  const loadViews = useCallback(async (nextCatalog: TableColumn[], signal?: AbortSignal) => {
+    const response = await authenticatedFetch('/api/admin/table-views?entity_type=lead', { signal })
+    const { data, error } = await readApiResponse<{ views?: AdminTableView[] }>(response)
+    if (error) {
+      throw new Error(error)
+    }
+
+    const loadedViews = data?.views || []
     setViews(loadedViews)
 
     const storedViewId =
@@ -63,47 +73,70 @@ export default function LeadsPage() {
     }
   }, [])
 
-  async function loadData() {
-    setLoading(true)
-    try {
-      const defResponse = await authenticatedFetch('/api/admin/properties?applies_to=lead')
-      const defData = await defResponse.json()
-      const definitions = defData.definitions || []
-      setPropertyDefinitions(definitions)
-
-      const nextCatalog = getLeadColumnCatalog(definitions)
-      setCatalog(nextCatalog)
-
-      await loadViews(nextCatalog)
-
-      const params = new URLSearchParams()
-      if (typeFilter !== 'all') {
-        params.set('type', typeFilter)
-      }
-      if (statusFilter !== 'all' && typeFilter !== 'lost') {
-        params.set('status', statusFilter)
-      }
-      const query = params.toString()
-      const url = query ? `/api/admin/leads?${query}` : '/api/admin/leads'
-
-      const response = await authenticatedFetch(url)
-      const data = await response.json()
-      setLeads(data.leads || [])
-    } catch (error) {
-      console.error('Error loading data:', error)
-      toast({
-        title: 'Fehler',
-        description: 'Fehler beim Laden der Daten',
-        variant: 'destructive',
-      })
-    } finally {
-      setLoading(false)
-    }
-  }
-
   useEffect(() => {
-    loadData()
-  }, [statusFilter, typeFilter])
+    const controller = new AbortController()
+
+    async function loadData() {
+      setLoading(true)
+      try {
+        const defResponse = await authenticatedFetch('/api/admin/properties?applies_to=lead', {
+          signal: controller.signal,
+        })
+        const { data: defData, error: defError } = await readApiResponse<{ definitions?: PropertyDefinition[] }>(
+          defResponse
+        )
+        if (defError) {
+          throw new Error(defError)
+        }
+
+        const definitions = defData?.definitions || []
+        setPropertyDefinitions(definitions)
+
+        const nextCatalog = getLeadColumnCatalog(definitions)
+        setCatalog(nextCatalog)
+
+        await loadViews(nextCatalog, controller.signal)
+
+        const params = new URLSearchParams()
+        if (typeFilter !== 'all') {
+          params.set('type', typeFilter)
+        }
+        if (statusFilter !== 'all' && typeFilter !== 'lost') {
+          params.set('status', statusFilter)
+        }
+        const query = params.toString()
+        const url = query ? `/api/admin/leads?${query}` : '/api/admin/leads'
+
+        const response = await authenticatedFetch(url, { signal: controller.signal })
+        const { data, error } = await readApiResponse<{ leads?: Record<string, unknown>[] }>(response)
+        if (error) {
+          throw new Error(error)
+        }
+
+        setLeads(data?.leads || [])
+      } catch (error) {
+        if (isAbortError(error) || controller.signal.aborted) {
+          return
+        }
+        console.error('Error loading data:', error)
+        toast({
+          title: 'Fehler',
+          description: error instanceof Error ? error.message : 'Fehler beim Laden der Daten',
+          variant: 'destructive',
+        })
+      } finally {
+        if (!controller.signal.aborted) {
+          setLoading(false)
+        }
+      }
+    }
+
+    void loadData()
+
+    return () => {
+      controller.abort()
+    }
+  }, [statusFilter, typeFilter, reloadKey, loadViews, toast])
 
   function handleActiveViewChange(viewId: string) {
     setActiveViewId(viewId)
@@ -120,64 +153,60 @@ export default function LeadsPage() {
     }
   }
 
-  async function handleCellUpdate(rowId: string | number, columnId: string, value: any) {
-    try {
-      const column = catalog.find((c) => c.id === columnId)
-      if (!column) return
+  async function handleCellUpdate(rowId: string | number, columnId: string, value: unknown) {
+    const column = catalog.find((c) => c.id === columnId)
+    if (!column) return
 
-      if (column.isProperty && column.propertyDefinitionId) {
-        const response = await authenticatedFetch('/api/admin/properties/values', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            property_definition_id: column.propertyDefinitionId,
-            entity_type: 'lead',
-            entity_id: rowId.toString(),
-            value,
-          }),
-        })
-
-        if (!response.ok) {
-          const error = await response.json()
-          throw new Error(error.error || 'Fehler beim Speichern')
-        }
-      } else {
-        const response = await authenticatedFetch('/api/admin/leads', {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            id: rowId,
-            [column.fieldName]: value,
-          }),
-        })
-
-        if (!response.ok) {
-          const error = await response.json()
-          throw new Error(error.error || 'Fehler beim Speichern')
-        }
-      }
-
-      setLeads((prev) =>
-        prev.map((lead) => {
-          if (String(lead.id) === String(rowId)) {
-            const fieldKey = column.isProperty ? column.id : column.fieldName
-            return { ...lead, [fieldKey]: value }
-          }
-          return lead
-        })
-      )
-
-      toast({
-        title: 'Erfolg',
-        description: 'Wert gespeichert',
+    if (column.isProperty && column.propertyDefinitionId) {
+      const response = await authenticatedFetch('/api/admin/properties/values', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          property_definition_id: column.propertyDefinitionId,
+          entity_type: 'lead',
+          entity_id: rowId.toString(),
+          value,
+        }),
       })
-    } catch (error: any) {
-      throw error
+
+      const { error } = await readApiResponse(response)
+      if (error) {
+        throw new Error(error)
+      }
+    } else {
+      const response = await authenticatedFetch('/api/admin/leads', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: rowId,
+          [column.fieldName]: value,
+        }),
+      })
+
+      const { error } = await readApiResponse(response)
+      if (error) {
+        throw new Error(error)
+      }
     }
+
+    setLeads((prev) =>
+      prev.map((lead) => {
+        if (String(lead.id) === String(rowId)) {
+          const fieldKey = column.isProperty ? column.id : column.fieldName
+          return { ...lead, [fieldKey]: value }
+        }
+        return lead
+      })
+    )
+
+    toast({
+      title: 'Erfolg',
+      description: 'Wert gespeichert',
+    })
   }
 
   function handleAddColumn() {
-    loadData()
+    setReloadKey((current) => current + 1)
   }
 
   async function handleViewsReload() {
@@ -209,7 +238,7 @@ export default function LeadsPage() {
           />
           <div className="flex flex-wrap gap-2">
             <Button
-              variant={statusFilter === 'all' && typeFilter !== 'lost' ? 'default' : 'outline'}
+              variant={statusFilter === 'all' && typeFilter !== 'lost' && typeFilter !== 'waitlist' ? 'default' : 'outline'}
               onClick={() => {
                 setTypeFilter('all')
                 setStatusFilter('all')
@@ -218,7 +247,7 @@ export default function LeadsPage() {
               Alle
             </Button>
             <Button
-              variant={statusFilter === 'new' && typeFilter !== 'lost' ? 'default' : 'outline'}
+              variant={statusFilter === 'new' && typeFilter !== 'lost' && typeFilter !== 'waitlist' ? 'default' : 'outline'}
               onClick={() => {
                 setTypeFilter('all')
                 setStatusFilter('new')
@@ -227,13 +256,22 @@ export default function LeadsPage() {
               Neu
             </Button>
             <Button
-              variant={statusFilter === 'contacted' && typeFilter !== 'lost' ? 'default' : 'outline'}
+              variant={statusFilter === 'contacted' && typeFilter !== 'lost' && typeFilter !== 'waitlist' ? 'default' : 'outline'}
               onClick={() => {
                 setTypeFilter('all')
                 setStatusFilter('contacted')
               }}
             >
               Kontaktiert
+            </Button>
+            <Button
+              variant={typeFilter === 'waitlist' ? 'default' : 'outline'}
+              onClick={() => {
+                setTypeFilter('waitlist')
+                setStatusFilter('all')
+              }}
+            >
+              Warteliste
             </Button>
             <Button
               variant={typeFilter === 'lost' ? 'default' : 'outline'}

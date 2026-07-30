@@ -1,42 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerClient } from '@/lib/admin-auth'
-import type { PropertyDefinition } from '@/lib/types'
-
-async function checkAdminAuth(supabase: any, accessToken: string | undefined) {
-  if (!accessToken) {
-    return { error: 'Nicht autorisiert - Keine Session gefunden', status: 401 }
-  }
-
-  const { data: { user }, error: authError } = await supabase.auth.getUser()
-
-  if (authError || !user) {
-    return { error: 'Nicht autorisiert', status: 401 }
-  }
-
-  const { data: userData, error: userError } = await supabase
-    .from('users')
-    .select('role')
-    .eq('id', user.id)
-    .single()
-
-  if (userError || !userData || userData.role !== 'admin') {
-    return { error: 'Nicht autorisiert', status: 403 }
-  }
-
-  return null
-}
+import { requireAdmin } from '@/lib/admin-auth'
 
 export async function GET(request: NextRequest) {
   try {
-    const { client: supabase, accessToken } = await getServerClient(request)
-    const authError = await checkAdminAuth(supabase, accessToken)
-    
-    if (authError) {
-      return NextResponse.json(
-        { error: authError.error },
-        { status: authError.status }
-      )
+    const auth = await requireAdmin(request)
+    if ('error' in auth) {
+      return NextResponse.json({ error: auth.error }, { status: auth.status })
     }
+
+    const supabase = auth.client
 
     const { searchParams } = new URL(request.url)
     const appliesTo = searchParams.get('applies_to')
@@ -57,34 +29,44 @@ export async function GET(request: NextRequest) {
       throw error
     }
 
-    // Parse options JSONB to array
-    const definitions = (data || []).map((def: any) => ({
+    const definitions = (data || []).map((def: { options?: unknown }) => ({
       ...def,
-      options: Array.isArray(def.options) ? def.options : (def.options ? JSON.parse(def.options) : [])
+      options: parsePropertyOptions(def.options),
     }))
 
     return NextResponse.json({ definitions })
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error fetching property definitions:', error)
     return NextResponse.json(
-      { error: error.message || 'Fehler beim Laden der Eigenschafts-Definitionen' },
+      { error: error instanceof Error ? error.message : 'Fehler beim Laden der Eigenschafts-Definitionen' },
       { status: 500 }
     )
   }
 }
 
+function parsePropertyOptions(options: unknown): string[] {
+  if (Array.isArray(options)) {
+    return options.map(String)
+  }
+  if (typeof options === 'string' && options.trim()) {
+    try {
+      const parsed = JSON.parse(options)
+      return Array.isArray(parsed) ? parsed.map(String) : []
+    } catch {
+      return []
+    }
+  }
+  return []
+}
+
 export async function POST(request: NextRequest) {
   try {
-    const { client: supabase, accessToken } = await getServerClient(request)
-    const authError = await checkAdminAuth(supabase, accessToken)
-    
-    if (authError) {
-      return NextResponse.json(
-        { error: authError.error },
-        { status: authError.status }
-      )
+    const auth = await requireAdmin(request)
+    if ('error' in auth) {
+      return NextResponse.json({ error: auth.error }, { status: auth.status })
     }
 
+    const supabase = auth.client
     const body = await request.json()
     const { name, label, field_type, options, required, applies_to, sort_order } = body
 
@@ -130,17 +112,16 @@ export async function POST(request: NextRequest) {
       throw error
     }
 
-    // Parse options
     const definition = {
       ...data,
-      options: Array.isArray(data.options) ? data.options : (data.options ? JSON.parse(data.options) : [])
+      options: parsePropertyOptions(data.options),
     }
 
     return NextResponse.json({ definition })
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error creating property definition:', error)
     return NextResponse.json(
-      { error: error.message || 'Fehler beim Erstellen der Eigenschafts-Definition' },
+      { error: error instanceof Error ? error.message : 'Fehler beim Erstellen der Eigenschafts-Definition' },
       { status: 500 }
     )
   }

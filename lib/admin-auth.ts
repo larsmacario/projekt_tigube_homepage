@@ -24,7 +24,16 @@ function createAuthClient(accessToken?: string) {
   })
 }
 
-function parseAccessTokenFromCookie(request: NextRequest): string | undefined {
+function getBearerToken(request: NextRequest): string | undefined {
+  const authHeader = request.headers.get('authorization')
+  if (authHeader?.startsWith('Bearer ')) {
+    return authHeader.slice('Bearer '.length).trim()
+  }
+  return undefined
+}
+
+function parseAccessTokenFromCookies(request: NextRequest): string[] {
+  const tokens: string[] = []
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
   const projectRef = supabaseUrl.split('//')[1]?.split('.')[0] || 'default'
   const cookieName = `sb-${projectRef}-auth-token`
@@ -33,18 +42,47 @@ function parseAccessTokenFromCookie(request: NextRequest): string | undefined {
   if (authCookie) {
     try {
       const sessionData = JSON.parse(decodeURIComponent(authCookie))
-      return sessionData.access_token
+      if (sessionData.access_token) {
+        tokens.push(sessionData.access_token)
+      }
     } catch {
-      return authCookie
+      tokens.push(authCookie)
     }
   }
 
-  const authHeader = request.headers.get('authorization')
-  if (authHeader?.startsWith('Bearer ')) {
-    return authHeader.replace('Bearer ', '')
+  const accessTokenCookie = request.cookies.get('sb-access-token')?.value
+  if (accessTokenCookie) {
+    tokens.push(accessTokenCookie)
   }
 
-  return request.cookies.get('sb-access-token')?.value
+  return tokens
+}
+
+function uniqueTokens(tokens: Array<string | undefined>): string[] {
+  const seen = new Set<string>()
+  const result: string[] = []
+
+  for (const token of tokens) {
+    if (!token || seen.has(token)) continue
+    seen.add(token)
+    result.push(token)
+  }
+
+  return result
+}
+
+async function tryAccessToken(
+  accessToken: string,
+  refreshToken: string | undefined
+): Promise<ServerClientResult | null> {
+  const client = createAuthClient(accessToken)
+  const { data: { user }, error } = await client.auth.getUser()
+
+  if (!error && user) {
+    return { client, accessToken, refreshToken }
+  }
+
+  return null
 }
 
 async function refreshAccessToken(refreshToken: string) {
@@ -59,24 +97,23 @@ async function refreshAccessToken(refreshToken: string) {
 }
 
 export async function getServerClient(request: NextRequest): Promise<ServerClientResult> {
-  let accessToken = parseAccessTokenFromCookie(request)
   const refreshToken = request.cookies.get('sb-refresh-token')?.value
+  const candidateTokens = uniqueTokens([
+    getBearerToken(request),
+    ...parseAccessTokenFromCookies(request),
+  ])
 
-  if (accessToken) {
-    const client = createAuthClient(accessToken)
-    const { data: { user }, error } = await client.auth.getUser()
-
-    if (!error && user) {
-      return { client, accessToken, refreshToken }
+  for (const token of candidateTokens) {
+    const validated = await tryAccessToken(token, refreshToken)
+    if (validated) {
+      return validated
     }
-
-    accessToken = undefined
   }
 
   if (refreshToken) {
     const session = await refreshAccessToken(refreshToken)
     if (session) {
-      accessToken = session.access_token
+      const accessToken = session.access_token
       const client = createAuthClient(accessToken)
       return {
         client,
@@ -87,8 +124,8 @@ export async function getServerClient(request: NextRequest): Promise<ServerClien
   }
 
   return {
-    client: createAuthClient(accessToken),
-    accessToken,
+    client: createAuthClient(undefined),
+    accessToken: undefined,
     refreshToken,
   }
 }

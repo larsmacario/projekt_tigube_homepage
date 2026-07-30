@@ -11,8 +11,8 @@ export interface User {
 }
 
 
-/** Vereinheitlichte Kontaktzeile (Tabelle `contacts`): Leads, Kunden, verloren */
-export type ContactType = 'lead' | 'customer' | 'lost'
+/** Vereinheitlichte Kontaktzeile (Tabelle `contacts`): Leads, Kunden, verloren, Warteliste */
+export type ContactType = 'lead' | 'customer' | 'lost' | 'waitlist'
 /** Lead: new/contacted · Kunde: pending/active */
 export type ContactStatus = 'new' | 'contacted' | 'pending' | 'active'
 
@@ -486,6 +486,21 @@ export interface CustomerPrice {
   discount_value: number | null
   created_at: string
   updated_at: string
+}
+
+export interface SiteSettings {
+  id: string
+  waitlist_enabled: boolean
+  updated_at: string | null
+}
+
+export interface WaitlistCmsContent {
+  formTitle: string
+  formHint: string
+  formDescription: string
+  successMessage: string
+  emailSubject: string
+  emailIntro: string
 }
 
 export interface SevdeskSettings {

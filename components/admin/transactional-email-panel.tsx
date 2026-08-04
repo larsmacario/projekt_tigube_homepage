@@ -9,7 +9,7 @@ import { CheckCircle2, Loader2, Mail, XCircle } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 import type { ContactEmail } from '@/lib/types'
 import { authenticatedFetch } from '@/lib/authenticated-fetch'
-import { CollapsibleAdminCard } from '@/components/admin/collapsible-admin-card'
+import { AdminSection } from '@/components/admin/admin-section'
 import { CardTitle } from '@/components/ui/card'
 
 type TransactionalEmailPanelProps = {
@@ -17,6 +17,7 @@ type TransactionalEmailPanelProps = {
   recipientEmail: string
   recipientName: string
   defaultExpanded?: boolean
+  embedded?: boolean
 }
 
 function formatSender(email: ContactEmail): string | null {
@@ -37,6 +38,7 @@ export function TransactionalEmailPanel({
   recipientEmail,
   recipientName,
   defaultExpanded = true,
+  embedded = false,
 }: TransactionalEmailPanelProps) {
   const { toast } = useToast()
   const [emails, setEmails] = useState<ContactEmail[]>([])
@@ -130,7 +132,8 @@ export function TransactionalEmailPanel({
   }
 
   return (
-    <CollapsibleAdminCard
+    <AdminSection
+      embedded={embedded}
       defaultExpanded={defaultExpanded}
       title={
         <CardTitle className="flex items-center gap-2">
@@ -233,7 +236,7 @@ export function TransactionalEmailPanel({
           )}
         </div>
       </div>
-    </CollapsibleAdminCard>
+    </AdminSection>
   )
 }
 

@@ -1,4 +1,4 @@
-import { resolvePriceOverride, type CatalogPriceRow } from '@/lib/price-override'
+import { resolveCatalogPrice, type CatalogPriceRow, type PriceUsage } from '@/lib/price-resolver'
 import { resolveCatalogPercentageRate } from '@/lib/price-catalog-policy'
 import type { ServiceType } from '@/lib/types'
 
@@ -7,6 +7,7 @@ export interface BookingExtraCategory {
   name: string
   description: string | null
   service_type: 'hundepension' | 'katzenbetreuung' | 'all'
+  service_area_id?: string | null
   sort_order: number
 }
 
@@ -18,9 +19,11 @@ export interface BookingExtraPrice extends CatalogPriceRow {
   unit: string | null
   note: string | null
   sort_order: number
+  usage: PriceUsage
   final_price: number | null
   catalog_price: number | null
-  customer_selectable?: boolean
+  applicable?: boolean
+  rule_mode?: 'inherit' | 'custom' | 'not_applicable' | null
 }
 
 export interface BookingExtraSelection {
@@ -51,8 +54,9 @@ export function flattenPetExtraSelections(
 
 export interface BookingLineItemInsert {
   request_group_id: string
-  booking_id: null
+  booking_id: null | string
   price_id: string | null
+  addon_service_id?: string | null
   label: string
   description: string | null
   price_type: CatalogPriceRow['price_type']
@@ -64,7 +68,6 @@ export interface BookingLineItemInsert {
   created_by: string | null
 }
 
-/** Maps booking service to price category service_type filter. */
 export function serviceTypeForExtraCatalog(serviceType: ServiceType): ServiceType | 'all' {
   if (serviceType === 'tagesbetreuung') {
     return 'hundepension'
@@ -82,22 +85,28 @@ export function collectExtraCatalogServiceTypes(
   return [...set]
 }
 
-export function isExtraServiceCategory(category: BookingExtraCategory): boolean {
-  return category.name.toLowerCase().includes('zusatzleistungen')
+export function categoryMatchesService(
+  category: BookingExtraCategory,
+  serviceTypes: ServiceType[]
+): boolean {
+  const allowed = collectExtraCatalogServiceTypes(serviceTypes)
+  return category.service_type === 'all' || allowed.includes(category.service_type)
 }
 
-export function filterExtraCategoriesForServices(
+export function filterCategoriesForServices(
   categories: BookingExtraCategory[],
   serviceTypes: ServiceType[]
 ): BookingExtraCategory[] {
-  const allowed = collectExtraCatalogServiceTypes(serviceTypes)
   return categories
-    .filter(isExtraServiceCategory)
-    .filter(
-      (cat) =>
-        cat.service_type === 'all' || allowed.includes(cat.service_type as ServiceType | 'all')
-    )
+    .filter((cat) => categoryMatchesService(cat, serviceTypes))
     .sort((a, b) => a.sort_order - b.sort_order)
+}
+
+export function filterPricesByUsage(
+  prices: BookingExtraPrice[],
+  usage: PriceUsage
+): BookingExtraPrice[] {
+  return prices.filter((price) => price.usage === usage)
 }
 
 export function filterBookableExtraPrices(
@@ -105,26 +114,32 @@ export function filterBookableExtraPrices(
   categoryIds: Set<string>
 ): BookingExtraPrice[] {
   return prices
-    .filter((p) => categoryIds.has(p.category_id))
-    .filter((p) => p.price_type !== 'text')
+    .filter((price) => categoryIds.has(price.category_id))
+    .filter((price) => price.usage === 'extra')
+    .filter((price) => price.price_type !== 'text')
+    .filter((price) => price.applicable !== false)
     .sort((a, b) => a.sort_order - b.sort_order)
 }
 
-export function filterCustomerSelectableExtraPrices(
-  prices: BookingExtraPrice[]
+export function filterApplicableBasePrices(
+  prices: BookingExtraPrice[],
+  categoryIds: Set<string>
 ): BookingExtraPrice[] {
-  return prices.filter((p) => p.customer_selectable !== false)
+  return prices
+    .filter((price) => categoryIds.has(price.category_id))
+    .filter((price) => price.usage === 'base')
+    .filter((price) => price.applicable !== false)
+    .filter((price) => (price.final_price ?? price.price) != null)
+    .sort((a, b) => a.sort_order - b.sort_order)
 }
 
 export function resolveExtraPriceForCustomer(
-  catalog: BookingExtraPrice,
-  groupOverride: { price_id: string; price: number | null; discount_type?: string | null; discount_value?: number | null } | null,
-  customerOverride: { price_id: string; price: number | null; discount_type?: string | null; discount_value?: number | null } | null
+  catalog: BookingExtraPrice
 ): number | null {
-  const resolved = resolvePriceOverride(catalog, groupOverride, customerOverride)
   if (catalog.price_type === 'percentage') {
     return resolveCatalogPercentageRate(catalog) ?? catalog.price
   }
+  const resolved = resolveCatalogPrice(catalog)
   return resolved.final_price ?? catalog.price
 }
 
@@ -170,7 +185,7 @@ export function buildCustomerLineItemsFromSelections(
 
   for (const selection of selections) {
     const price = priceById.get(selection.price_id)
-    if (!price) {
+    if (!price || price.applicable === false) {
       continue
     }
 
@@ -193,6 +208,7 @@ export function buildCustomerLineItemsFromSelections(
       request_group_id: requestGroupId,
       booking_id,
       price_id: price.id,
+      addon_service_id: null,
       label,
       description: price.description,
       price_type: price.price_type,
@@ -211,20 +227,37 @@ export function buildCustomerLineItemsFromSelections(
 export function getBookableExtrasForService(
   prices: BookingExtraPrice[],
   categories: BookingExtraCategory[],
-  serviceType: ServiceType,
-  options?: { portalOnly?: boolean }
+  serviceType: ServiceType
 ): BookingExtraPrice[] {
-  const extraCategories = filterExtraCategoriesForServices(categories, [serviceType])
-  const categoryIds = new Set(extraCategories.map((c) => c.id))
-  let list = filterBookableExtraPrices(prices, categoryIds)
-  if (options?.portalOnly) {
-    list = filterCustomerSelectableExtraPrices(list)
-  }
-  return list
+  const serviceCategories = filterCategoriesForServices(categories, [serviceType])
+  const categoryIds = new Set(serviceCategories.map((category) => category.id))
+  return filterBookableExtraPrices(prices, categoryIds)
 }
 
 export function uniqueServiceTypesFromPetLines(
   lines: Array<{ service_type: ServiceType }>
 ): ServiceType[] {
-  return [...new Set(lines.map((l) => l.service_type))]
+  return [...new Set(lines.map((line) => line.service_type))]
+}
+
+/** @deprecated Nutze filterBookableExtraPrices */
+export function filterExtraCategoriesForServices(
+  categories: BookingExtraCategory[],
+  serviceTypes: ServiceType[]
+): BookingExtraCategory[] {
+  return filterCategoriesForServices(categories, serviceTypes).filter((category) =>
+    category.name.toLowerCase().includes('zusatz')
+  )
+}
+
+/** @deprecated Nutze filterPricesByUsage(..., 'extra') */
+export function filterCustomerSelectableExtraPrices(
+  prices: BookingExtraPrice[]
+): BookingExtraPrice[] {
+  return prices.filter((price) => price.usage === 'extra' && price.applicable !== false)
+}
+
+/** @deprecated */
+export function isExtraServiceCategory(category: BookingExtraCategory): boolean {
+  return category.name.toLowerCase().includes('zusatzleistungen')
 }

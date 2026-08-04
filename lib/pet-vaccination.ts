@@ -1,3 +1,4 @@
+import { getCarePlanMissingLabel } from '@/lib/pet-care-plan'
 import type { Pet } from '@/lib/types'
 
 export type VaccinationType = 'kombi' | 'zwingerhusten'
@@ -159,6 +160,10 @@ export type PetDashboardCompletenessInput = Pick<
   | 'intervall_impfung'
   | 'letzte_impfung_zusatz'
   | 'letzte_stuhlprobe'
+  | 'care_plan'
+  | 'futtermenge'
+  | 'medikamente'
+  | 'besonderheiten'
 > & {
   photo_count?: number
 }
@@ -170,6 +175,10 @@ export function getPetDashboardMissingFields(
   const missing = getPetCompletenessIssues(pet, documents)
   if ((pet.photo_count ?? 0) === 0) {
     missing.push('Tierfoto')
+  }
+  const carePlanMissing = getCarePlanMissingLabel(pet)
+  if (carePlanMissing) {
+    missing.push(carePlanMissing)
   }
   return missing
 }

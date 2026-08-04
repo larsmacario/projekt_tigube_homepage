@@ -1,6 +1,7 @@
 import { parseISO } from 'date-fns'
 
 import { formatDateRangeDE } from '@/lib/format-date-range-de'
+import { formatEuro } from '@/lib/price-override'
 import {
   formatDayCareBookingSummary,
 } from '@/lib/day-care-booking'
@@ -42,6 +43,8 @@ export type BookingRequestEmailExtraLine = {
   label: string
   quantity: number
   unit?: string | null
+  unit_price?: number | null
+  line_total?: number | null
 }
 
 export type BookingRequestEmailPetLine = {
@@ -75,7 +78,13 @@ export function buildBookingRequestEmailContent(input: {
       | 'end_date'
     > & { pet?: { name?: string | null } | null }
   >
-  lineItems?: Array<{ label: string; quantity: number; unit?: string | null }>
+  lineItems?: Array<{
+    label: string
+    quantity: number
+    unit?: string | null
+    unit_price?: number | null
+    line_total?: number | null
+  }>
   dropOffTime?: string | null
   pickUpTime?: string | null
 }): BookingRequestEmailContent {
@@ -89,6 +98,8 @@ export function buildBookingRequestEmailContent(input: {
     label: li.label,
     quantity: li.quantity,
     unit: li.unit,
+    unit_price: li.unit_price ?? null,
+    line_total: li.line_total ?? null,
   }))
 
   return {
@@ -116,8 +127,7 @@ export function bookingRequestEmailPlainText(content: BookingRequestEmailContent
   if (content.extras.length > 0) {
     lines.push('', 'Zusatzleistungen:')
     for (const extra of content.extras) {
-      const unit = extra.unit ? ` ${extra.unit}` : ''
-      lines.push(`- ${extra.label}: ${extra.quantity}${unit}`)
+      lines.push(formatExtraEmailLine(extra))
     }
   }
 
@@ -150,6 +160,32 @@ function escapeHtml(value: string | null | undefined): string {
     .replace(/'/g, '&#039;')
 }
 
+function formatExtraEmailLine(extra: BookingRequestEmailExtraLine): string {
+  const amount =
+    extra.line_total != null
+      ? formatEuro(extra.line_total)
+      : extra.unit_price != null
+        ? formatEuro(extra.unit_price)
+        : null
+  const unit = extra.unit ? ` ${extra.unit}` : ''
+  if (amount) {
+    return `- ${extra.label}: ${extra.quantity}${unit} (${amount})`
+  }
+  return `- ${extra.label}: ${extra.quantity}${unit}`
+}
+
+function formatExtraEmailHtml(extra: BookingRequestEmailExtraLine): string {
+  const amount =
+    extra.line_total != null
+      ? formatEuro(extra.line_total)
+      : extra.unit_price != null
+        ? formatEuro(extra.unit_price)
+        : null
+  const unit = extra.unit ? ` ${escapeHtml(extra.unit)}` : ''
+  const amountSuffix = amount ? ` (${escapeHtml(amount)})` : ''
+  return `<li>${escapeHtml(extra.label)}: ${extra.quantity}${unit}${amountSuffix}</li>`
+}
+
 function toHtml(value: string | null | undefined): string {
   return escapeHtml(value).replace(/\r?\n/g, '<br>')
 }
@@ -158,10 +194,7 @@ export function bookingRequestInternalHtml(content: BookingRequestEmailContent):
   const extrasBlock =
     content.extras.length > 0
       ? `<h3>Zusatzleistungen</h3><ul>${content.extras
-          .map((e) => {
-            const unit = e.unit ? ` ${escapeHtml(e.unit)}` : ''
-            return `<li>${escapeHtml(e.label)}: ${e.quantity}${unit}</li>`
-          })
+          .map((e) => formatExtraEmailHtml(e))
           .join('')}</ul>`
       : ''
 
@@ -197,10 +230,7 @@ export function bookingRequestEmailHtmlBody(
   const extrasBlock =
     content.extras.length > 0
       ? `<h3>Zusatzleistungen</h3><ul>${content.extras
-          .map((e) => {
-            const unit = e.unit ? ` ${escapeHtml(e.unit)}` : ''
-            return `<li>${escapeHtml(e.label)}: ${e.quantity}${unit}</li>`
-          })
+          .map((e) => formatExtraEmailHtml(e))
           .join('')}</ul>`
       : ''
 
@@ -238,10 +268,7 @@ export function customerConfirmationPlainText(content: BookingRequestEmailConten
       ? [
           '',
           'Zusatzleistungen:',
-          ...content.extras.map((e) => {
-            const unit = e.unit ? ` ${e.unit}` : ''
-            return `- ${e.label}: ${e.quantity}${unit}`
-          }),
+          ...content.extras.map((e) => formatExtraEmailLine(e)),
         ]
       : []),
     ...(content.dropOffTime && content.pickUpTime

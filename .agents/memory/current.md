@@ -1,17 +1,19 @@
 # Aktueller Stand
 
 ## Letzte Änderungen
-- Betreuungsvertrag vereinheitlicht: CMS-Key `agb` (wie `/agb`) ist die Textquelle für Onboarding Schritt 3 und neu erzeugte PDFs (`lib/betreuungsvertrag.ts`, `betreuungsvertrag-html.ts`, `betreuungsvertrag-pdf.ts`); Portal lädt via `/api/cms?key=agb`, PDF ergänzt Vertragsparteien, Foto/Video-Status, Unterschrift.
-- Test `lib/betreuungsvertrag-html.test.ts` sichert Abschnittsreihenfolge; Build und Vitest grün.
+- Strukturierter Futter-/Medikamentenplan pro Tier: `pets.care_plan` (JSONB), UI in Onboarding, Meine Tiere, Admin PetManager; Buchungs-Wizard lädt Plan vorausgefüllt, Gate vor Schritt 2 bei Lücken.
+- Änderungsprotokoll `pet_care_plan_changes` + Admin `/admin/care-plans` mit Nav-Badge; Druck unter Portal/Admin; Vertrag-PDF nutzt Plan-Kurzfassung.
+- Dev-Fix HTTP 431: `lib/auth-cookies.ts` räumt alte Supabase-Cookies auf; `npm run dev` mit größerem Header-Limit.
 
 ## Fokus
-- Vertrag in Production kurz gegen `/agb` und ein frisch unterzeichnetes PDF prüfen (Onboarding Schritt 3).
-- Buchungswizard: Feiertage, Bring/Hol, Schritt-4-Schätzung.
+- Pflegeplan manuell testen: Onboarding → Buchung → Admin-Badge → Druck.
+- Kunden-Preis-UI und Legacy-Preistabellen-Abbau (parallel).
 
 ## Nächste Schritte
-- Manuell: Onboarding → Vertrag lesen/unterschreiben → PDF im Portal und Mail-Anhang mit `/agb` vergleichen.
-- Optional Feiertags-Legende auf `/portal/bookings`; Katalog-Posten für 8‑€-Zeitaufpreis; `/rechtliches` Mobile.
+- Optional: Buchungs-Wizard Schritt 3 – Warnung bei Medikamenten-Extra ohne Plan; Mengenvorschlag aus Mahlzeiten-Slots.
+- `20260804170100_drop_legacy_price_tables.sql` anwenden, wenn Preis-Migration stabil.
 
 ## Offene Punkte
-- Bereits gespeicherte Vertrags-PDFs vor dem Release behalten alten Wortlaut (nur neue Signaturen betroffen).
-- Mittagsfenster 12–14: nur Hinweis (v1); ESLint fehlt für `npm run lint`; SMTP in Production verifizieren.
+- Bestehende Tiere mit nur Freitext (`futtermenge`/`medikamente`) → Banner „übertragen“, bis `care_plan` ausgefüllt.
+- Keine E-Mail bei Planänderungen (nur Admin-Badge); keine Auto-Migration Freitext → Slots.
+- Bei HTTP 431 in Dev: localhost-Cookies löschen und neu einloggen.

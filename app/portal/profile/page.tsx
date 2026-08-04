@@ -27,6 +27,11 @@ import { PetPhotoGallery, type PetPhotoGalleryHandle } from '@/components/portal
 import { PetRecognitionField } from '@/components/portal/pet-recognition-field'
 import { PetDewormingDateField } from '@/components/portal/pet-deworming-date-field'
 import { PetMissingFieldsHint } from '@/components/portal/pet-missing-fields-hint'
+import { PetCarePlanForm } from '@/components/portal/pet-care-plan-form'
+import { PetCarePlanLegacyBanner } from '@/components/portal/pet-care-plan-legacy-banner'
+import { PetCarePlanSummary } from '@/components/portal/pet-care-plan-summary'
+import { buildPetSaveBody, carePlanFromPet } from '@/lib/pet-care-plan-form-state'
+import type { PetCarePlan } from '@/lib/pet-care-plan'
 import { readApiResponse } from '@/lib/read-api-response'
 import {
   formatCustomerAddress,
@@ -111,6 +116,7 @@ function ProfileContent() {
   const [formPhotoCount, setFormPhotoCount] = useState(0)
   const petPhotoGalleryRef = useRef<PetPhotoGalleryHandle>(null)
   const [photoGalleryKey, setPhotoGalleryKey] = useState('new-pet')
+  const [carePlan, setCarePlan] = useState<PetCarePlan>(() => carePlanFromPet())
 
   useEffect(() => {
     console.log('Component mounted, loading profile...')
@@ -681,7 +687,7 @@ function ProfileContent() {
       const response = await authenticatedFetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(petFormData),
+        body: JSON.stringify(buildPetSaveBody(petFormData, carePlan)),
       })
 
       const { data: petData, error: saveApiError } = await readApiResponse<{
@@ -836,6 +842,7 @@ function ProfileContent() {
           ? pet.naechste_stuhlprobe.split('T')[0]
           : '',
       })
+      setCarePlan(carePlanFromPet(pet))
     } else {
       setEditingPetId(null)
       setPetFormData({
@@ -855,6 +862,7 @@ function ProfileContent() {
         letzte_stuhlprobe: '',
         naechste_stuhlprobe: '',
       })
+      setCarePlan(carePlanFromPet())
     }
     // Dateien zurücksetzen beim Öffnen des Formulars
     setImpfpassFile(null)
@@ -1400,39 +1408,14 @@ function ProfileContent() {
                     }}
                   />
 
-                  {/* Tier-Informationen */}
                   <div className="border-t pt-4 space-y-4">
-                    <h3 className="font-semibold text-sage-900">Tier-Informationen</h3>
-                    <div>
-                      <Label htmlFor="pet-futtermenge">Futtermenge</Label>
-                      <Textarea
-                        id="pet-futtermenge"
-                        value={petFormData.futtermenge}
-                        onChange={(e) => setPetFormData({ ...petFormData, futtermenge: e.target.value })}
-                        rows={3}
-                        placeholder="z.B. 200g Trockenfutter morgens, 150g abends"
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="pet-medikamente">Medikamente</Label>
-                      <Textarea
-                        id="pet-medikamente"
-                        value={petFormData.medikamente}
-                        onChange={(e) => setPetFormData({ ...petFormData, medikamente: e.target.value })}
-                        rows={3}
-                        placeholder="z.B. Tabletten gegen Arthrose, täglich morgens"
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="pet-besonderheiten">Besonderheiten</Label>
-                      <Textarea
-                        id="pet-besonderheiten"
-                        value={petFormData.besonderheiten}
-                        onChange={(e) => setPetFormData({ ...petFormData, besonderheiten: e.target.value })}
-                        rows={3}
-                        placeholder="z.B. Allergien, Verhaltensbesonderheiten, etc."
-                      />
-                    </div>
+                    <h3 className="font-semibold text-sage-900">Futter- & Medikamentenplan</h3>
+                    <PetCarePlanLegacyBanner pet={{ ...petFormData, care_plan: carePlan }} />
+                    <PetCarePlanForm
+                      value={carePlan}
+                      onChange={setCarePlan}
+                      idPrefix="profile-pet"
+                    />
                     {!isDog(petFormData.tierart) && (
                       <div>
                         <h4 className="font-semibold mb-3">Intervalle</h4>
@@ -1603,8 +1586,9 @@ function ProfileContent() {
                           </Button>
                         </div>
                       </div>
-                      {(pet.futtermenge || pet.medikamente || pet.besonderheiten || pet.intervall_impfung || pet.letzte_stuhlprobe || pet.naechste_stuhlprobe) && (
+                      {(pet.care_plan || pet.futtermenge || pet.medikamente || pet.besonderheiten || pet.intervall_impfung || pet.letzte_stuhlprobe || pet.naechste_stuhlprobe) && (
                         <div className="mt-3 pt-3 border-t border-sage-200 space-y-2">
+                          {pet.care_plan && <PetCarePlanSummary pet={pet} compact />}
                           {pet.letzte_stuhlprobe && (
                             <div>
                               <p className="text-xs font-semibold text-sage-600">Letzte Entwurmung/Stuhlprobe:</p>

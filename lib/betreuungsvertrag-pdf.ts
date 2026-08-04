@@ -1,6 +1,7 @@
 import type { jsPDF } from 'jspdf'
 import type { Pet } from '@/lib/types'
 import { parseLegalHtmlToBlocks, type LegalPdfBlock } from '@/lib/betreuungsvertrag-html'
+import { formatCarePlanSummary, normalizeCarePlan } from '@/lib/pet-care-plan'
 
 export type BetreuungsvertragParty = {
   vorname: string
@@ -107,10 +108,14 @@ function renderPartySection(doc: jsPDF, y: number, options: BetreuungsvertragPdf
     y += 6
     doc.setFont('Helvetica', 'normal')
     doc.setFontSize(9)
+    const carePlan = normalizeCarePlan(pet.care_plan)
+    const careSummary = carePlan
+      ? formatCarePlanSummary(carePlan)
+      : [pet.futtermenge, pet.medikamente, pet.besonderheiten].filter(Boolean).join(' | ') || 'Keine'
     const lines = [
       `Tierart: ${pet.tierart || '-'} | Rasse: ${pet.rasse || '-'} | Farbe: ${pet.farbe || '-'}`,
       `Geschlecht: ${pet.geschlecht || '-'}`,
-      `Besonderheiten / Medikamente: ${pet.besonderheiten || pet.medikamente || 'Keine'}`,
+      `Futter / Medikamente / Besonderheiten: ${careSummary}`,
     ]
     y = writeLines(doc, lines, MARGIN_LEFT, y, 5, pageNumber)
     y += 3

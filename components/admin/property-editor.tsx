@@ -16,15 +16,21 @@ import { CalendarIcon } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { PropertyDefinition, PropertyValue } from '@/lib/types'
 import { authenticatedFetch } from '@/lib/authenticated-fetch'
-import { CollapsibleAdminCard } from '@/components/admin/collapsible-admin-card'
+import { AdminSection } from '@/components/admin/admin-section'
 
 interface PropertyEditorProps {
   entityType: 'lead' | 'customer'
   entityId: string
   defaultExpanded?: boolean
+  embedded?: boolean
 }
 
-export function PropertyEditor({ entityType, entityId, defaultExpanded = true }: PropertyEditorProps) {
+export function PropertyEditor({
+  entityType,
+  entityId,
+  defaultExpanded = true,
+  embedded = false,
+}: PropertyEditorProps) {
   const { toast } = useToast()
   const [definitions, setDefinitions] = useState<PropertyDefinition[]>([])
   const [values, setValues] = useState<Record<string, PropertyValue>>({})
@@ -257,24 +263,24 @@ export function PropertyEditor({ entityType, entityId, defaultExpanded = true }:
 
   if (loading) {
     return (
-      <CollapsibleAdminCard title="Eigenschaften" defaultExpanded={defaultExpanded}>
+      <AdminSection title="Eigenschaften" embedded={embedded} defaultExpanded={defaultExpanded}>
         <div className="text-center py-4 text-sage-600">Lade Eigenschaften...</div>
-      </CollapsibleAdminCard>
+      </AdminSection>
     )
   }
 
   if (definitions.length === 0) {
     return (
-      <CollapsibleAdminCard title="Eigenschaften" defaultExpanded={defaultExpanded}>
+      <AdminSection title="Eigenschaften" embedded={embedded} defaultExpanded={defaultExpanded}>
         <div className="text-center py-4 text-sage-600">
           Keine Eigenschaften definiert. Bitte erstellen Sie zuerst Eigenschaften im Verwaltungsbereich.
         </div>
-      </CollapsibleAdminCard>
+      </AdminSection>
     )
   }
 
   return (
-    <CollapsibleAdminCard title="Eigenschaften" defaultExpanded={defaultExpanded}>
+    <AdminSection title="Eigenschaften" embedded={embedded} defaultExpanded={defaultExpanded}>
       <div className="space-y-4">
         {definitions.map((definition) => (
           <div key={definition.id} className="space-y-2">
@@ -289,7 +295,7 @@ export function PropertyEditor({ entityType, entityId, defaultExpanded = true }:
           </div>
         ))}
       </div>
-    </CollapsibleAdminCard>
+    </AdminSection>
   )
 }
 

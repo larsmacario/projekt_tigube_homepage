@@ -6,6 +6,13 @@ export function isFixedPercentageCatalogPrice(catalog: Pick<CatalogPriceRow, 'pr
   return catalog.price_type === 'percentage'
 }
 
+/** Feste Katalog-Posten (z. B. 50‑%-Zuschlag) – nicht individuell überschreibbar. */
+export function isOverridableCatalogPrice(
+  catalog: Pick<CatalogPriceRow, 'price_type'>
+): boolean {
+  return catalog.price_type !== 'text' && !isFixedPercentageCatalogPrice(catalog)
+}
+
 /** Prozent aus Katalog – keine Gruppen-/Kunden-Overrides auf den %-Satz. */
 export function resolveCatalogPercentageRate(
   catalog: Pick<CatalogPriceRow, 'price_type' | 'price'>

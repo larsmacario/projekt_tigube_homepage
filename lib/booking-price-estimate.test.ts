@@ -25,6 +25,7 @@ const basePrice: BookingExtraPrice = {
   unit: 'Kalendertag',
   note: null,
   sort_order: 1,
+  usage: 'base',
   final_price: 40,
   catalog_price: 40,
 }
@@ -130,6 +131,7 @@ describe('estimateBookingCosts', () => {
       unit: null,
       note: null,
       sort_order: 1,
+      usage: 'extra',
       final_price: 15,
       catalog_price: 15,
     }

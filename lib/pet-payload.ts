@@ -1,3 +1,5 @@
+import { normalizeCarePlan, validateCarePlan } from '@/lib/pet-care-plan'
+import { applyCarePlanToPetUpdates } from '@/lib/pet-care-plan-change-log'
 import { isDog } from '@/lib/pet-vaccination'
 
 const KOMBI_INTERVALL_VALUES = new Set(['jährlich', 'alle_2_jahre'])
@@ -27,7 +29,18 @@ export function normalizePetPayload<T extends Record<string, unknown>>(payload: 
     }
   }
 
+  if ('care_plan' in normalized) {
+    normalized.care_plan = normalizeCarePlan(normalized.care_plan)
+  }
+
   return normalized as T
+}
+
+export function finalizePetPayloadUpdates(
+  updates: Record<string, unknown>,
+  existingCarePlan: unknown
+): Record<string, unknown> {
+  return applyCarePlanToPetUpdates({ ...updates }, existingCarePlan)
 }
 
 export function validatePetPayload(payload: Record<string, unknown>): string | null {
@@ -45,6 +58,13 @@ export function validatePetPayload(payload: Record<string, unknown>): string | n
     const intervall = String(payload.intervall_impfung)
     if (!KOMBI_INTERVALL_VALUES.has(intervall)) {
       return 'Für Hunde ist bei der Kombiimpfung nur jährlich oder alle 2 Jahre erlaubt.'
+    }
+  }
+
+  if (Object.prototype.hasOwnProperty.call(payload, 'care_plan') && payload.care_plan != null) {
+    const carePlanError = validateCarePlan(payload.care_plan)
+    if (carePlanError) {
+      return carePlanError
     }
   }
 

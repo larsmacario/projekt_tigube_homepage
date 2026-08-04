@@ -11,7 +11,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useToast } from '@/hooks/use-toast'
 import { Plus, Trash2 } from 'lucide-react'
 import { authenticatedFetch } from '@/lib/authenticated-fetch'
-import { Checkbox } from '@/components/ui/checkbox'
 import {
   FIXED_PERCENTAGE_SURCHARGE_RATE,
   formatFixedPercentageLabel,
@@ -35,7 +34,8 @@ interface Price {
   unit: string | null
   note: string | null
   sort_order: number
-  customer_selectable?: boolean
+  usage: 'base' | 'extra' | 'surcharge' | 'info'
+  archived_at?: string | null
 }
 
 interface PriceCategory {
@@ -64,6 +64,7 @@ export default function PricesPage() {
   const [groupPriceForms, setGroupPriceForms] = useState<Record<string, PriceOverrideFormState>>({})
   
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [savingGroupPrices, setSavingGroupPrices] = useState(false)
   const [savingCategories, setSavingCategories] = useState(false)
@@ -88,6 +89,7 @@ export default function PricesPage() {
   const [newPriceType, setNewPriceType] = useState<'fixed' | 'percentage' | 'per_unit' | 'text'>('fixed')
   const [newPriceUnit, setNewPriceUnit] = useState('')
   const [newPriceNote, setNewPriceNote] = useState('')
+  const [newPriceUsage, setNewPriceUsage] = useState<'base' | 'extra' | 'surcharge' | 'info'>('extra')
   const [newPriceSortOrder, setNewPriceSortOrder] = useState<number>(0)
 
   const { toast } = useToast()
@@ -106,6 +108,7 @@ export default function PricesPage() {
 
   async function loadAllData() {
     setLoading(true)
+    setLoadError(null)
     try {
       const [pricesRes, groupsRes] = await Promise.all([
         authenticatedFetch('/api/admin/prices'),
@@ -113,6 +116,13 @@ export default function PricesPage() {
       ])
       
       const pricesData = await pricesRes.json()
+      if (!pricesRes.ok) {
+        setLoadError(pricesData.error || 'Preisdaten konnten nicht geladen werden')
+        setPrices([])
+        setCategories([])
+        return
+      }
+
       setPrices(pricesData.prices || [])
       setCategories(pricesData.categories || [])
       
@@ -125,6 +135,7 @@ export default function PricesPage() {
       }
     } catch (error) {
       console.error('Error loading prices page data:', error)
+      setLoadError('Fehler beim Laden der Preisdaten')
       toast({
         title: 'Fehler',
         description: 'Fehler beim Laden der Preisdaten',
@@ -256,16 +267,24 @@ export default function PricesPage() {
     if (!selectedGroupId) return
     setSavingGroupPrices(true)
     try {
-      const overrides = Object.entries(groupPriceForms)
+      const rules = Object.entries(groupPriceForms)
         .map(([price_id, form]) => formToOverrideRow(price_id, form))
         .filter(Boolean)
+        .map((rule) => ({
+          price_id: rule!.price_id,
+          rule_mode: 'custom',
+          price: rule!.price,
+          discount_type: rule!.discount_type,
+          discount_value: rule!.discount_value,
+        }))
 
-      const response = await authenticatedFetch('/api/admin/group-prices', {
+      const response = await authenticatedFetch('/api/admin/price-rules', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          group_id: selectedGroupId,
-          overrides,
+          scope_type: 'group',
+          scope_id: selectedGroupId,
+          rules,
         }),
       })
 
@@ -405,6 +424,7 @@ export default function PricesPage() {
     setNewPriceType('fixed')
     setNewPriceUnit('')
     setNewPriceNote('')
+    setNewPriceUsage('extra')
     setNewPriceSortOrder(0)
   }
 
@@ -422,7 +442,8 @@ export default function PricesPage() {
           unit: newPriceType === 'text' ? null : (newPriceUnit || null),
           note: newPriceNote || null,
           sort_order: newPriceSortOrder,
-          category_id: categoryId
+          category_id: categoryId,
+          usage: newPriceType === 'text' ? 'info' : newPriceUsage,
         })
       })
 
@@ -542,6 +563,19 @@ export default function PricesPage() {
         </p>
       </div>
 
+      {loadError ? (
+        <Card className="border-destructive/40">
+          <CardContent className="pt-6">
+            <p className="text-sm text-destructive">{loadError}</p>
+          </CardContent>
+        </Card>
+      ) : categories.length === 0 ? (
+        <Card>
+          <CardContent className="pt-6">
+            <p className="text-sm text-sage-600">Keine Preiskategorien vorhanden.</p>
+          </CardContent>
+        </Card>
+      ) : (
       <Tabs defaultValue="default" className="w-full">
         <TabsList className="bg-sage-100/60 p-1 rounded-lg border border-sage-200">
           <TabsTrigger value="default" className="rounded-md px-4 py-2 text-sm font-medium transition-all data-[state=active]:bg-white data-[state=active]:text-sage-900 data-[state=active]:shadow-sm">
@@ -670,6 +704,28 @@ export default function PricesPage() {
                           />
                         </div>
                       </div>
+
+                      {newPriceType !== 'text' && (
+                        <div>
+                          <Label htmlFor="new-price-usage">Verwendung</Label>
+                          <Select
+                            value={newPriceUsage}
+                            onValueChange={(val: 'base' | 'extra' | 'surcharge' | 'info') =>
+                              setNewPriceUsage(val)
+                            }
+                          >
+                            <SelectTrigger className="bg-white">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="base">Grundpreis</SelectItem>
+                              <SelectItem value="extra">Zusatzleistung</SelectItem>
+                              <SelectItem value="surcharge">Zuschlag</SelectItem>
+                              <SelectItem value="info">Information</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      )}
 
                       <div>
                         <Label htmlFor="new-price-desc">Beschreibung</Label>
@@ -867,29 +923,23 @@ export default function PricesPage() {
                             </div>
                           )}
 
-                          {isExtraCategory(category) && price.price_type !== 'text' && (
-                            <div className="flex items-start gap-2 pt-1">
-                              <Checkbox
-                                id={`customer_selectable-${price.id}`}
-                                checked={price.customer_selectable !== false}
-                                disabled={price.price_type === 'percentage'}
-                                onCheckedChange={(checked) =>
-                                  updatePrice(price.id, 'customer_selectable', checked === true)
-                                }
-                              />
-                              <div className="grid gap-0.5 leading-none">
-                                <Label
-                                  htmlFor={`customer_selectable-${price.id}`}
-                                  className="text-sm font-normal cursor-pointer"
-                                >
-                                  Im Kundenportal wählbar
-                                </Label>
-                                {price.price_type === 'percentage' ? (
-                                  <p className="text-xs text-sage-500">
-                                    Sonn-/Feiertagszuschlag erscheint automatisch in der Buchungsübersicht.
-                                  </p>
-                                ) : null}
-                              </div>
+                          {price.price_type !== 'text' && (
+                            <div>
+                              <Label htmlFor={`usage-${price.id}`}>Verwendung</Label>
+                              <Select
+                                value={price.usage ?? 'extra'}
+                                onValueChange={(value) => updatePrice(price.id, 'usage', value)}
+                              >
+                                <SelectTrigger className="bg-white">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="base">Grundpreis</SelectItem>
+                                  <SelectItem value="extra">Zusatzleistung</SelectItem>
+                                  <SelectItem value="surcharge">Zuschlag</SelectItem>
+                                  <SelectItem value="info">Information</SelectItem>
+                                </SelectContent>
+                              </Select>
                             </div>
                           )}
 
@@ -1200,6 +1250,7 @@ export default function PricesPage() {
           </div>
         </TabsContent>
       </Tabs>
+      )}
     </div>
   )
 }

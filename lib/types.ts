@@ -96,6 +96,8 @@ export interface Pet {
   futtermenge: string | null
   medikamente: string | null
   besonderheiten: string | null
+  /** Strukturierter Futter-/Medikamentenplan (JSONB) */
+  care_plan: import('@/lib/pet-care-plan').PetCarePlan | null
   /** Kombi-Intervall: jährlich | alle_2_jahre */
   intervall_impfung: string | null
   intervall_entwurmung: string | null
@@ -103,6 +105,18 @@ export interface Pet {
   naechste_stuhlprobe: string | null
   created_at: string
   updated_at: string
+}
+
+export interface PetCarePlanChange {
+  id: string
+  pet_id: string
+  customer_id: string
+  changed_at: string
+  changed_by: string | null
+  summary: string
+  seen_at: string | null
+  pet?: Pick<Pet, 'id' | 'name'> | null
+  customer?: Pick<Contact, 'id' | 'vorname' | 'nachname' | 'email'> | null
 }
 
 export interface PetPhoto {
@@ -325,11 +339,23 @@ export interface BookingRequestGroup {
 
 export type BookingLineItemSource = 'customer' | 'admin'
 
+export interface AddonService {
+  id: string
+  title: string
+  description: string | null
+  amount: number
+  sort_order: number
+  is_active: boolean
+  created_at: string
+  updated_at: string
+}
+
 export interface BookingLineItem {
   id: string
   request_group_id: string
   booking_id: string | null
   price_id: string | null
+  addon_service_id: string | null
   label: string
   description: string | null
   price_type: 'fixed' | 'percentage' | 'per_unit' | 'text'
@@ -460,6 +486,34 @@ export interface CustomerGroup {
   id: string
   name: string
   description: string | null
+  created_at: string
+  updated_at: string
+}
+
+export type PriceUsage = 'base' | 'extra' | 'surcharge' | 'info'
+export type PriceRuleMode = 'inherit' | 'custom' | 'not_applicable'
+export type PriceScopeType = 'group' | 'customer' | 'pet'
+
+export interface ServiceArea {
+  id: string
+  slug: string
+  name: string
+  description: string | null
+  sort_order: number
+  archived_at: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface PriceRule {
+  id: string
+  price_id: string
+  scope_type: PriceScopeType
+  scope_id: string
+  rule_mode: PriceRuleMode
+  price: number | null
+  discount_type: PriceOverrideDiscountType | null
+  discount_value: number | null
   created_at: string
   updated_at: string
 }

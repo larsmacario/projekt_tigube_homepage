@@ -4,6 +4,7 @@ import { PET_EDITABLE_FIELDS, pickAllowedFields } from '@/lib/contact-editable-f
 import { deletePetPhotoStorageFiles } from '@/lib/portal-customer'
 import { normalizePetPayload, validatePetPayload } from '@/lib/pet-payload'
 import { getPortalCustomer, assertPetOwnership } from '@/lib/portal-customer'
+import { afterPetCarePlanSaved, extractCarePlanChangeMeta, preparePetWritePayload } from '@/lib/pet-save'
 
 export async function PUT(
   request: NextRequest,
@@ -57,9 +58,18 @@ export async function PUT(
       return NextResponse.json({ error: ownership.error }, { status: ownership.status })
     }
 
+    const { data: existingPet } = await supabase
+      .from('pets')
+      .select('care_plan')
+      .eq('id', petId)
+      .single()
+
+    const changeMeta = extractCarePlanChangeMeta(updates, existingPet)
+    const writePayload = await preparePetWritePayload(updates, existingPet)
+
     const { data, error } = await supabase
       .from('pets')
-      .update(updates)
+      .update(writePayload)
       .eq('id', petId)
       .eq('customer_id', customerResult.customer.id)
       .select()
@@ -79,6 +89,13 @@ export async function PUT(
         { status: 404 }
       )
     }
+
+    await afterPetCarePlanSaved({
+      petId,
+      customerId: customerResult.customer.id,
+      changedBy: authUser.id,
+      changeMeta,
+    })
 
     return NextResponse.json({ pet: data })
   } catch (error: any) {

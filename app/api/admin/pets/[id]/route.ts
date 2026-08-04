@@ -3,6 +3,7 @@ import { requireAdmin } from '@/lib/admin-auth'
 import { PET_EDITABLE_FIELDS, pickAllowedFields } from '@/lib/contact-editable-fields'
 import { deletePetPhotoStorageFiles } from '@/lib/portal-customer'
 import { normalizePetPayload, validatePetPayload } from '@/lib/pet-payload'
+import { afterPetCarePlanSaved, extractCarePlanChangeMeta, preparePetWritePayload } from '@/lib/pet-save'
 
 export async function PUT(
   request: NextRequest,
@@ -24,9 +25,22 @@ export async function PUT(
       return NextResponse.json({ error: validationError }, { status: 400 })
     }
 
+    const { data: existingPet } = await auth.client
+      .from('pets')
+      .select('care_plan, customer_id')
+      .eq('id', params.id)
+      .maybeSingle()
+
+    if (!existingPet) {
+      return NextResponse.json({ error: 'Tier nicht gefunden' }, { status: 404 })
+    }
+
+    const changeMeta = extractCarePlanChangeMeta(updates, existingPet)
+    const writePayload = await preparePetWritePayload(updates, existingPet)
+
     const { data, error } = await auth.client
       .from('pets')
-      .update(updates)
+      .update(writePayload)
       .eq('id', params.id)
       .select()
       .single()
@@ -35,6 +49,13 @@ export async function PUT(
     if (!data) {
       return NextResponse.json({ error: 'Tier nicht gefunden' }, { status: 404 })
     }
+
+    await afterPetCarePlanSaved({
+      petId: params.id,
+      customerId: existingPet.customer_id,
+      changedBy: auth.user.id,
+      changeMeta,
+    })
 
     return NextResponse.json({ pet: data })
   } catch (error: any) {

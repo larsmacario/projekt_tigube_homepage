@@ -14,6 +14,12 @@ import {
   loadBookingExtraCatalogForCustomer,
   validateExtraSelections,
 } from '@/lib/booking-extras-server'
+import {
+  loadActiveAddonServices,
+  validateAndBuildAddonLineItems,
+} from '@/lib/booking-addon-services-server'
+import type { BookingLineItemInsert } from '@/lib/booking-extras'
+import type { AddonServiceSelection } from '@/lib/booking-addon-services'
 import { randomUUID } from 'crypto'
 
 import { buildBookingRequestEmailContent } from '@/lib/booking-request-email'
@@ -56,7 +62,13 @@ async function notifyBookingRequestByEmail(
   customer: { email: string; vorname: string | null; nachname: string },
   message: string | null,
   bookings: unknown[],
-  lineItems?: Array<{ label: string; quantity: number; unit?: string | null }>,
+  lineItems?: Array<{
+    label: string
+    quantity: number
+    unit?: string | null
+    unit_price?: number | null
+    line_total?: number | null
+  }>,
   pickupTimes?: { drop_off_time: string | null; pick_up_time: string | null }
 ) {
   if (!customer.email?.trim()) {
@@ -249,6 +261,7 @@ export async function POST(request: NextRequest) {
       message,
       pets: petsPayload,
       extras: extrasPayload,
+      addon_services: addonServicesPayload,
       drop_off_time: dropOffTimePayload,
       pick_up_time: pickUpTimePayload,
     } = bookingData
@@ -390,6 +403,19 @@ export async function POST(request: NextRequest) {
       }
 
       const extras = Array.isArray(extrasPayload) ? extrasPayload : []
+      const addonSelections: AddonServiceSelection[] = Array.isArray(addonServicesPayload)
+        ? addonServicesPayload
+            .map((item) => {
+              if (typeof item === 'string') {
+                return { addon_service_id: item }
+              }
+              if (item && typeof item === 'object' && 'addon_service_id' in item) {
+                return { addon_service_id: String((item as { addon_service_id: unknown }).addon_service_id) }
+              }
+              return null
+            })
+            .filter((item): item is AddonServiceSelection => Boolean(item?.addon_service_id))
+        : []
       const requestGroupId = randomUUID()
       const allowedPetIds = new Set(petLines.map((line) => line.pet_id))
 
@@ -429,16 +455,48 @@ export async function POST(request: NextRequest) {
           }
         }
 
-        const catalog = await loadBookingExtraCatalogForCustomer(
-          supabase,
-          customer.id,
-          customer.customer_group_id,
-          serviceTypes
-        )
-        extraValidation = validateExtraSelections(extras, catalog.prices)
-        if (!extraValidation.valid) {
-          return NextResponse.json({ error: extraValidation.error }, { status: 400 })
+        const priceById = new Map<string, import('@/lib/booking-extras').BookingExtraPrice>()
+        const extrasByPet = new Map<string, typeof extras>()
+
+        for (const selection of extras) {
+          const petKey = selection.pet_id || ''
+          const list = extrasByPet.get(petKey) ?? []
+          list.push(selection)
+          extrasByPet.set(petKey, list)
         }
+
+        for (const [petId, petExtras] of extrasByPet.entries()) {
+          const catalog = await loadBookingExtraCatalogForCustomer(
+            supabase,
+            customer.id,
+            customer.customer_group_id,
+            serviceTypes,
+            petId || null
+          )
+          const validation = validateExtraSelections(petExtras, catalog.prices)
+          if (!validation.valid) {
+            return NextResponse.json({ error: validation.error }, { status: 400 })
+          }
+          validation.priceById.forEach((price, priceId) => priceById.set(priceId, price))
+        }
+
+        extraValidation = { valid: true, priceById }
+      }
+
+      let addonLineItems: BookingLineItemInsert[] = []
+
+      if (addonSelections.length > 0) {
+        const allowedAddons = await loadActiveAddonServices(supabase)
+        const addonResult = validateAndBuildAddonLineItems(
+          requestGroupId,
+          addonSelections,
+          allowedAddons,
+          userData.id
+        )
+        if (!addonResult.valid) {
+          return NextResponse.json({ error: addonResult.error }, { status: 400 })
+        }
+        addonLineItems = addonResult.lineItems
       }
 
       const createdBookingIds: string[] = []
@@ -489,6 +547,8 @@ export async function POST(request: NextRequest) {
             { bookingIdByPetId, petNameByPetId }
           )
         }
+
+        lineItemsToInsert = [...lineItemsToInsert, ...addonLineItems]
 
         if (lineItemsToInsert.length > 0) {
           const adminClient = getAdminDbClient()

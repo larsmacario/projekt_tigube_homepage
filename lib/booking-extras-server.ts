@@ -2,117 +2,73 @@ import type { SupabaseClient } from '@supabase/supabase-js'
 import {
   buildCustomerLineItemsFromSelections,
   filterBookableExtraPrices,
-  filterCustomerSelectableExtraPrices,
-  filterExtraCategoriesForServices,
-  resolveExtraPriceForCustomer,
+  filterCategoriesForServices,
   type BookingExtraCategory,
   type BookingExtraPrice,
   type BookingExtraSelection,
   type BuildCustomerLineItemsContext,
 } from '@/lib/booking-extras'
-import { resolvePriceOverride } from '@/lib/price-override'
+import { loadResolvedPriceCatalog } from '@/lib/price-catalog-loader'
 import type { ServiceType } from '@/lib/types'
 
 export async function loadBookingExtraCatalogForCustomer(
   supabase: SupabaseClient,
   customerId: string,
   customerGroupId: string | null,
-  serviceTypes: ServiceType[]
+  serviceTypes: ServiceType[],
+  petId?: string | null
 ): Promise<{ categories: BookingExtraCategory[]; prices: BookingExtraPrice[] }> {
   const base = await loadBookingExtraCatalogBase(
     supabase,
     customerId,
     customerGroupId,
-    serviceTypes
+    serviceTypes,
+    petId
   )
-  return {
-    categories: base.categories,
-    prices: filterCustomerSelectableExtraPrices(base.prices),
-  }
+  return base
 }
 
 export async function loadBookingExtraCatalogForAdmin(
   supabase: SupabaseClient,
   customerId: string,
   customerGroupId: string | null,
-  serviceTypes: ServiceType[]
+  serviceTypes: ServiceType[],
+  petId?: string | null
 ): Promise<{ categories: BookingExtraCategory[]; prices: BookingExtraPrice[] }> {
-  return loadBookingExtraCatalogBase(supabase, customerId, customerGroupId, serviceTypes)
+  return loadBookingExtraCatalogBase(
+    supabase,
+    customerId,
+    customerGroupId,
+    serviceTypes,
+    petId
+  )
 }
 
 async function loadBookingExtraCatalogBase(
   supabase: SupabaseClient,
   customerId: string,
   customerGroupId: string | null,
-  serviceTypes: ServiceType[]
+  serviceTypes: ServiceType[],
+  petId?: string | null
 ): Promise<{ categories: BookingExtraCategory[]; prices: BookingExtraPrice[] }> {
-  const [categoriesRes, pricesRes] = await Promise.all([
-    supabase.from('price_categories').select('*').order('sort_order', { ascending: true }),
-    supabase.from('prices').select('*').order('sort_order', { ascending: true }),
-  ])
-
-  if (categoriesRes.error) {
-    throw categoriesRes.error
-  }
-  if (pricesRes.error) {
-    throw pricesRes.error
-  }
-
-  const categories = (categoriesRes.data || []) as BookingExtraCategory[]
-  const extraCategories = filterExtraCategoriesForServices(categories, serviceTypes)
-  const categoryIds = new Set(extraCategories.map((c) => c.id))
-
-  const customerOverrideMap = new Map<string, any>()
-  const groupOverrideMap = new Map<string, any>()
-
-  const [customerPricesRes, groupPricesRes] = await Promise.all([
-    customerId
-      ? supabase
-          .from('customer_prices')
-          .select('price_id, price, discount_type, discount_value')
-          .eq('customer_id', customerId)
-      : Promise.resolve({ data: [] as any[], error: null }),
-    customerGroupId
-      ? supabase
-          .from('group_prices')
-          .select('price_id, price, discount_type, discount_value')
-          .eq('group_id', customerGroupId)
-      : Promise.resolve({ data: [] as any[], error: null }),
-  ])
-
-  if (customerPricesRes.error) {
-    throw customerPricesRes.error
-  }
-  if (groupPricesRes.error) {
-    throw groupPricesRes.error
-  }
-
-  customerPricesRes.data?.forEach((o: any) => customerOverrideMap.set(o.price_id, o))
-  groupPricesRes.data?.forEach((o: any) => groupOverrideMap.set(o.price_id, o))
-
-  const resolvedPrices: BookingExtraPrice[] = (pricesRes.data || []).map((p: any) => {
-    const resolved = resolvePriceOverride(
-      p,
-      groupOverrideMap.get(p.id),
-      customerOverrideMap.get(p.id)
-    )
-    const finalPrice = resolveExtraPriceForCustomer(
-      { ...p, final_price: resolved.final_price ?? p.price },
-      groupOverrideMap.get(p.id),
-      customerOverrideMap.get(p.id)
-    )
-
-    return {
-      ...p,
-      catalog_price: p.price,
-      final_price: finalPrice,
-      customer_selectable: p.customer_selectable !== false,
-    }
+  const catalog = await loadResolvedPriceCatalog(supabase, {
+    customerId,
+    customerGroupId,
+    petId: petId ?? null,
   })
+
+  const extraCategories = filterCategoriesForServices(catalog.categories, serviceTypes)
+  const categoryIds = new Set(extraCategories.map((category) => category.id))
+
+  const prices: BookingExtraPrice[] = catalog.prices.map((price) => ({
+    ...price,
+    catalog_price: price.price,
+    final_price: price.final_price ?? price.price,
+  }))
 
   return {
     categories: extraCategories,
-    prices: filterBookableExtraPrices(resolvedPrices, categoryIds),
+    prices: filterBookableExtraPrices(prices, categoryIds),
   }
 }
 
@@ -120,14 +76,14 @@ export function validateExtraSelections(
   selections: BookingExtraSelection[],
   allowedPrices: BookingExtraPrice[]
 ): { valid: true; priceById: Map<string, BookingExtraPrice> } | { valid: false; error: string } {
-  const priceById = new Map(allowedPrices.map((p) => [p.id, p]))
+  const priceById = new Map(allowedPrices.map((price) => [price.id, price]))
 
   for (const selection of selections) {
     const price = priceById.get(selection.price_id)
     if (!price) {
       return { valid: false, error: 'Ungültige Zusatzleistung ausgewählt.' }
     }
-    if (price.customer_selectable === false) {
+    if (price.applicable === false || price.usage !== 'extra') {
       return { valid: false, error: 'Diese Zusatzleistung kann nicht online gebucht werden.' }
     }
     const qty = selection.quantity ?? 1
@@ -153,4 +109,17 @@ export function buildLineItemsForRequest(
     createdBy,
     context
   )
+}
+
+export async function loadResolvedPricesForPet(
+  supabase: SupabaseClient,
+  customerId: string,
+  customerGroupId: string | null,
+  petId: string
+) {
+  return loadResolvedPriceCatalog(supabase, {
+    customerId,
+    customerGroupId,
+    petId,
+  })
 }

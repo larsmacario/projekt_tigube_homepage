@@ -3,9 +3,10 @@ import { type DateRange } from 'react-day-picker'
 import { iterateIsoDateRange } from '@/lib/booking-availability'
 import {
   computeLineItemSnapshot,
+  filterApplicableBasePrices,
   filterBookableExtraPrices,
-  filterCustomerSelectableExtraPrices,
-  filterExtraCategoriesForServices,
+  filterCategoriesForServices,
+  serviceTypeForExtraCatalog,
   type BookingExtraCategory,
   type BookingExtraPrice,
 } from '@/lib/booking-extras'
@@ -116,6 +117,8 @@ export interface BookingEstimateInput {
   /** pet_id → price_id → quantity */
   selectedExtrasByPet: Record<string, Record<string, number>>
   prices: BookingExtraPrice[]
+  /** Optional je Tier aufgelöste Preise (z. B. Tier-Regeln) */
+  pricesByPetId?: Record<string, BookingExtraPrice[]>
   categories: BookingExtraCategory[]
   /** ISO-Daten gesetzlicher Feiertage (BW) im Buchungszeitraum */
   publicHolidays?: Array<{ date: string; name?: string }>
@@ -124,28 +127,16 @@ export interface BookingEstimateInput {
   pickUpTime?: string | null
 }
 
-function isGrundpreisCategory(category: BookingExtraCategory): boolean {
-  return category.name.toLowerCase().includes('grundpreise')
-}
-
-function findDefaultHundGrundpreis(
-  prices: BookingExtraPrice[],
-  categories: BookingExtraCategory[]
+function findBasePriceForPet(
+  petId: string,
+  input: BookingEstimateInput,
+  serviceType: ServiceType
 ): BookingExtraPrice | null {
-  const grundCat = categories
-    .filter(isGrundpreisCategory)
-    .filter((c) => c.service_type === 'hundepension')
-    .sort((a, b) => a.sort_order - b.sort_order)[0]
-
-  if (!grundCat) return null
-
-  return (
-    prices
-      .filter((p) => p.category_id === grundCat.id)
-      .filter((p) => p.price_type === 'fixed' || p.price_type === 'per_unit')
-      .filter((p) => (p.final_price ?? p.price) != null)
-      .sort((a, b) => a.sort_order - b.sort_order)[0] ?? null
-  )
+  const petPrices = input.pricesByPetId?.[petId] ?? input.prices
+  const catalogServiceType = serviceTypeForExtraCatalog(serviceType)
+  const categories = filterCategoriesForServices(input.categories, [serviceType])
+  const categoryIds = new Set(categories.map((category) => category.id))
+  return filterApplicableBasePrices(petPrices, categoryIds)[0] ?? null
 }
 
 function unitPrice(price: BookingExtraPrice): number | null {
@@ -172,13 +163,10 @@ function addChargeLine(
 
 export function estimateBookingCosts(input: BookingEstimateInput): BookingEstimateResult {
   const lines: BookingEstimateLine[] = []
-  const defaultHundPrice = findDefaultHundGrundpreis(input.prices, input.categories)
   const serviceTypes = [...new Set(input.petLines.map((l) => l.service_type))]
-  const extraCategories = filterExtraCategoriesForServices(input.categories, serviceTypes)
+  const extraCategories = filterCategoriesForServices(input.categories, serviceTypes)
   const extraCategoryIds = new Set(extraCategories.map((c) => c.id))
-  const extraPrices = filterCustomerSelectableExtraPrices(
-    filterBookableExtraPrices(input.prices, extraCategoryIds)
-  )
+  const extraPrices = filterBookableExtraPrices(input.prices, extraCategoryIds)
   const extraById = new Map(extraPrices.map((p) => [p.id, p]))
   const holidaySet = buildPublicHolidayDateSet(
     (input.publicHolidays || []).map((h) => ({ date: h.date, name: h.name || '' }))
@@ -209,6 +197,14 @@ export function estimateBookingCosts(input: BookingEstimateInput): BookingEstima
   for (const line of input.petLines) {
     const pet = input.pets.find((p) => p.id === line.pet_id)
     const petName = pet?.name || 'Tier'
+    const basePriceForPet =
+      line.service_type === 'hundepension' || line.service_type === 'tagesbetreuung'
+        ? findBasePriceForPet(
+            line.pet_id,
+            input,
+            line.service_type === 'tagesbetreuung' ? 'tagesbetreuung' : 'hundepension'
+          )
+        : null
 
     if (line.service_type === 'katzenbetreuung') {
       lines.push({
@@ -221,14 +217,14 @@ export function estimateBookingCosts(input: BookingEstimateInput): BookingEstima
       const start = toIsoDate(input.dateRange.from)
       const end = toIsoDate(input.dateRange.to ?? input.dateRange.from)
       const days = iterateIsoDateRange(start, end).length
-      if (days > 0 && defaultHundPrice) {
-        const up = unitPrice(defaultHundPrice)!
+      if (days > 0 && basePriceForPet) {
+        const up = unitPrice(basePriceForPet)!
         addChargeLine(
           lines,
-          `${petName}: ${defaultHundPrice.name}`,
+          `${petName}: ${basePriceForPet.name}`,
           days,
           up,
-          defaultHundPrice.unit || 'Kalendertag'
+          basePriceForPet.unit || 'Kalendertag'
         )
         lines.push({
           kind: 'note',
@@ -238,14 +234,14 @@ export function estimateBookingCosts(input: BookingEstimateInput): BookingEstima
       }
     } else if (line.service_type === 'tagesbetreuung' && line.day_care_mode === 'once') {
       const dates = (input.dayCareOnceDates[line.pet_id] || []).map((d) => toIsoDate(d))
-      if (dates.length > 0 && defaultHundPrice) {
-        const up = unitPrice(defaultHundPrice)!
+      if (dates.length > 0 && basePriceForPet) {
+        const up = unitPrice(basePriceForPet)!
         addChargeLine(
           lines,
-          `${petName}: Tagesbetreuung (${defaultHundPrice.name})`,
+          `${petName}: Tagesbetreuung (${basePriceForPet.name})`,
           dates.length,
           up,
-          defaultHundPrice.unit || 'Tag'
+          basePriceForPet.unit || 'Tag'
         )
         lines.push({
           kind: 'note',
@@ -256,8 +252,8 @@ export function estimateBookingCosts(input: BookingEstimateInput): BookingEstima
     } else if (line.service_type === 'tagesbetreuung' && line.day_care_mode === 'recurring') {
       const cfg = input.dayCareRecurring[line.pet_id]
       const weekdays = cfg?.weekdays ?? []
-      if (weekdays.length > 0 && defaultHundPrice) {
-        const up = unitPrice(defaultHundPrice)!
+      if (weekdays.length > 0 && basePriceForPet) {
+        const up = unitPrice(basePriceForPet)!
         lines.push({
           kind: 'note',
           label: `${petName}: Feste Tage (${formatWeekdayList(weekdays)})`,

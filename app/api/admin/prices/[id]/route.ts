@@ -3,29 +3,25 @@ import { requireAdmin } from '@/lib/admin-auth'
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const auth = await requireAdmin(request)
     if ('error' in auth) {
       return NextResponse.json({ error: auth.error }, { status: auth.status })
     }
-    const { client: supabase } = auth
-    const { id } = params
 
-    const { error } = await supabase
+    const { id } = await params
+    const { error } = await auth.client
       .from('prices')
-      .delete()
+      .update({ archived_at: new Date().toISOString() })
       .eq('id', id)
 
     if (error) throw error
-
     return NextResponse.json({ success: true })
-  } catch (error: any) {
-    console.error('Error deleting price:', error)
-    return NextResponse.json(
-      { error: error.message || 'Fehler beim Löschen des Preises' },
-      { status: 500 }
-    )
+  } catch (error: unknown) {
+    console.error('Error archiving price:', error)
+    const message = error instanceof Error ? error.message : 'Fehler beim Archivieren des Preises'
+    return NextResponse.json({ error: message }, { status: 500 })
   }
 }

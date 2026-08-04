@@ -11,7 +11,7 @@ import { Pencil, Trash2, Plus } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 import { authenticatedFetch } from '@/lib/authenticated-fetch'
 import type { Pet } from '@/lib/types'
-import { CollapsibleAdminCard } from '@/components/admin/collapsible-admin-card'
+import { AdminSection } from '@/components/admin/admin-section'
 import { PetAvatar } from '@/components/pet-avatar'
 import {
   PET_TIERART_OPTIONS,
@@ -23,6 +23,11 @@ import { PetVaccinationSummary } from '@/components/portal/pet-vaccination-secti
 import { PetPhotoGallery } from '@/components/portal/pet-photo-gallery'
 import { PetRecognitionField } from '@/components/portal/pet-recognition-field'
 import { PetDewormingDateField } from '@/components/portal/pet-deworming-date-field'
+import { PetCarePlanForm } from '@/components/portal/pet-care-plan-form'
+import { PetCarePlanLegacyBanner } from '@/components/portal/pet-care-plan-legacy-banner'
+import { PetCarePlanSummary } from '@/components/portal/pet-care-plan-summary'
+import { buildPetSaveBody, carePlanFromPet } from '@/lib/pet-care-plan-form-state'
+import type { PetCarePlan } from '@/lib/pet-care-plan'
 import { isDog } from '@/lib/pet-vaccination'
 import {
   AlertDialog,
@@ -64,9 +69,16 @@ interface PetManagerProps {
   pets: Pet[]
   onPetsChange: (pets: Pet[]) => void
   defaultExpanded?: boolean
+  embedded?: boolean
 }
 
-export function PetManager({ customerId, pets, onPetsChange, defaultExpanded = false }: PetManagerProps) {
+export function PetManager({
+  customerId,
+  pets,
+  onPetsChange,
+  defaultExpanded = false,
+  embedded = false,
+}: PetManagerProps) {
   const { toast } = useToast()
   const [showForm, setShowForm] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -74,10 +86,12 @@ export function PetManager({ customerId, pets, onPetsChange, defaultExpanded = f
   const [deleteId, setDeleteId] = useState<string | null>(null)
   const [previewPhoto, setPreviewPhoto] = useState<{ name: string; url: string } | null>(null)
   const [saving, setSaving] = useState(false)
+  const [carePlan, setCarePlan] = useState<PetCarePlan>(() => carePlanFromPet())
 
   function openCreate() {
     setEditingId(null)
     setFormData(emptyPetForm)
+    setCarePlan(carePlanFromPet())
     setShowForm(true)
   }
 
@@ -100,6 +114,7 @@ export function PetManager({ customerId, pets, onPetsChange, defaultExpanded = f
       letzte_stuhlprobe: pet.letzte_stuhlprobe ? pet.letzte_stuhlprobe.split('T')[0] : '',
       naechste_stuhlprobe: pet.naechste_stuhlprobe ? pet.naechste_stuhlprobe.split('T')[0] : '',
     })
+    setCarePlan(carePlanFromPet(pet))
     setShowForm(true)
   }
 
@@ -107,6 +122,7 @@ export function PetManager({ customerId, pets, onPetsChange, defaultExpanded = f
     setShowForm(false)
     setEditingId(null)
     setFormData(emptyPetForm)
+    setCarePlan(carePlanFromPet())
   }
 
   async function savePet() {
@@ -117,13 +133,16 @@ export function PetManager({ customerId, pets, onPetsChange, defaultExpanded = f
 
     setSaving(true)
     try {
-      const payload = {
-        ...formData,
-        letzte_impfung: formData.letzte_impfung || null,
-        letzte_impfung_zusatz: formData.letzte_impfung_zusatz || null,
-        letzte_stuhlprobe: formData.letzte_stuhlprobe || null,
-        naechste_stuhlprobe: formData.naechste_stuhlprobe || null,
-      }
+      const payload = buildPetSaveBody(
+        {
+          ...formData,
+          letzte_impfung: formData.letzte_impfung || null,
+          letzte_impfung_zusatz: formData.letzte_impfung_zusatz || null,
+          letzte_stuhlprobe: formData.letzte_stuhlprobe || null,
+          naechste_stuhlprobe: formData.naechste_stuhlprobe || null,
+        },
+        carePlan
+      )
 
       const response = editingId
         ? await authenticatedFetch(`/api/admin/pets/${editingId}`, {
@@ -192,8 +211,9 @@ export function PetManager({ customerId, pets, onPetsChange, defaultExpanded = f
 
   return (
     <>
-    <CollapsibleAdminCard
+    <AdminSection
       title={`Tiere (${pets.length})`}
+      embedded={embedded}
       defaultExpanded={defaultExpanded}
       headerActions={
         !showForm ? (
@@ -269,17 +289,14 @@ export function PetManager({ customerId, pets, onPetsChange, defaultExpanded = f
               <PetPhotoGallery petId={editingId} readOnly apiBase="admin" />
             )}
 
-            <div>
-              <Label>Futtermenge</Label>
-              <Textarea value={formData.futtermenge} onChange={(e) => setFormData({ ...formData, futtermenge: e.target.value })} rows={2} />
-            </div>
-            <div>
-              <Label>Medikamente</Label>
-              <Textarea value={formData.medikamente} onChange={(e) => setFormData({ ...formData, medikamente: e.target.value })} rows={2} />
-            </div>
-            <div>
-              <Label>Besonderheiten</Label>
-              <Textarea value={formData.besonderheiten} onChange={(e) => setFormData({ ...formData, besonderheiten: e.target.value })} rows={2} />
+            <div className="space-y-4 border-t pt-4">
+              <h4 className="font-semibold text-sm text-sage-800">Futter- & Medikamentenplan</h4>
+              <PetCarePlanLegacyBanner pet={{ ...formData, care_plan: carePlan }} />
+              <PetCarePlanForm
+                value={carePlan}
+                onChange={setCarePlan}
+                idPrefix="admin-pet-care"
+              />
             </div>
             <div className="border-t pt-4 space-y-4">
               <h4 className="font-semibold text-sm text-sage-800">Intervalle & Vorsorge</h4>
@@ -409,10 +426,23 @@ export function PetManager({ customerId, pets, onPetsChange, defaultExpanded = f
                   {pet.geschlecht && <div><span className="text-sage-500">Geschlecht:</span> {pet.geschlecht}</div>}
                   {pet.rasse && <div><span className="text-sage-500">Rasse:</span> {pet.rasse}</div>}
                   {pet.farbe && <div><span className="text-sage-500">Farbe:</span> {pet.farbe}</div>}
-                  {pet.futtermenge && <div className="col-span-2"><span className="text-sage-500">Futtermenge:</span> {pet.futtermenge}</div>}
-                  {pet.medikamente && <div className="col-span-2"><span className="text-sage-500">Medikamente:</span> {pet.medikamente}</div>}
-                  {pet.besonderheiten && <div className="col-span-2"><span className="text-sage-500">Besonderheiten:</span> {pet.besonderheiten}</div>}
                 </div>
+                {pet.care_plan && (
+                  <div className="mt-3">
+                    <PetCarePlanSummary
+                      pet={pet}
+                      compact
+                      printHref={`/admin/customers/${customerId}/pets/${pet.id}/care-plan/print`}
+                    />
+                  </div>
+                )}
+                {!pet.care_plan && (
+                  <div className="grid grid-cols-2 gap-2 text-sm mt-2">
+                    {pet.futtermenge && <div className="col-span-2"><span className="text-sage-500">Futtermenge:</span> {pet.futtermenge}</div>}
+                    {pet.medikamente && <div className="col-span-2"><span className="text-sage-500">Medikamente:</span> {pet.medikamente}</div>}
+                    {pet.besonderheiten && <div className="col-span-2"><span className="text-sage-500">Besonderheiten:</span> {pet.besonderheiten}</div>}
+                  </div>
+                )}
                 {(pet.intervall_entwurmung || pet.letzte_impfung || pet.letzte_impfung_zusatz || pet.letzte_stuhlprobe || pet.naechste_stuhlprobe) && (
                   <div className="border-t pt-3 mt-3 space-y-2 text-sm">
                     <p className="text-xs font-semibold text-sage-600 uppercase tracking-wide">Intervalle & Vorsorge</p>
@@ -437,7 +467,7 @@ export function PetManager({ customerId, pets, onPetsChange, defaultExpanded = f
           !showForm && <p className="text-sage-600 text-center py-4">Keine Tiere registriert</p>
         )}
       </div>
-    </CollapsibleAdminCard>
+    </AdminSection>
 
       <Dialog
         open={!!previewPhoto}

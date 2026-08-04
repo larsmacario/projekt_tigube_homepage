@@ -11,6 +11,8 @@ import {
   FileText,
   Shield,
   Settings,
+  ClipboardList,
+  Sparkles,
 } from "lucide-react"
 import type { NavItem } from "@/lib/nav-types"
 
@@ -22,7 +24,9 @@ export const adminNavItems: NavItem[] = [
   { label: "NewsBar", href: "/admin/newsbar", icon: Megaphone },
   { label: "Eigenschaften", href: "/admin/properties", icon: List },
   { label: "Preise", href: "/admin/prices", icon: Euro },
+  { label: "Zusatzleistungen", href: "/admin/addon-services", icon: Sparkles },
   { label: "Buchungen", href: "/admin/bookings", icon: Calendar, badgeKey: "pendingBookings" },
+  { label: "Pflegepläne", href: "/admin/care-plans", icon: ClipboardList, badgeKey: "unseenCarePlanChanges" },
   { label: "E-Mails", href: "/admin/newsletter", icon: Mail },
   { label: "CMS", href: "/admin/cms", icon: FileText },
   { label: "Einstellungen", href: "/admin/einstellungen", icon: Settings },

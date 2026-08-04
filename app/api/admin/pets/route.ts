@@ -3,6 +3,7 @@ import { requireAdmin } from '@/lib/admin-auth'
 import { normalizePetsWithPhotos, PET_PHOTOS_SELECT } from '@/lib/pet-photos'
 import { PET_EDITABLE_FIELDS, pickAllowedFields } from '@/lib/contact-editable-fields'
 import { normalizePetPayload, validatePetPayload } from '@/lib/pet-payload'
+import { afterPetCarePlanSaved, extractCarePlanChangeMeta, preparePetWritePayload } from '@/lib/pet-save'
 
 export async function GET(request: NextRequest) {
   try {
@@ -71,17 +72,27 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: validationError }, { status: 400 })
     }
 
+    const changeMeta = extractCarePlanChangeMeta(petData, null)
+    const writePayload = await preparePetWritePayload(petData, null)
+
     const { data, error } = await auth.client
       .from('pets')
       .insert({
         customer_id: customerId,
-        ...petData,
-        name: (petData.name as string).trim(),
+        ...writePayload,
+        name: (writePayload.name as string).trim(),
       })
       .select()
       .single()
 
     if (error) throw error
+
+    await afterPetCarePlanSaved({
+      petId: data.id,
+      customerId,
+      changedBy: auth.user.id,
+      changeMeta,
+    })
 
     return NextResponse.json({ pet: data })
   } catch (error: any) {

@@ -102,6 +102,7 @@ export const PET_EDITABLE_FIELDS = [
   'futtermenge',
   'medikamente',
   'besonderheiten',
+  'care_plan',
   'intervall_impfung',
   'intervall_entwurmung',
   'letzte_stuhlprobe',

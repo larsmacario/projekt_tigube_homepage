@@ -9,7 +9,7 @@ import { useToast } from '@/hooks/use-toast'
 import { authenticatedFetch } from '@/lib/authenticated-fetch'
 import type { Document, Pet } from '@/lib/types'
 import { DOCUMENT_TYPE_OPTIONS } from '@/lib/pet-form-options'
-import { CollapsibleAdminCard } from '@/components/admin/collapsible-admin-card'
+import { AdminSection } from '@/components/admin/admin-section'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -27,6 +27,7 @@ interface DocumentManagerProps {
   pets: Pet[]
   onDocumentsChange: (documents: Document[]) => void
   defaultExpanded?: boolean
+  embedded?: boolean
 }
 
 function getDocumentTypeLabel(type: string) {
@@ -39,6 +40,7 @@ export function DocumentManager({
   pets,
   onDocumentsChange,
   defaultExpanded = false,
+  embedded = false,
 }: DocumentManagerProps) {
   const { toast } = useToast()
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -128,8 +130,9 @@ export function DocumentManager({
 
   return (
     <>
-      <CollapsibleAdminCard
+      <AdminSection
         title={`Dokumente (${documents.length})`}
+        embedded={embedded}
         defaultExpanded={defaultExpanded}
       >
         <div className="space-y-5">
@@ -245,7 +248,7 @@ export function DocumentManager({
           <p className="py-6 text-center text-sm text-sage-600">Keine Dokumente hochgeladen</p>
         )}
         </div>
-      </CollapsibleAdminCard>
+      </AdminSection>
 
       <AlertDialog open={!!deleteId} onOpenChange={(open) => !open && setDeleteId(null)}>
         <AlertDialogContent>

@@ -1,6 +1,6 @@
 import type { LucideIcon } from "lucide-react"
 
-export type NavBadgeKey = "pendingBookings"
+export type NavBadgeKey = "pendingBookings" | "unseenCarePlanChanges"
 
 export type NavItem = {
   label: string

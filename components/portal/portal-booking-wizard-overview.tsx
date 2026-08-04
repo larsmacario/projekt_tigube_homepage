@@ -11,7 +11,6 @@ import {
   estimateBookingCosts,
   type BookingEstimateLine,
 } from '@/lib/booking-price-estimate'
-import type { PetExtraSelections } from '@/lib/booking-extras'
 import {
   dayCareModeLabel,
   formatDayCareBookingSummary,
@@ -19,7 +18,7 @@ import {
 } from '@/lib/day-care-booking'
 import { formatDateRangeDE } from '@/lib/format-date-range-de'
 import { formatEuro } from '@/lib/price-override'
-import type { DayCareMode, Pet, ServiceType } from '@/lib/types'
+import type { AddonService, DayCareMode, Pet, ServiceType } from '@/lib/types'
 import { startOfDay, toIsoDate } from '@/lib/vacation-dates'
 
 import type { PetServiceLine } from '@/components/portal/portal-booking-wizard'
@@ -57,8 +56,10 @@ export interface PortalBookingWizardOverviewProps {
   dateRange?: DateRange
   dayCareOnceDates: Record<string, Date[]>
   dayCareRecurring: Record<string, { weekdays: number[]; startDate?: Date }>
-  selectedExtrasByPet: PetExtraSelections
+  selectedAddonIds: string[]
+  addonServices: AddonService[]
   catalogPrices: BookingExtraPrice[]
+  catalogPricesByPet?: Record<string, BookingExtraPrice[]>
   priceCategories: BookingExtraCategory[]
   publicHolidays?: Array<{ date: string; name?: string }>
   dropOffTime?: string
@@ -77,8 +78,10 @@ export function PortalBookingWizardOverview({
   dateRange,
   dayCareOnceDates,
   dayCareRecurring,
-  selectedExtrasByPet,
+  selectedAddonIds,
+  addonServices,
   catalogPrices,
+  catalogPricesByPet,
   priceCategories,
   publicHolidays = [],
   dropOffTime = '',
@@ -99,8 +102,9 @@ export function PortalBookingWizardOverview({
         dateRange,
         dayCareOnceDates,
         dayCareRecurring,
-        selectedExtrasByPet,
+        selectedExtrasByPet: {},
         prices: catalogPrices,
+        pricesByPetId: catalogPricesByPet,
         categories: priceCategories,
         publicHolidays,
         dropOffTime: dropOffTime || null,
@@ -112,14 +116,34 @@ export function PortalBookingWizardOverview({
       dateRange,
       dayCareOnceDates,
       dayCareRecurring,
-      selectedExtrasByPet,
       catalogPrices,
+      catalogPricesByPet,
       priceCategories,
       publicHolidays,
       dropOffTime,
       pickUpTime,
     ]
   )
+
+  const selectedAddons = useMemo(
+    () =>
+      selectedAddonIds
+        .map((id) => addonServices.find((service) => service.id === id))
+        .filter((service): service is AddonService => Boolean(service)),
+    [selectedAddonIds, addonServices]
+  )
+
+  const addonTotal = useMemo(
+    () =>
+      addonSelectionTotal(
+        selectedAddonIds.map((addon_service_id) => ({ addon_service_id })),
+        addonServices
+      ),
+    [selectedAddonIds, addonServices]
+  )
+
+  const combinedTotal =
+    estimate.total != null ? Math.round((estimate.total + addonTotal) * 100) / 100 : null
 
   return (
     <div className="space-y-5">
@@ -181,6 +205,20 @@ export function PortalBookingWizardOverview({
         })}
       </div>
 
+      {selectedAddons.length > 0 && (
+        <div className="rounded-lg border border-sage-200 bg-white p-3">
+          <p className="font-medium text-sage-900">Zusatzleistungen</p>
+          <ul className="mt-2 space-y-2 text-sm text-sage-800">
+            {selectedAddons.map((service) => (
+              <li key={service.id} className="flex flex-wrap justify-between gap-2">
+                <span>{service.title}</span>
+                <span className="font-medium tabular-nums">{formatEuro(Number(service.amount))}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       <div>
         <p className="font-medium text-sage-900">Kostenschätzung</p>
         <p className="mt-1 text-sm text-sage-600">{BOOKING_ESTIMATE_COST_NOTICE}</p>
@@ -216,9 +254,11 @@ export function PortalBookingWizardOverview({
           </ul>
         )}
         <div className="mt-3 flex items-baseline justify-between border-t border-sage-200 pt-3">
-          <span className="font-medium text-sage-900">Geschätzte Summe</span>
+          <span className="font-medium text-sage-900">
+            {selectedAddons.length > 0 ? 'Geschätzte Summe inkl. Zusatzleistungen' : 'Geschätzte Summe'}
+          </span>
           <span className="text-lg font-semibold tabular-nums text-sage-900">
-            {estimate.total != null ? formatEuro(estimate.total) : '—'}
+            {combinedTotal != null ? formatEuro(combinedTotal) : '—'}
           </span>
         </div>
         <div

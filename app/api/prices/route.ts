@@ -1,42 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerClient } from '@/lib/admin-auth'
-import { resolvePriceOverride } from '@/lib/price-override'
-import {
-  isFixedPercentageCatalogPrice,
-  resolveCatalogPercentageRate,
-} from '@/lib/price-catalog-policy'
+import { loadResolvedPriceCatalog } from '@/lib/price-catalog-loader'
 
-// Öffentlicher Zugriff für Kundenportal
 export async function GET(request: NextRequest) {
   try {
     const { client: supabase } = await getServerClient(request)
-
-    // Lade Standard-Preise und Kategorien parallel
-    const [pricesRes, categoriesRes] = await Promise.all([
-      supabase
-        .from('prices')
-        .select('*')
-        .order('sort_order', { ascending: true }),
-      supabase
-        .from('price_categories')
-        .select('*')
-        .order('sort_order', { ascending: true })
-    ])
-
-    if (pricesRes.error) {
-      throw pricesRes.error
-    }
-    if (categoriesRes.error) {
-      throw categoriesRes.error
-    }
-
-    const defaultPrices = pricesRes.data || []
-    const categories = categoriesRes.data || []
-
-    const customerOverrideMap = new Map<string, any>()
-    const groupOverrideMap = new Map<string, any>()
+    const { searchParams } = new URL(request.url)
+    const petId = searchParams.get('pet_id')
 
     const { data: { user } } = await supabase.auth.getUser()
+
+    let customerId: string | null = null
+    let customerGroupId: string | null = null
 
     if (user) {
       const { data: contact } = await supabase
@@ -47,82 +22,44 @@ export async function GET(request: NextRequest) {
         .maybeSingle()
 
       if (contact) {
-        const [customerPricesRes, groupPricesRes] = await Promise.all([
-          supabase
-            .from('customer_prices')
-            .select('price_id, price, discount_type, discount_value')
-            .eq('customer_id', contact.id),
-          contact.customer_group_id
-            ? supabase
-                .from('group_prices')
-                .select('price_id, price, discount_type, discount_value')
-                .eq('group_id', contact.customer_group_id)
-            : { data: [] }
-        ])
+        customerId = contact.id
+        customerGroupId = contact.customer_group_id
 
-        if (customerPricesRes.data) {
-          customerPricesRes.data.forEach((o: any) => customerOverrideMap.set(o.price_id, o))
-        }
+        if (petId) {
+          const { data: pet } = await supabase
+            .from('pets')
+            .select('id')
+            .eq('id', petId)
+            .eq('customer_id', contact.id)
+            .maybeSingle()
 
-        if (groupPricesRes.data) {
-          groupPricesRes.data.forEach((o: any) => groupOverrideMap.set(o.price_id, o))
+          if (!pet) {
+            return NextResponse.json({ error: 'Tier nicht gefunden' }, { status: 404 })
+          }
         }
       }
     }
 
-    const prices = (defaultPrices || []).map((p: any) => {
-      if (isFixedPercentageCatalogPrice(p)) {
-        const rate = resolveCatalogPercentageRate(p)
-        return {
-          ...p,
-          catalog_price: p.price,
-          price: rate,
-          final_price: rate,
-          base_price: p.price,
-          base_source: 'catalog',
-          special_price: null,
-          special_price_source: null,
-          discount_type: null,
-          discount_value: null,
-          discount_source: null,
-          discount_amount: null,
-          is_override: false,
-          override_type: null,
-          customer_selectable: p.customer_selectable !== false,
-        }
-      }
-
-      const resolved = resolvePriceOverride(
-        p,
-        groupOverrideMap.get(p.id),
-        customerOverrideMap.get(p.id)
-      )
-
-      return {
-        ...p,
-        catalog_price: p.price,
-        price: resolved.final_price ?? p.price,
-        base_price: resolved.base_price,
-        base_source: resolved.base_source,
-        special_price: resolved.special_price,
-        special_price_source: resolved.special_price_source,
-        discount_type: resolved.discount_type,
-        discount_value: resolved.discount_value,
-        discount_source: resolved.discount_source,
-        discount_amount: resolved.discount_amount,
-        final_price: resolved.final_price,
-        is_override: resolved.is_override,
-        override_type: resolved.override_type,
-        customer_selectable: p.customer_selectable !== false,
-      }
+    const catalog = await loadResolvedPriceCatalog(supabase, {
+      customerId,
+      customerGroupId,
+      petId: petId ?? null,
     })
 
-    return NextResponse.json({ prices, categories })
-  } catch (error: any) {
+    const prices = catalog.prices.map((price) => ({
+      ...price,
+      catalog_price: price.price,
+      price: price.final_price ?? price.price,
+    }))
+
+    return NextResponse.json({
+      prices,
+      categories: catalog.categories,
+      serviceAreas: catalog.serviceAreas,
+    })
+  } catch (error: unknown) {
     console.error('Error fetching prices:', error)
-    return NextResponse.json(
-      { error: error.message || 'Fehler beim Laden der Preise' },
-      { status: 500 }
-    )
+    const message = error instanceof Error ? error.message : 'Fehler beim Laden der Preise'
+    return NextResponse.json({ error: message }, { status: 500 })
   }
 }

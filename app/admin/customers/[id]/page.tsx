@@ -19,16 +19,9 @@ import { INTERVALL_OPTIONS } from '@/lib/pet-form-options'
 import { TransactionalEmailPanel } from '@/components/admin/transactional-email-panel'
 import { useToast } from '@/hooks/use-toast'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { authenticatedFetch } from '@/lib/authenticated-fetch'
-import { CollapsibleAdminCard } from '@/components/admin/collapsible-admin-card'
-import {
-  emptyPriceOverrideForm,
-  formToOverrideRow,
-  overrideRowToForm,
-  PriceOverrideEditorRow,
-  type PriceOverrideFormState,
-} from '@/components/admin/price-override-editor'
-import type { PriceOverrideRow } from '@/lib/price-override'
+import { CustomerPricingPanel } from '@/components/admin/customer-pricing-panel'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 
 type CustomerFormData = {
@@ -91,76 +84,25 @@ export default function CustomerDetailPage() {
   const [resendingContractEmail, setResendingContractEmail] = useState(false)
 
   const [groups, setGroups] = useState<any[]>([])
-  const [defaultPrices, setDefaultPrices] = useState<any[]>([])
-  const [categories, setCategories] = useState<any[]>([])
-  const [customerPriceForms, setCustomerPriceForms] = useState<Record<string, PriceOverrideFormState>>({})
-  const [groupPriceOverrides, setGroupPriceOverrides] = useState<Record<string, PriceOverrideRow>>({})
-  const [savingPrices, setSavingPrices] = useState(false)
 
   useEffect(() => {
     if (customerId) {
       loadCustomer()
       loadNotes()
       loadBookings()
-      loadGroupsAndPrices()
+      loadGroups()
     }
   }, [customerId])
 
-  async function loadGroupsAndPrices() {
+  async function loadGroups() {
     try {
-      const [groupsRes, defaultPricesRes, customerPricesRes] = await Promise.all([
-        authenticatedFetch('/api/admin/customer-groups'),
-        authenticatedFetch('/api/admin/prices'),
-        authenticatedFetch(`/api/admin/customer-prices?customer_id=${customerId}`)
-      ])
-      
+      const groupsRes = await authenticatedFetch('/api/admin/customer-groups')
       const groupsData = await groupsRes.json()
       setGroups(groupsData.groups || [])
-      
-      const defaultPricesData = await defaultPricesRes.json()
-      setDefaultPrices(defaultPricesData.prices || [])
-      setCategories(defaultPricesData.categories || [])
-
-      const customerPricesData = await customerPricesRes.json()
-      const formsMap: Record<string, PriceOverrideFormState> = {}
-      if (customerPricesData.overrides) {
-        customerPricesData.overrides.forEach((o: PriceOverrideRow) => {
-          formsMap[o.price_id] = overrideRowToForm(o)
-        })
-      }
-      setCustomerPriceForms(formsMap)
     } catch (error) {
-      console.error('Error loading groups or prices:', error)
+      console.error('Error loading groups:', error)
     }
   }
-
-  async function loadGroupPriceOverrides(groupId: string | null) {
-    if (!groupId) {
-      setGroupPriceOverrides({})
-      return
-    }
-    try {
-      const groupPricesRes = await authenticatedFetch(
-        `/api/admin/group-prices?group_id=${groupId}`
-      )
-      const groupPricesData = await groupPricesRes.json()
-      const groupMap: Record<string, PriceOverrideRow> = {}
-      if (groupPricesData.overrides) {
-        groupPricesData.overrides.forEach((o: PriceOverrideRow) => {
-          groupMap[o.price_id] = o
-        })
-      }
-      setGroupPriceOverrides(groupMap)
-    } catch (error) {
-      console.error('Error loading group price overrides:', error)
-    }
-  }
-
-  useEffect(() => {
-    if (customer) {
-      loadGroupPriceOverrides(customer.customer_group_id ?? null)
-    }
-  }, [customer?.id, customer?.customer_group_id])
 
   async function handleGroupChange(value: string) {
     const groupId = value === 'none' ? null : value
@@ -174,7 +116,6 @@ export default function CustomerDetailPage() {
 
       if (response.ok) {
         setCustomer(prev => prev ? { ...prev, customer_group_id: groupId } : null)
-        await loadGroupPriceOverrides(groupId)
         toast({
           title: 'Erfolg',
           description: 'Kundengruppe erfolgreich aktualisiert',
@@ -194,47 +135,6 @@ export default function CustomerDetailPage() {
         description: 'Fehler beim Aktualisieren der Kundengruppe',
         variant: 'destructive',
       })
-    }
-  }
-
-  async function handleSavePrices() {
-    setSavingPrices(true)
-    try {
-      const overrides = Object.entries(customerPriceForms)
-        .map(([price_id, form]) => formToOverrideRow(price_id, form))
-        .filter(Boolean)
-
-      const response = await authenticatedFetch('/api/admin/customer-prices', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          customer_id: customerId,
-          overrides,
-        }),
-      })
-
-      if (response.ok) {
-        toast({
-          title: 'Erfolg',
-          description: 'Individuelle Preise erfolgreich gespeichert',
-        })
-      } else {
-        const error = await response.json()
-        toast({
-          title: 'Fehler',
-          description: error.error || 'Fehler beim Speichern',
-          variant: 'destructive',
-        })
-      }
-    } catch (error) {
-      console.error('Error saving customer prices:', error)
-      toast({
-        title: 'Fehler',
-        description: 'Fehler beim Speichern der Preise',
-        variant: 'destructive',
-      })
-    } finally {
-      setSavingPrices(false)
     }
   }
 
@@ -274,23 +174,6 @@ export default function CustomerDetailPage() {
     } finally {
       setResendingContractEmail(false)
     }
-  }
-
-  function updateCustomerPriceForm(priceId: string, next: PriceOverrideFormState) {
-    setCustomerPriceForms(prev => {
-      const isEmpty =
-        next.price === '' && next.discount_type === '' && next.discount_value === ''
-      if (isEmpty) {
-        const updated = { ...prev }
-        delete updated[priceId]
-        return updated
-      }
-      return { ...prev, [priceId]: next }
-    })
-  }
-
-  function getCustomerPriceForm(priceId: string): PriceOverrideFormState {
-    return customerPriceForms[priceId] ?? emptyPriceOverrideForm()
   }
 
   async function loadCustomer() {
@@ -472,14 +355,26 @@ export default function CustomerDetailPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 space-y-6">
-          {/* Persönliche Daten */}
-          <CollapsibleAdminCard
-            title="Persönliche Daten"
-            defaultExpanded={false}
-            headerActions={
-              !isEditing ? (
+      <Tabs defaultValue="info" className="w-full">
+        <TabsList className="bg-sage-100/60 p-1 rounded-lg border border-sage-200 flex flex-wrap h-auto gap-1">
+          <TabsTrigger value="info" className="rounded-md px-4 py-2 text-sm">
+            Persönliche Info
+          </TabsTrigger>
+          <TabsTrigger value="pets" className="rounded-md px-4 py-2 text-sm">
+            Tiere ({customer.pets?.length ?? 0})
+          </TabsTrigger>
+          <TabsTrigger value="prices" className="rounded-md px-4 py-2 text-sm">
+            Preise
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="info" className="mt-6">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div className="lg:col-span-2 space-y-6">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 gap-4">
+              <CardTitle>Persönliche Daten</CardTitle>
+              {!isEditing ? (
                 <Button size="sm" variant="outline" onClick={() => setIsEditing(true)}>
                   <Pencil className="h-4 w-4 mr-1" />
                   Bearbeiten
@@ -495,10 +390,9 @@ export default function CustomerDetailPage() {
                     Abbrechen
                   </Button>
                 </div>
-              )
-            }
-          >
-          <div className="space-y-4">
+              )}
+            </CardHeader>
+            <CardContent className="space-y-4">
             {formData && isEditing ? (
               <>
                 <div className="grid grid-cols-2 gap-4">
@@ -813,24 +707,16 @@ export default function CustomerDetailPage() {
               <p>Erstellt: {new Date(customer.created_at).toLocaleString('de-DE')}</p>
               <p>Aktualisiert: {new Date(customer.updated_at).toLocaleString('de-DE')}</p>
             </div>
-          </div>
-        </CollapsibleAdminCard>
+            </CardContent>
+          </Card>
 
-        {/* Eigenschaften */}
-        <PropertyEditor entityType="customer" entityId={customerId} defaultExpanded={false} />
+        <PropertyEditor entityType="customer" entityId={customerId} embedded />
 
         <TransactionalEmailPanel
           contactId={customerId}
           recipientEmail={customer.email}
           recipientName={[customer.vorname, customer.nachname].filter(Boolean).join(' ') || customer.email}
-          defaultExpanded={false}
-        />
-
-        <PetManager
-          customerId={customerId}
-          pets={customer.pets || []}
-          onPetsChange={(pets) => setCustomer((prev) => prev ? { ...prev, pets } : prev)}
-          defaultExpanded={false}
+          embedded
         />
 
         <DocumentManager
@@ -838,47 +724,14 @@ export default function CustomerDetailPage() {
           documents={customer.documents || []}
           pets={customer.pets || []}
           onDocumentsChange={(documents) => setCustomer((prev) => prev ? { ...prev, documents } : prev)}
-          defaultExpanded={false}
+          embedded
         />
 
-        {/* Individuelle Preise */}
-        <CollapsibleAdminCard
-          title="Individuelle Preise"
-          defaultExpanded={false}
-          headerActions={
-            <Button
-              size="sm"
-              onClick={handleSavePrices}
-              disabled={savingPrices}
-              className="bg-sage-600 hover:bg-sage-700"
-            >
-              {savingPrices ? 'Wird gespeichert...' : 'Preise speichern'}
-            </Button>
-          }
-        >
-          <p className="text-sm text-sage-600">
-            Optional Sonderpreis und/oder Rabatt pro Posten. Leere Felder bedeuten Standard- bzw. Gruppenpreis.
-          </p>
-          <div className="space-y-4 mt-4">
-            {defaultPrices.filter(p => p.price_type !== 'text').map((price) => (
-              <PriceOverrideEditorRow
-                key={price.id}
-                catalogPrice={price}
-                categoryName={categories.find(c => c.id === price.category_id)?.name || 'Allgemein'}
-                form={getCustomerPriceForm(price.id)}
-                onChange={(next) => updateCustomerPriceForm(price.id, next)}
-                groupOverride={groupPriceOverrides[price.id] ?? null}
-              />
-            ))}
-          </div>
-        </CollapsibleAdminCard>
-
-        {/* Gefahrenbereich */}
-        <CollapsibleAdminCard
-          title={<CardTitle className="text-destructive">Gefahrenbereich</CardTitle>}
-          defaultExpanded={false}
-          className="border-destructive/40"
-        >
+        <Card className="border-destructive/40">
+          <CardHeader>
+            <CardTitle className="text-destructive">Gefahrenbereich</CardTitle>
+          </CardHeader>
+          <CardContent>
           <AlertDialog>
               <AlertDialogTrigger asChild>
                 <Button variant="destructive" disabled={isDeleting}>
@@ -901,7 +754,8 @@ export default function CustomerDetailPage() {
                 </AlertDialogFooter>
               </AlertDialogContent>
             </AlertDialog>
-        </CollapsibleAdminCard>
+          </CardContent>
+        </Card>
       </div>
 
       <div className="space-y-6">
@@ -989,8 +843,27 @@ export default function CustomerDetailPage() {
             </CardContent>
           </Card>
         </div>
-      </div>
+          </div>
+        </TabsContent>
 
+        <TabsContent value="pets" className="mt-6">
+          <PetManager
+            customerId={customerId}
+            pets={customer.pets || []}
+            onPetsChange={(pets) => setCustomer((prev) => prev ? { ...prev, pets } : prev)}
+            embedded
+          />
+        </TabsContent>
+
+        <TabsContent value="prices" className="mt-6">
+          <CustomerPricingPanel
+            customerId={customerId}
+            customerGroupId={customer.customer_group_id ?? null}
+            pets={(customer.pets || []).map((pet) => ({ id: pet.id, name: pet.name }))}
+            embedded
+          />
+        </TabsContent>
+      </Tabs>
     </div>
   )
 }

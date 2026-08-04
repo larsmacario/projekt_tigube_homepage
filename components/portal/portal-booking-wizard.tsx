@@ -24,23 +24,7 @@ import { useToast } from '@/hooks/use-toast'
 import { authenticatedFetch } from '@/lib/authenticated-fetch'
 import { isValidTimeHHmm } from '@/lib/pickup-time-surcharge'
 import { readApiResponse } from '@/lib/read-api-response'
-import {
-  filterBookableExtraPrices,
-  filterCustomerSelectableExtraPrices,
-  filterExtraCategoriesForServices,
-  flattenPetExtraSelections,
-  getBookableExtrasForService,
-  type BookingExtraPrice,
-  type PetExtraSelections,
-} from '@/lib/booking-extras'
-import {
-  computeSuggestedExtraForPetLine,
-  extraQuantityOverrideKey,
-  formatExtraQuantityHint,
-  inferExtraQuantityBehavior,
-  resolvesExtraQuantityFromPeriod,
-  shouldShowExtraQuantityField,
-} from '@/lib/booking-extra-quantity'
+import type { BookingExtraCategory, BookingExtraPrice } from '@/lib/booking-extras'
 import { getServicesForPetType } from '@/lib/booking-service'
 import {
   isDateInVacationPeriods,
@@ -55,16 +39,15 @@ import {
 } from '@/lib/day-care-booking'
 import type { DayCareMode } from '@/lib/types'
 import { startOfDay, toIsoDate, parseIsoDate } from '@/lib/vacation-dates'
-import type { BookingRequest, Pet, ServiceType } from '@/lib/types'
+import type { BookingRequest, AddonService, Pet, ServiceType } from '@/lib/types'
 import { PortalBookingWizardOverview } from '@/components/portal/portal-booking-wizard-overview'
-import type { BookingExtraCategory } from '@/lib/booking-extras'
+import {
+  PortalBookingCarePlanSection,
+  selectedPetsHaveCompleteCarePlans,
+} from '@/components/portal/portal-booking-care-plan-section'
 
-const STEPS = [
-  { id: 1, label: 'Tier & Leistung' },
-  { id: 2, label: 'Zeitraum' },
-  { id: 3, label: 'Zusatzleistungen' },
-  { id: 4, label: 'Übersicht & Kosten' },
-] as const
+const OVERVIEW_STEP = 4
+const ADDON_STEP = 3
 
 function PickupTimesFields({
   dropOffTime,
@@ -150,11 +133,12 @@ interface PortalBookingWizardProps {
 }
 
 export function PortalBookingWizard({
-  pets,
+  pets: initialPets,
   onSuccess,
   onCancel,
 }: PortalBookingWizardProps) {
   const { toast } = useToast()
+  const [wizardPets, setWizardPets] = useState<Pet[]>(initialPets)
   const [step, setStep] = useState(1)
   const [petLines, setPetLines] = useState<PetServiceLine[]>([{ pet_id: '', service_type: '' }])
   const [dateRange, setDateRange] = useState<DateRange | undefined>()
@@ -171,12 +155,19 @@ export function PortalBookingWizard({
   })
   const [dropOffTime, setDropOffTime] = useState('')
   const [pickUpTime, setPickUpTime] = useState('')
-  const [extraPrices, setExtraPrices] = useState<BookingExtraPrice[]>([])
+  const [addonServices, setAddonServices] = useState<AddonService[]>([])
+  const [addonsLoading, setAddonsLoading] = useState(false)
+  const [selectedAddonIds, setSelectedAddonIds] = useState<string[]>([])
   const [catalogPrices, setCatalogPrices] = useState<BookingExtraPrice[]>([])
+  const [catalogPricesByPet, setCatalogPricesByPet] = useState<Record<string, BookingExtraPrice[]>>({})
   const [priceCategories, setPriceCategories] = useState<BookingExtraCategory[]>([])
   const [pricesLoading, setPricesLoading] = useState(false)
-  const [selectedExtrasByPet, setSelectedExtrasByPet] = useState<PetExtraSelections>({})
-  const [extraQuantityOverrides, setExtraQuantityOverrides] = useState<Set<string>>(() => new Set())
+
+  useEffect(() => {
+    setWizardPets(initialPets)
+  }, [initialPets])
+
+  const pets = wizardPets
   const [submitting, setSubmitting] = useState(false)
 
   const today = useMemo(() => startOfDay(new Date()), [])
@@ -212,6 +203,20 @@ export function PortalBookingWizard({
       resolvedPetLines.some((l) => l.service_type === 'tagesbetreuung'),
     [resolvedPetLines, hundepensionRange]
   )
+
+  const hasAddonStep = addonServices.length > 0
+
+  const progressSteps = useMemo(() => {
+    const steps = [
+      { step: 1, label: 'Tier & Leistung' },
+      { step: 2, label: 'Zeitraum' },
+    ]
+    if (hasAddonStep) {
+      steps.push({ step: ADDON_STEP, label: 'Zusatzleistungen' })
+    }
+    steps.push({ step: OVERVIEW_STEP, label: 'Übersicht & Kosten' })
+    return steps
+  }, [hasAddonStep])
 
   const dayCareOnceLines = useMemo(
     () =>
@@ -264,9 +269,22 @@ export function PortalBookingWizard({
     }
   }, [serviceTypes, today])
 
+  const loadAddonServices = useCallback(async () => {
+    setAddonsLoading(true)
+    try {
+      const response = await authenticatedFetch('/api/portal/addon-services')
+      const data = await response.json()
+      setAddonServices((data.addonServices || []) as AddonService[])
+    } catch (error) {
+      console.error('Error loading addon services:', error)
+      setAddonServices([])
+    } finally {
+      setAddonsLoading(false)
+    }
+  }, [])
+
   const loadPriceCatalog = useCallback(async () => {
     if (serviceTypes.length === 0) {
-      setExtraPrices([])
       setCatalogPrices([])
       setPriceCategories([])
       return
@@ -280,17 +298,26 @@ export function PortalBookingWizard({
       const prices = (data.prices || []) as BookingExtraPrice[]
       setPriceCategories(categories)
       setCatalogPrices(prices)
-      const extraCategories = filterExtraCategoriesForServices(categories, serviceTypes)
-      const categoryIds = new Set(extraCategories.map((c) => c.id))
-      setExtraPrices(
-        filterCustomerSelectableExtraPrices(filterBookableExtraPrices(prices, categoryIds))
+
+      const activePetIds = resolvedPetLines.map((line) => line.pet_id)
+      const petPriceEntries = await Promise.all(
+        activePetIds.map(async (petId) => {
+          const petResponse = await authenticatedFetch(`/api/prices?pet_id=${encodeURIComponent(petId)}`)
+          const petData = await petResponse.json()
+          return [petId, (petData.prices || []) as BookingExtraPrice[]] as const
+        })
       )
+      setCatalogPricesByPet(Object.fromEntries(petPriceEntries))
     } catch (error) {
       console.error('Error loading prices:', error)
     } finally {
       setPricesLoading(false)
     }
-  }, [serviceTypes])
+  }, [serviceTypes, resolvedPetLines])
+
+  useEffect(() => {
+    void loadAddonServices()
+  }, [loadAddonServices])
 
   useEffect(() => {
     if (step >= 2) {
@@ -299,71 +326,22 @@ export function PortalBookingWizard({
   }, [step, loadAvailability])
 
   useEffect(() => {
-    if (step >= 3) {
-      loadPriceCatalog()
+    if (step >= OVERVIEW_STEP || (step >= 2 && !hasAddonStep)) {
+      void loadPriceCatalog()
     }
-  }, [step, loadPriceCatalog])
+  }, [step, hasAddonStep, loadPriceCatalog])
 
   useEffect(() => {
-    if (step < 3) return
+    setSelectedAddonIds((prev) =>
+      prev.filter((id) => addonServices.some((service) => service.id === id))
+    )
+  }, [addonServices])
 
-    const catalog = catalogPrices.length > 0 ? catalogPrices : extraPrices
-
-    setSelectedExtrasByPet((prev) => {
-      let changed = false
-      const next: PetExtraSelections = { ...prev }
-
-      for (const line of resolvedPetLines) {
-        const selections = next[line.pet_id]
-        if (!selections) continue
-
-        const petExtraPrices = getBookableExtrasForService(
-          catalog,
-          priceCategories,
-          line.service_type as ServiceType,
-          { portalOnly: true }
-        )
-
-        for (const priceId of Object.keys(selections)) {
-          const overrideKey = extraQuantityOverrideKey(line.pet_id, priceId)
-          if (extraQuantityOverrides.has(overrideKey)) continue
-
-          const extraPrice = petExtraPrices.find((p) => p.id === priceId)
-          if (!extraPrice) continue
-
-          const behavior = inferExtraQuantityBehavior(extraPrice)
-          if (!resolvesExtraQuantityFromPeriod(behavior)) continue
-
-          const { quantity } = computeSuggestedExtraForPetLine(
-            {
-              pet_id: line.pet_id,
-              service_type: line.service_type as ServiceType,
-              day_care_mode: line.day_care_mode,
-            },
-            extraPrice,
-            dateRange,
-            dayCareOnceDates
-          )
-
-          if (selections[priceId] !== quantity) {
-            changed = true
-            next[line.pet_id] = { ...selections, [priceId]: quantity }
-          }
-        }
-      }
-
-      return changed ? next : prev
-    })
-  }, [
-    step,
-    dateRange,
-    dayCareOnceDates,
-    resolvedPetLines,
-    catalogPrices,
-    extraPrices,
-    priceCategories,
-    extraQuantityOverrides,
-  ])
+  useEffect(() => {
+    if (step === ADDON_STEP && !hasAddonStep) {
+      setStep(OVERVIEW_STEP)
+    }
+  }, [step, hasAddonStep])
 
   const isDateUnavailable = useCallback(
     (date: Date) => {
@@ -438,6 +416,19 @@ export function PortalBookingWizard({
         })
         return false
       }
+    }
+    return true
+  }
+
+  function validateCarePlansForBooking(): boolean {
+    const petIds = resolvedPetLines.map((line) => line.pet_id)
+    if (!selectedPetsHaveCompleteCarePlans(petIds, pets)) {
+      toast({
+        title: 'Pflegeplan fehlt',
+        description: 'Bitte vervollständige den Futter- und Medikamentenplan für alle ausgewählten Tiere.',
+        variant: 'destructive',
+      })
+      return false
     }
     return true
   }
@@ -599,10 +590,7 @@ export function PortalBookingWizard({
         ? toIsoDate(dateRange.to ?? dateRange.from)
         : undefined
 
-    const extras = flattenPetExtraSelections(
-      resolvedPetLines.map((l) => l.pet_id),
-      selectedExtrasByPet
-    )
+    const addon_services = selectedAddonIds.map((addon_service_id) => ({ addon_service_id }))
 
     const petsPayload = resolvedPetLines.map((line) => {
       if (line.service_type === 'tagesbetreuung' && line.day_care_mode === 'once') {
@@ -641,7 +629,7 @@ export function PortalBookingWizard({
           end_date: endIso,
           message: message || null,
           pets: petsPayload,
-          extras,
+          addon_services,
           drop_off_time: needsPickupTimes && dropOffTime ? dropOffTime : null,
           pick_up_time: needsPickupTimes && pickUpTime ? pickUpTime : null,
         }),
@@ -674,114 +662,59 @@ export function PortalBookingWizard({
     }
   }
 
-  function toggleExtra(
-    line: PetServiceLine,
-    extraPrice: BookingExtraPrice,
-    checked: boolean
-  ) {
-    const petId = line.pet_id
-    const priceId = extraPrice.id
-    const overrideKey = extraQuantityOverrideKey(petId, priceId)
-
-    setExtraQuantityOverrides((prev) => {
-      const next = new Set(prev)
-      next.delete(overrideKey)
-      return next
-    })
-
-    setSelectedExtrasByPet((prev) => {
-      const petSelections = { ...(prev[petId] || {}) }
+  function toggleAddon(addonId: string, checked: boolean) {
+    setSelectedAddonIds((prev) => {
       if (checked) {
-        const { quantity } = computeSuggestedExtraForPetLine(
-          {
-            pet_id: line.pet_id,
-            service_type: line.service_type as ServiceType,
-            day_care_mode: line.day_care_mode,
-          },
-          extraPrice,
-          dateRange,
-          dayCareOnceDates
-        )
-        petSelections[priceId] = quantity
-      } else {
-        delete petSelections[priceId]
+        if (prev.includes(addonId)) return prev
+        return [...prev, addonId]
       }
-      const next = { ...prev }
-      if (Object.keys(petSelections).length === 0) {
-        delete next[petId]
-      } else {
-        next[petId] = petSelections
-      }
-      return next
+      return prev.filter((id) => id !== addonId)
     })
   }
 
-  function setExtraQuantityFromUser(petId: string, priceId: string, quantity: number) {
-    setExtraQuantityOverrides((prev) => new Set(prev).add(extraQuantityOverrideKey(petId, priceId)))
-    setSelectedExtrasByPet((prev) => ({
-      ...prev,
-      [petId]: {
-        ...(prev[petId] || {}),
-        [priceId]: quantity,
-      },
-    }))
-  }
-
-  function applySuggestedExtraQuantity(line: PetServiceLine, extraPrice: BookingExtraPrice) {
-    const petId = line.pet_id
-    const priceId = extraPrice.id
-    const overrideKey = extraQuantityOverrideKey(petId, priceId)
-
-    setExtraQuantityOverrides((prev) => {
-      const next = new Set(prev)
-      next.delete(overrideKey)
-      return next
-    })
-
-    const { quantity } = computeSuggestedExtraForPetLine(
-      {
-        pet_id: line.pet_id,
-        service_type: line.service_type as ServiceType,
-        day_care_mode: line.day_care_mode,
-      },
-      extraPrice,
-      dateRange,
-      dayCareOnceDates
-    )
-
-    setSelectedExtrasByPet((prev) => ({
-      ...prev,
-      [petId]: {
-        ...(prev[petId] || {}),
-        [priceId]: quantity,
-      },
-    }))
-  }
-
-  function formatExtraPrice(price: BookingExtraPrice): string {
-    if (price.price_type === 'percentage') {
-      return `+${price.final_price ?? price.price ?? 0}%${price.unit ? ` ${price.unit}` : ''}`
+  function goToNextStep() {
+    if (step === 1 && validateStep1() && validateCarePlansForBooking()) {
+      setStep(2)
+      return
     }
-    const amount = price.final_price ?? price.price
-    if (amount == null) return ''
-    return `${formatEuro(amount)}${price.unit ? ` ${price.unit}` : ''}`
+    if (step === 2 && validateStep2()) {
+      setStep(hasAddonStep ? ADDON_STEP : OVERVIEW_STEP)
+      return
+    }
+    if (step === ADDON_STEP) {
+      setStep(OVERVIEW_STEP)
+    }
+  }
+
+  function goToPreviousStep() {
+    if (step === OVERVIEW_STEP) {
+      setStep(hasAddonStep ? ADDON_STEP : 2)
+      return
+    }
+    if (step > 1) {
+      setStep(step - 1)
+    }
+  }
+
+  function formatAddonAmount(service: AddonService): string {
+    return formatEuro(Number(service.amount))
   }
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-4">
       <nav aria-label="Fortschritt" className="flex shrink-0 gap-2">
-        {STEPS.map((s) => (
+        {progressSteps.map((s, index) => (
           <div
-            key={s.id}
+            key={s.step}
             className={`flex-1 rounded-md border px-2 py-2 text-center text-xs font-medium sm:text-sm ${
-              step === s.id
+              step === s.step
                 ? 'border-sage-600 bg-sage-100 text-sage-900'
-                : step > s.id
+                : step > s.step
                   ? 'border-sage-300 bg-sage-50 text-sage-700'
                   : 'border-sage-200 text-sage-500'
             }`}
           >
-            {s.id}. {s.label}
+            {index + 1}. {s.label}
           </div>
         ))}
       </nav>
@@ -895,6 +828,14 @@ export function PortalBookingWizard({
             <p className="text-sm text-sage-600">
               Bitte füge zuerst ein Tier in deinem Profil hinzu.
             </p>
+          )}
+
+          {resolvedPetLines.length > 0 && (
+            <PortalBookingCarePlanSection
+              selectedPetIds={resolvedPetLines.map((line) => line.pet_id)}
+              pets={pets}
+              onPetsUpdated={setWizardPets}
+            />
           )}
         </div>
       )}
@@ -1078,134 +1019,51 @@ export function PortalBookingWizard({
         </div>
       )}
 
-      {step === 3 && (
+      {step === ADDON_STEP && hasAddonStep && (
         <div className="space-y-6">
           <p className="text-sm text-sage-600">
-            Zusatzleistungen wählst du pro Tier. Wir schlagen Mengen aus deinem Zeitraum vor (z. B.
-            Tage oder Fütterungen pro Tag) – du kannst jede Menge jederzeit anpassen.
+            Wähle optionale Zusatzleistungen für deine Anfrage. Du kannst mehrere Leistungen
+            auswählen – jede Leistung höchstens einmal.
           </p>
-          {resolvedPetLines.map((line) => {
-            const pet = pets.find((p) => p.id === line.pet_id)
-            const petExtraPrices = getBookableExtrasForService(
-              catalogPrices.length > 0 ? catalogPrices : extraPrices,
-              priceCategories,
-              line.service_type as ServiceType,
-              { portalOnly: true }
-            )
-            const petSelections = selectedExtrasByPet[line.pet_id] || {}
-
-            return (
-              <div
-                key={line.pet_id}
-                className="space-y-3 rounded-lg border border-sage-200 bg-sage-50/40 p-3"
-              >
-                <p className="font-medium text-sage-900">
-                  {pet?.name ?? 'Tier'} – Zusatzleistungen (optional)
-                </p>
-                {petExtraPrices.length === 0 ? (
-                  <p className="text-sm text-sage-600">
-                    Keine Zusatzleistungen für diese Leistung.
-                  </p>
-                ) : (
-                  <ul className="space-y-3">
-                    {petExtraPrices.map((extraPrice) => {
-                      const checked = extraPrice.id in petSelections
-                      const qty = petSelections[extraPrice.id] ?? 1
-                      const { behavior, dayCount, quantity: suggestedQty } =
-                        computeSuggestedExtraForPetLine(
-                          {
-                            pet_id: line.pet_id,
-                            service_type: line.service_type as ServiceType,
-                            day_care_mode: line.day_care_mode,
-                          },
-                          extraPrice,
-                          dateRange,
-                          dayCareOnceDates
-                        )
-                      const hint = formatExtraQuantityHint(
-                        extraPrice,
-                        behavior,
-                        dayCount,
-                        suggestedQty
-                      )
-                      const overrideKey = extraQuantityOverrideKey(line.pet_id, extraPrice.id)
-                      const hasOverride = extraQuantityOverrides.has(overrideKey)
-                      const showQuantity = checked && shouldShowExtraQuantityField(extraPrice)
-
-                      return (
-                        <li
-                          key={extraPrice.id}
-                          className="flex flex-wrap items-start gap-3 rounded-md border border-sage-200 bg-white p-3"
-                        >
-                          <Checkbox
-                            id={`extra-${line.pet_id}-${extraPrice.id}`}
-                            checked={checked}
-                            onCheckedChange={(v) =>
-                              toggleExtra(line, extraPrice, v === true)
-                            }
-                          />
-                          <div className="min-w-0 flex-1">
-                            <label
-                              htmlFor={`extra-${line.pet_id}-${extraPrice.id}`}
-                              className="cursor-pointer font-medium text-sage-900"
-                            >
-                              {extraPrice.name}
-                            </label>
-                            {extraPrice.description && (
-                              <p className="text-sm text-sage-600">{extraPrice.description}</p>
-                            )}
-                            <p className="text-sm font-semibold text-sage-800">
-                              {formatExtraPrice(extraPrice)}
-                            </p>
-                            {checked && hint && (
-                              <p className="mt-1 text-xs text-sage-600">{hint}</p>
-                            )}
-                            {checked &&
-                              hasOverride &&
-                              resolvesExtraQuantityFromPeriod(behavior) && (
-                                <Button
-                                  type="button"
-                                  variant="link"
-                                  className="h-auto p-0 text-xs text-sage-700"
-                                  onClick={() =>
-                                    applySuggestedExtraQuantity(line, extraPrice)
-                                  }
-                                >
-                                  Vorschlag übernehmen
-                                </Button>
-                              )}
-                          </div>
-                          {showQuantity && (
-                            <div className="w-24">
-                              <Label className="text-xs">Menge</Label>
-                              <Input
-                                type="number"
-                                min={1}
-                                step={1}
-                                value={qty}
-                                onChange={(e) => {
-                                  const n = parseInt(e.target.value, 10)
-                                  setExtraQuantityFromUser(
-                                    line.pet_id,
-                                    extraPrice.id,
-                                    Number.isNaN(n) || n < 1 ? 1 : n
-                                  )
-                                }}
-                              />
-                            </div>
-                          )}
-                        </li>
-                      )
-                    })}
-                  </ul>
-                )}
-              </div>
-            )
-          })}
+          {addonsLoading ? (
+            <p className="text-sm text-sage-600">Zusatzleistungen werden geladen…</p>
+          ) : (
+            <ul className="space-y-3">
+              {addonServices.map((service) => {
+                const checked = selectedAddonIds.includes(service.id)
+                return (
+                  <li
+                    key={service.id}
+                    className="flex flex-wrap items-start gap-3 rounded-md border border-sage-200 bg-white p-3"
+                  >
+                    <Checkbox
+                      id={`addon-${service.id}`}
+                      checked={checked}
+                      onCheckedChange={(value) => toggleAddon(service.id, value === true)}
+                    />
+                    <div className="min-w-0 flex-1">
+                      <label
+                        htmlFor={`addon-${service.id}`}
+                        className="cursor-pointer font-medium text-sage-900"
+                      >
+                        {service.title}
+                      </label>
+                      {service.description && (
+                        <p className="text-sm text-sage-600">{service.description}</p>
+                      )}
+                      <p className="text-sm font-semibold text-sage-800">
+                        {formatAddonAmount(service)}
+                      </p>
+                    </div>
+                  </li>
+                )
+              })}
+            </ul>
+          )}
         </div>
       )}
 
-      {step === 4 && (
+      {step === OVERVIEW_STEP && (
         <PortalBookingWizardOverview
           pets={pets}
           resolvedPetLines={resolvedPetLines}
@@ -1215,8 +1073,10 @@ export function PortalBookingWizard({
           dateRange={dateRange}
           dayCareOnceDates={dayCareOnceDates}
           dayCareRecurring={dayCareRecurring}
-          selectedExtrasByPet={selectedExtrasByPet}
+          selectedAddonIds={selectedAddonIds}
+          addonServices={addonServices}
           catalogPrices={catalogPrices}
+          catalogPricesByPet={catalogPricesByPet}
           priceCategories={priceCategories}
           publicHolidays={availability.publicHolidays}
           dropOffTime={dropOffTime}
@@ -1229,19 +1089,11 @@ export function PortalBookingWizard({
       </div>
 
       <div className="flex shrink-0 justify-between gap-2 border-t border-sage-100 pt-4">
-        <Button type="button" variant="outline" onClick={step === 1 ? onCancel : () => setStep(step - 1)}>
+        <Button type="button" variant="outline" onClick={step === 1 ? onCancel : goToPreviousStep}>
           {step === 1 ? 'Abbrechen' : 'Zurück'}
         </Button>
-        {step < 4 ? (
-          <Button
-            type="button"
-            onClick={() => {
-              if (step === 1 && validateStep1()) setStep(2)
-              else if (step === 2 && validateStep2()) setStep(3)
-              else if (step === 3) setStep(4)
-            }}
-            disabled={pets.length === 0}
-          >
+        {step < OVERVIEW_STEP ? (
+          <Button type="button" onClick={goToNextStep} disabled={pets.length === 0}>
             Weiter
           </Button>
         ) : (

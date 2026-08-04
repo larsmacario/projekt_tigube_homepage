@@ -28,6 +28,11 @@ import { PetPhotoGallery, type PetPhotoGalleryHandle } from '@/components/portal
 import { PetRecognitionField } from '@/components/portal/pet-recognition-field'
 import { PetDewormingDateField } from '@/components/portal/pet-deworming-date-field'
 import { PetMissingFieldsHint } from '@/components/portal/pet-missing-fields-hint'
+import { PetCarePlanForm } from '@/components/portal/pet-care-plan-form'
+import { PetCarePlanLegacyBanner } from '@/components/portal/pet-care-plan-legacy-banner'
+import { PetCarePlanSummary } from '@/components/portal/pet-care-plan-summary'
+import { buildPetSaveBody, carePlanFromPet } from '@/lib/pet-care-plan-form-state'
+import type { PetCarePlan } from '@/lib/pet-care-plan'
 import { readApiResponse } from '@/lib/read-api-response'
 
 export default function PetsPage() {
@@ -56,6 +61,7 @@ export default function PetsPage() {
     letzte_stuhlprobe: '',
     naechste_stuhlprobe: '',
   })
+  const [carePlan, setCarePlan] = useState<PetCarePlan>(() => carePlanFromPet())
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [petToDelete, setPetToDelete] = useState<Pet | null>(null)
   const [formPhotoCount, setFormPhotoCount] = useState(0)
@@ -113,6 +119,7 @@ export default function PetsPage() {
           ? pet.naechste_stuhlprobe.split('T')[0]
           : '',
       })
+      setCarePlan(carePlanFromPet(pet))
     } else {
       setEditingPetId(null)
       setPetFormData({
@@ -132,6 +139,7 @@ export default function PetsPage() {
         letzte_stuhlprobe: '',
         naechste_stuhlprobe: '',
       })
+      setCarePlan(carePlanFromPet())
     }
     setImpfpassFile(null)
     setWurmtestFile(null)
@@ -180,7 +188,7 @@ export default function PetsPage() {
       const response = await authenticatedFetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(petFormData),
+        body: JSON.stringify(buildPetSaveBody(petFormData, carePlan)),
       })
 
       const { data: petData, error: saveApiError } = await readApiResponse<{
@@ -501,39 +509,14 @@ export default function PetsPage() {
                 }}
               />
 
-              {/* Tier-Informationen */}
               <div className="border-t pt-4 space-y-4">
-                <h3 className="font-semibold text-sage-900">Tier-Informationen</h3>
-                <div>
-                  <Label htmlFor="pet-futtermenge">Futtermenge</Label>
-                  <Textarea
-                    id="pet-futtermenge"
-                    value={petFormData.futtermenge || ''}
-                    onChange={(e) => setPetFormData({ ...petFormData, futtermenge: e.target.value })}
-                    rows={3}
-                    placeholder="z.B. 200g Trockenfutter morgens, 150g abends"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="pet-medikamente">Medikamente</Label>
-                  <Textarea
-                    id="pet-medikamente"
-                    value={petFormData.medikamente || ''}
-                    onChange={(e) => setPetFormData({ ...petFormData, medikamente: e.target.value })}
-                    rows={3}
-                    placeholder="z.B. Tabletten gegen Arthrose, täglich morgens"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="pet-besonderheiten">Besonderheiten</Label>
-                  <Textarea
-                    id="pet-besonderheiten"
-                    value={petFormData.besonderheiten || ''}
-                    onChange={(e) => setPetFormData({ ...petFormData, besonderheiten: e.target.value })}
-                    rows={3}
-                    placeholder="z.B. Allergien, Verhaltensbesonderheiten, etc."
-                  />
-                </div>
+                <h3 className="font-semibold text-sage-900">Futter- & Medikamentenplan</h3>
+                <PetCarePlanLegacyBanner pet={{ ...petFormData, care_plan: carePlan }} />
+                <PetCarePlanForm
+                  value={carePlan}
+                  onChange={setCarePlan}
+                  idPrefix="pets-page"
+                />
                 {!isDog(petFormData.tierart) && (
                   <div>
                     <h4 className="font-semibold mb-3">Intervalle</h4>
@@ -704,8 +687,15 @@ export default function PetsPage() {
                       </Button>
                     </div>
                   </div>
-                  {(pet.futtermenge || pet.medikamente || pet.besonderheiten || pet.intervall_impfung || pet.letzte_stuhlprobe || pet.naechste_stuhlprobe) && (
+                  {(pet.care_plan || pet.futtermenge || pet.medikamente || pet.besonderheiten || pet.intervall_impfung || pet.letzte_stuhlprobe || pet.naechste_stuhlprobe) && (
                     <div className="border-t pt-3 mt-3 space-y-2 text-sm">
+                      {pet.care_plan && (
+                        <PetCarePlanSummary
+                          pet={pet}
+                          compact
+                          printHref={`/portal/pets/${pet.id}/care-plan/print`}
+                        />
+                      )}
                       {pet.letzte_stuhlprobe && (
                         <div>
                           <p className="text-xs font-semibold text-sage-600">Letzte Entwurmung/Stuhlprobe:</p>

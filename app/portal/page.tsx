@@ -397,11 +397,25 @@ export default function PortalPage() {
 
           <div className="border-t pt-6">
             <h3 className="text-lg font-semibold text-sage-900 mb-3">{portalCms.cancellationTitle}</h3>
-            <div className="space-y-3 text-sage-700">
-              {(portalCms.cancellationPolicy ?? []).map((rule, idx) => (
-                <div key={idx}>
-                  <p className="font-medium">{rule.period}</p>
-                  <p className="text-sage-600">{rule.refund}</p>
+            <div className="space-y-6 text-sage-700">
+              {(portalCms.cancellationSections ?? []).map((section, sectionIdx) => (
+                <div key={sectionIdx} className="space-y-3">
+                  {section.title ? (
+                    <p className="font-semibold text-sage-900">{section.title}</p>
+                  ) : null}
+                  {section.policy.map((rule, idx) => (
+                    <div key={idx}>
+                      <p className="font-medium">{rule.period}</p>
+                      <p className="text-sage-600">{rule.refund}</p>
+                    </div>
+                  ))}
+                  {(section.notes ?? []).filter(Boolean).length > 0 ? (
+                    <div className="space-y-2 text-sm text-sage-600">
+                      {(section.notes ?? []).map((note, noteIdx) => (
+                        <p key={noteIdx}>{note}</p>
+                      ))}
+                    </div>
+                  ) : null}
                 </div>
               ))}
               <div className="mt-4 space-y-2 text-sm text-sage-600">

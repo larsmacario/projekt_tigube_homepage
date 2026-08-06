@@ -1,3 +1,9 @@
+import {
+  defaultPortalCancellationSections,
+  normalizeCancellationSections,
+  type CancellationSection,
+} from '@/lib/cms/cancellation-policy'
+
 export interface KundenportalDocumentItem {
   title: string
   description?: string
@@ -28,6 +34,7 @@ export interface KundenportalData {
   documentsIntro?: string
   documentsItems?: KundenportalDocumentItem[]
   cancellationTitle?: string
+  cancellationSections?: CancellationSection[]
   cancellationPolicy?: KundenportalPeriodRefund[]
   cancellationNotes?: string[]
 }
@@ -79,6 +86,7 @@ export const defaultKundenportalData: KundenportalData = {
     },
   ],
   cancellationTitle: 'Stornierung',
+  cancellationSections: defaultPortalCancellationSections,
   cancellationPolicy: [
     { period: '15 Tage und mehr vor Check-In:', refund: 'kostenlos' },
     { period: '14 - 7 Tage vor Check-In:', refund: '50% der Buchungssumme' },
@@ -159,6 +167,7 @@ function pickPolicyList(
 export function mergeKundenportalData(partial: KundenportalData | null | undefined): KundenportalData {
   const d = defaultKundenportalData
   const p = partial ?? {}
+  const cancellationSections = normalizeCancellationSections(p, d.cancellationSections!)
   return {
     checklistTitle: pickString(p.checklistTitle, d.checklistTitle!),
     checklistSubtitle: pickString(p.checklistSubtitle, d.checklistSubtitle!),
@@ -174,6 +183,7 @@ export function mergeKundenportalData(partial: KundenportalData | null | undefin
     documentsIntro: pickString(p.documentsIntro, d.documentsIntro!),
     documentsItems: pickDocumentItems(p.documentsItems, d.documentsItems!),
     cancellationTitle: pickString(p.cancellationTitle, d.cancellationTitle!),
+    cancellationSections,
     cancellationPolicy: pickPolicyList(p.cancellationPolicy, d.cancellationPolicy!),
     cancellationNotes: pickStringArray(p.cancellationNotes, d.cancellationNotes!),
   }

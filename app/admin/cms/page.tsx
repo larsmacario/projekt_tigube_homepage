@@ -13,6 +13,13 @@ import { LegalRichTextEditor } from "@/components/admin/cms/legal-rich-text-edit
 import { LegalContent } from "@/components/legal-content"
 import { adminFetch } from "@/lib/admin-fetch"
 import { mergeKundenportalData, type KundenportalData } from "@/lib/cms/portal-defaults"
+import { CancellationSectionsEditor } from "@/components/admin/cms/cancellation-sections-editor"
+import {
+  defaultKatzenCancellationSections,
+  defaultPensionCancellationSections,
+  normalizeCancellationSections,
+  type CancellationSection,
+} from "@/lib/cms/cancellation-policy"
 
 // Types matching page constants
 interface HomepageData {
@@ -69,6 +76,7 @@ interface DogPensionData {
   additionalServicesTitle?: string
   additionalServices?: { service: string; price: string; unit?: string }[]
   cancellationPolicyTitle?: string
+  cancellationSections?: CancellationSection[]
   cancellationPolicy?: { period: string; refund: string }[]
   pickupTimesTitle?: string
   pickupTimesList?: { days: string; times: string }[]
@@ -101,6 +109,7 @@ interface CatCareData {
   additionalServicesTitle?: string
   additionalServices?: { service: string; price: string; unit?: string }[]
   cancellationPolicyTitle?: string
+  cancellationSections?: CancellationSection[]
   cancellationPolicy?: { period: string; refund: string }[]
   warningBoxTitle?: string
   warningBoxNotes?: string[]
@@ -740,15 +749,13 @@ export default function CMSPage() {
               </div>
 
               <div className="space-y-4 pt-4 border-t">
-                <StructuredList 
-                  label="Stornierungsbedingungen" 
-                  list={dData.cancellationPolicy || []}
-                  fields={[
-                    { key: 'period', label: 'Frist' },
-                    { key: 'refund', label: 'Erstattung' }
-                  ]}
-                  defaultObj={{ period: '', refund: '' }}
-                  onChange={(val) => updateData('hundepension', 'cancellationPolicy', val)}
+                <h3 className="text-lg font-bold border-b pb-2 text-sage-800">Stornierungsbedingungen</h3>
+                <CancellationSectionsEditor
+                  mainTitleLabel="Stornierung – Hauptüberschrift"
+                  mainTitle={dData.cancellationPolicyTitle || ''}
+                  onMainTitleChange={(val) => updateData('hundepension', 'cancellationPolicyTitle', val)}
+                  sections={normalizeCancellationSections(dData, defaultPensionCancellationSections)}
+                  onSectionsChange={(val) => updateData('hundepension', 'cancellationSections', val)}
                 />
               </div>
 
@@ -866,15 +873,13 @@ export default function CMSPage() {
               </div>
 
               <div className="space-y-4 pt-4 border-t">
-                <StructuredList 
-                  label="Stornierungsbedingungen" 
-                  list={cData.cancellationPolicy || []}
-                  fields={[
-                    { key: 'period', label: 'Frist' },
-                    { key: 'refund', label: 'Erstattung' }
-                  ]}
-                  defaultObj={{ period: '', refund: '' }}
-                  onChange={(val) => updateData('katzenbetreuung', 'cancellationPolicy', val)}
+                <h3 className="text-lg font-bold border-b pb-2 text-sage-800">Stornierungsbedingungen</h3>
+                <CancellationSectionsEditor
+                  mainTitleLabel="Stornierung – Hauptüberschrift"
+                  mainTitle={cData.cancellationPolicyTitle || ''}
+                  onMainTitleChange={(val) => updateData('katzenbetreuung', 'cancellationPolicyTitle', val)}
+                  sections={normalizeCancellationSections(cData, defaultKatzenCancellationSections)}
+                  onSectionsChange={(val) => updateData('katzenbetreuung', 'cancellationSections', val)}
                 />
               </div>
 
@@ -980,21 +985,16 @@ export default function CMSPage() {
                   defaultObj={{ title: '', description: '' }}
                   onChange={(val) => updateData('kundenportal', 'documentsItems', val)}
                 />
-                <div className="space-y-2 pt-2">
-                  <Label>Stornierung – Überschrift</Label>
-                  <Input value={kpData.cancellationTitle || ''} onChange={(e) => updateData('kundenportal', 'cancellationTitle', e.target.value)} />
-                </div>
-                <StructuredList
-                  label="Stornierungsfristen"
-                  list={kpData.cancellationPolicy || []}
-                  fields={[
-                    { key: 'period', label: 'Frist' },
-                    { key: 'refund', label: 'Erstattung / Gebühr' },
-                  ]}
-                  defaultObj={{ period: '', refund: '' }}
-                  onChange={(val) => updateData('kundenportal', 'cancellationPolicy', val)}
+                <CancellationSectionsEditor
+                  mainTitleLabel="Stornierung – Hauptüberschrift"
+                  mainTitle={kpData.cancellationTitle || ''}
+                  onMainTitleChange={(val) => updateData('kundenportal', 'cancellationTitle', val)}
+                  sections={kpData.cancellationSections || []}
+                  onSectionsChange={(val) => updateData('kundenportal', 'cancellationSections', val)}
+                  globalNotesLabel="Storno-Zusatzhinweise (Absätze am Ende)"
+                  globalNotes={kpData.cancellationNotes || []}
+                  onGlobalNotesChange={(val) => updateData('kundenportal', 'cancellationNotes', val)}
                 />
-                <StringList label="Storno-Zusatzhinweise (Absätze)" list={kpData.cancellationNotes || []} onChange={(val) => updateData('kundenportal', 'cancellationNotes', val)} />
               </div>
 
               <div className="flex justify-end pt-6 border-t">

@@ -16,6 +16,11 @@ import {
 import Image from "next/image"
 import Link from "next/link"
 import { getCMSContent } from "@/lib/cms"
+import {
+  defaultPensionCancellationSections,
+  getCancellationMainTitle,
+  normalizeCancellationSections,
+} from "@/lib/cms/cancellation-policy"
 import type { Metadata } from "next"
 
 export const dynamic = 'force-dynamic'
@@ -115,12 +120,6 @@ const defaultAdditionalServices = [
   { service: "An- und Abreise an Sonn- und Feiertagen", price: "19€", unit: "pauschal" }
 ]
 
-const defaultCancellationPolicy = [
-  { period: "15 Tage und mehr vor Check-In", refund: "100% Rückerstattung" },
-  { period: "14 - 7 Tage vor Check-In", refund: "50% Rückerstattung" },
-  { period: "6 Tage und weniger vor Check-In", refund: "keine Rückerstattung" }
-]
-
 const defaultPickupTimes = [
   { days: "Montag - Freitag", times: "7-8h / 12-14h (nur mit festem Termin) / 17-18h" },
   { days: "Samstag - Sonn-/Feiertag", times: "9-10h / 17-18h" }
@@ -152,8 +151,8 @@ export default async function HundepensionPage() {
   const addTitle = data?.additionalServicesTitle || "Zusätzliche Leistungen"
   const addList = data?.additionalServices || defaultAdditionalServices
 
-  const cancelTitle = data?.cancellationPolicyTitle || "Stornierungsbedingungen"
-  const cancelList = data?.cancellationPolicy || defaultCancellationPolicy
+  const cancelTitle = getCancellationMainTitle(data, "Stornierungsbedingungen")
+  const cancelSections = normalizeCancellationSections(data, defaultPensionCancellationSections)
 
   const pickTitle = data?.pickupTimesTitle || "Bring- und Holzeiten"
   const pickList = data?.pickupTimesList || defaultPickupTimes
@@ -349,18 +348,34 @@ export default async function HundepensionPage() {
             <h3 className="font-raleway text-2xl font-bold text-sage-900 mb-6 text-center">
               {cancelTitle}
             </h3>
-            <div className="grid md:grid-cols-3 gap-4">
-              {cancelList.map((policy: any, index: number) => (
-                <Card key={index} className="border-sage-200">
-                  <CardContent className="pt-6 text-center">
-                    <div className="text-lg font-semibold text-sage-900 mb-2">
-                      {policy.period}
-                    </div>
-                    <div className="text-sage-600">{policy.refund}</div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
+            {cancelSections.map((section, sectionIdx) => (
+              <div key={sectionIdx} className={sectionIdx > 0 ? "mt-8" : ""}>
+                {section.title ? (
+                  <h4 className="font-raleway text-lg font-semibold text-sage-900 mb-4 text-center max-w-3xl mx-auto">
+                    {section.title}
+                  </h4>
+                ) : null}
+                <div className="grid md:grid-cols-3 gap-4">
+                  {section.policy.map((policy, index) => (
+                    <Card key={index} className="border-sage-200">
+                      <CardContent className="pt-6 text-center">
+                        <div className="text-lg font-semibold text-sage-900 mb-2">
+                          {policy.period}
+                        </div>
+                        <div className="text-sage-600">{policy.refund}</div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+                {(section.notes ?? []).filter(Boolean).length > 0 ? (
+                  <div className="mt-4 space-y-2 text-sm text-gray-600 text-center max-w-3xl mx-auto">
+                    {(section.notes ?? []).map((note, noteIdx) => (
+                      <p key={noteIdx}>{note}</p>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+            ))}
           </div>
         </div>
       </section>

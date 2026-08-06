@@ -18,6 +18,11 @@ import {
 import Image from "next/image"
 import Link from "next/link"
 import { getCMSContent } from "@/lib/cms"
+import {
+  defaultKatzenCancellationSections,
+  getCancellationMainTitle,
+  normalizeCancellationSections,
+} from "@/lib/cms/cancellation-policy"
 import type { Metadata } from "next"
 
 export const dynamic = 'force-dynamic'
@@ -88,12 +93,6 @@ const defaultAdditionalServices = [
   { service: "Sonn- und Feiertagszuschlag", price: "50%", unit: "auf den vereinbarten Tagespreis" }
 ]
 
-const defaultCancellationPolicy = [
-  { period: "15 Tage und mehr vor Betreuungsbeginn", refund: "100% Rückerstattung" },
-  { period: "14-7 Tage vor Betreuungsbeginn", refund: "50% Rückerstattung" },
-  { period: "6 Tage und weniger vor Betreuungsbeginn", refund: "keine Rückerstattung" }
-]
-
 const defaultImportantNotes = [
   "Alle Preise verstehen sich netto, auf der Rechnung werden 19% USt. ausgewiesen",
   "Die Steuer kann beim Finanzamt als 'haushaltsnahe Dienstleistung' abgesetzt werden",
@@ -142,8 +141,8 @@ export default async function KatzenbetreuungPage() {
   const addTitle = data?.additionalServicesTitle || "Zusätzliche Leistungen"
   const addList = data?.additionalServices || defaultAdditionalServices
 
-  const cancelTitle = data?.cancellationPolicyTitle || "Stornierungsbedingungen"
-  const cancelList = data?.cancellationPolicy || defaultCancellationPolicy
+  const cancelTitle = getCancellationMainTitle(data, "Stornierungsbedingungen")
+  const cancelSections = normalizeCancellationSections(data, defaultKatzenCancellationSections)
 
   const warnTitle = data?.warningBoxTitle || "Wichtige Hinweise"
   const warnNotes = data?.warningBoxNotes || defaultImportantNotes
@@ -311,16 +310,34 @@ export default async function KatzenbetreuungPage() {
             </h2>
           </div>
 
-          <div className="grid md:grid-cols-3 gap-6 mb-12">
-            {cancelList.map((policy: any, index: number) => (
-              <Card key={index} className="border-sage-200">
-                <CardContent className="pt-6 text-center">
-                  <div className="text-lg font-semibold text-sage-900 mb-2">
-                    {policy.period}
+          <div className="space-y-8 mb-12">
+            {cancelSections.map((section, sectionIdx) => (
+              <div key={sectionIdx}>
+                {section.title ? (
+                  <h3 className="font-raleway text-xl font-semibold text-sage-900 mb-4 text-center max-w-3xl mx-auto">
+                    {section.title}
+                  </h3>
+                ) : null}
+                <div className="grid md:grid-cols-3 gap-6">
+                  {section.policy.map((policy, index) => (
+                    <Card key={index} className="border-sage-200">
+                      <CardContent className="pt-6 text-center">
+                        <div className="text-lg font-semibold text-sage-900 mb-2">
+                          {policy.period}
+                        </div>
+                        <div className="text-sage-600">{policy.refund}</div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+                {(section.notes ?? []).filter(Boolean).length > 0 ? (
+                  <div className="mt-4 space-y-2 text-sm text-gray-600 text-center max-w-3xl mx-auto">
+                    {(section.notes ?? []).map((note, noteIdx) => (
+                      <p key={noteIdx}>{note}</p>
+                    ))}
                   </div>
-                  <div className="text-sage-600">{policy.refund}</div>
-                </CardContent>
-              </Card>
+                ) : null}
+              </div>
             ))}
           </div>
         </div>

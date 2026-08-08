@@ -165,7 +165,6 @@ export async function PUT(request: NextRequest) {
 
     let result
     if (existing) {
-      // Update
       const { data, error } = await supabase
         .from('contacts')
         .update(updates)
@@ -177,7 +176,6 @@ export async function PUT(request: NextRequest) {
       if (error) throw error
       result = data
     } else {
-      // Create
       const { data, error } = await supabase
         .from('contacts')
         .insert({
@@ -201,6 +199,27 @@ export async function PUT(request: NextRequest) {
 
       if (error) throw error
       result = data
+    }
+
+    if (rawUpdates.onboarding_completed === true && result?.id) {
+      try {
+        const { syncPortalCustomerToSevdesk } = await import('@/lib/sevdesk-customer-export')
+        const { getAdminDbClient } = await import('@/lib/admin-auth')
+        await syncPortalCustomerToSevdesk({
+          db: getAdminDbClient(),
+          customerId: result.id,
+        })
+        const { data: refreshed } = await supabase
+          .from('contacts')
+          .select('*')
+          .eq('id', result.id)
+          .single()
+        if (refreshed) {
+          result = refreshed
+        }
+      } catch (syncError) {
+        console.error('SevDesk customer export after onboarding failed:', syncError)
+      }
     }
 
     return NextResponse.json({ customer: result })

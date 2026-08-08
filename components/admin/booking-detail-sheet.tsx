@@ -12,6 +12,7 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet'
 import { BookingLineItemsPanel } from '@/components/admin/booking-line-items-panel'
+import { formatEuro } from '@/lib/price-override'
 import { formatDayCareBookingSummary } from '@/lib/day-care-booking'
 import type { BookingRequest } from '@/lib/types'
 
@@ -23,6 +24,8 @@ function getStatusColor(status: string) {
       return 'bg-red-100 text-red-800 border-red-300'
     case 'pending':
       return 'bg-yellow-100 text-yellow-800 border-yellow-300'
+    case 'cancelled':
+      return 'bg-slate-100 text-slate-800 border-slate-300'
     default:
       return 'bg-sage-100 text-sage-800 border-sage-300'
   }
@@ -36,6 +39,8 @@ function getStatusLabel(status: string) {
       return 'Abgelehnt'
     case 'pending':
       return 'Ausstehend'
+    case 'cancelled':
+      return 'Storniert'
     default:
       return status
   }
@@ -61,6 +66,7 @@ export interface BookingDetailSheetProps {
   adminNotes: string
   onAdminNotesChange: (value: string) => void
   onStatusChange: (status: 'approved' | 'rejected') => void
+  onMarkCancellationProcessed?: () => void
   onClose: () => void
 }
 
@@ -71,6 +77,7 @@ export function BookingDetailSheet({
   adminNotes,
   onAdminNotesChange,
   onStatusChange,
+  onMarkCancellationProcessed,
   onClose,
 }: BookingDetailSheetProps) {
   if (!booking) {
@@ -164,6 +171,49 @@ export function BookingDetailSheet({
               </div>
             )}
 
+            {booking.cancelled_at && (
+              <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 space-y-2">
+                <Label>Stornierung</Label>
+                <p className="text-sm text-slate-800">
+                  Storniert am {new Date(booking.cancelled_at).toLocaleString('de-DE')}
+                </p>
+                {booking.cancellation_rule_set_id && (
+                  <p className="text-sm text-slate-800">
+                    Regelwerk: {booking.cancellation_rule_set_id}
+                  </p>
+                )}
+                {booking.cancellation_tier_label && (
+                  <p className="text-sm text-slate-800">Staffel: {booking.cancellation_tier_label}</p>
+                )}
+                {booking.cancellation_charge_amount != null && (
+                  <p className="text-sm text-slate-800">
+                    Stornogebühr: {formatEuro(booking.cancellation_charge_amount)}
+                  </p>
+                )}
+                {booking.cancellation_refund_amount != null && (
+                  <p className="text-sm text-slate-800">
+                    Erstattung: {formatEuro(booking.cancellation_refund_amount)}
+                  </p>
+                )}
+                <p className="text-sm text-slate-800">
+                  Abrechnungsstatus:{' '}
+                  {booking.cancellation_financial_status === 'processed'
+                    ? 'Bearbeitet'
+                    : booking.cancellation_financial_status === 'pending'
+                      ? 'Offen (SevDesk manuell)'
+                      : '—'}
+                </p>
+                {booking.cancelled_dates?.length ? (
+                  <p className="text-sm text-slate-800">
+                    Stornierte Tage:{' '}
+                    {booking.cancelled_dates
+                      .map((date) => new Date(date).toLocaleDateString('de-DE'))
+                      .join(', ')}
+                  </p>
+                ) : null}
+              </div>
+            )}
+
             {booking.status === 'pending' && (
               <div>
                 <Label>Admin Notiz (optional)</Label>
@@ -198,7 +248,13 @@ export function BookingDetailSheet({
               </Button>
             </div>
           ) : (
-            <div className="flex justify-end">
+            <div className="flex flex-wrap justify-end gap-2">
+              {booking.cancellation_financial_status === 'pending' &&
+                onMarkCancellationProcessed && (
+                  <Button type="button" onClick={onMarkCancellationProcessed}>
+                    Storno in Abrechnung erledigt
+                  </Button>
+                )}
               <Button type="button" variant="outline" onClick={onClose}>
                 Schließen
               </Button>

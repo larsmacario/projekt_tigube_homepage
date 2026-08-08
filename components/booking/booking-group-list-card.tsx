@@ -27,6 +27,8 @@ function getStatusColor(status: string) {
       return 'bg-red-100 text-red-800 border-red-300'
     case 'pending':
       return 'bg-yellow-100 text-yellow-800 border-yellow-300'
+    case 'cancelled':
+      return 'bg-slate-100 text-slate-800 border-slate-300'
     default:
       return 'bg-sage-100 text-sage-800 border-sage-300'
   }
@@ -40,6 +42,8 @@ function getStatusLabel(status: string) {
       return 'Abgelehnt'
     case 'pending':
       return 'Ausstehend'
+    case 'cancelled':
+      return 'Storniert'
     default:
       return status
   }

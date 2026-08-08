@@ -64,6 +64,7 @@ async function updatePriceRow(supabase: SupabaseClient, price: Record<string, un
     ...baseUpdate,
     usage: price.usage ?? 'extra',
     archived_at: price.archived_at ?? null,
+    sevdesk_article_id: price.sevdesk_article_id ?? null,
   }
 
   const firstAttempt = await supabase

@@ -44,7 +44,37 @@ export async function PATCH(
     }
 
     const body = await request.json()
-    const { status, admin_notes } = body
+    const { status, admin_notes, cancellation_financial_status } = body
+
+    if (
+      cancellation_financial_status &&
+      !['pending', 'processed', 'none'].includes(cancellation_financial_status)
+    ) {
+      return NextResponse.json(
+        { error: 'Ungültiger Abrechnungsstatus' },
+        { status: 400 }
+      )
+    }
+
+    if (cancellation_financial_status) {
+      const { data, error } = await supabase
+        .from('bookings')
+        .update({
+          cancellation_financial_status,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', bookingId)
+        .select(`
+          *,
+          pet:pets(id, name, tierart),
+          customer:contacts!bookings_customer_id_fkey(id, vorname, nachname, email, telefonnummer),
+          responded_by_user:users!bookings_responded_by_fkey(id, email)
+        `)
+        .single()
+
+      if (error) throw error
+      return NextResponse.json({ booking: data })
+    }
 
     if (!status || !['approved', 'rejected'].includes(status)) {
       return NextResponse.json(

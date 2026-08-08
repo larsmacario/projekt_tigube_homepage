@@ -24,6 +24,7 @@ import { expandBookingOccupiedDates } from '@/lib/day-care-booking'
 import { BookingDetailSheet } from '@/components/admin/booking-detail-sheet'
 import { useAdminMetrics } from '@/components/admin/admin-metrics-provider'
 import { BookingGroupListCard } from '@/components/booking/booking-group-list-card'
+import { InvoiceSyncPanel } from '@/components/admin/invoice-sync-panel'
 import {
   categorizeBookingGroups,
   groupBookingsForDisplay,
@@ -167,6 +168,39 @@ export default function AdminBookingsPage() {
       toast({
         title: 'Fehler',
         description: error.message || 'Fehler beim Aktualisieren',
+        variant: 'destructive',
+      })
+    }
+  }
+
+  async function handleMarkCancellationProcessed() {
+    if (!selectedBooking) return
+
+    try {
+      const response = await authenticatedFetch(`/api/admin/bookings/${selectedBooking.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          cancellation_financial_status: 'processed',
+        }),
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Fehler beim Aktualisieren')
+      }
+
+      const data = await response.json()
+      setBookings(bookings.map((b) => (b.id === selectedBooking.id ? data.booking : b)))
+      setSelectedBooking(data.booking)
+      toast({
+        title: 'Erfolg',
+        description: 'Storno wurde in der Abrechnung als erledigt markiert.',
+      })
+    } catch (error: unknown) {
+      toast({
+        title: 'Fehler',
+        description: error instanceof Error ? error.message : 'Fehler beim Aktualisieren',
         variant: 'destructive',
       })
     }
@@ -415,6 +449,7 @@ export default function AdminBookingsPage() {
       <Tabs defaultValue="bookings" className="space-y-6">
         <TabsList>
           <TabsTrigger value="bookings">Buchungen</TabsTrigger>
+          <TabsTrigger value="billing">Abrechnung</TabsTrigger>
           <TabsTrigger value="capacity">Kapazitäten</TabsTrigger>
         </TabsList>
 
@@ -573,12 +608,17 @@ export default function AdminBookingsPage() {
         adminNotes={adminNotes}
         onAdminNotesChange={setAdminNotes}
         onStatusChange={handleStatusChange}
+        onMarkCancellationProcessed={handleMarkCancellationProcessed}
         onClose={() => {
           setIsDetailOpen(false)
           setSelectedBooking(null)
           setAdminNotes('')
         }}
       />
+        </TabsContent>
+
+        <TabsContent value="billing" className="space-y-6">
+          <InvoiceSyncPanel />
         </TabsContent>
 
         <TabsContent value="capacity" className="space-y-6">

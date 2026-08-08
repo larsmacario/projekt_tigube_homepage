@@ -70,6 +70,9 @@ export interface Contact {
   contract_email_status?: 'sent' | 'failed' | null
   contract_email_error?: string | null
   contract_email_sent_at?: string | null
+  sevdesk_contact_id?: string | null
+  sevdesk_synced_at?: string | null
+  sevdesk_sync_error?: string | null
 }
 
 /** Alias — Kunden sind `contacts` mit contact_type customer */
@@ -301,7 +304,8 @@ export interface AdminTableView {
 
 // Booking Types
 export type ServiceType = 'hundepension' | 'katzenbetreuung' | 'tagesbetreuung'
-export type BookingStatus = 'pending' | 'approved' | 'rejected'
+export type BookingStatus = 'pending' | 'approved' | 'rejected' | 'cancelled'
+export type CancellationFinancialStatus = 'none' | 'pending' | 'processed'
 export type DayCareMode = 'once' | 'recurring'
 
 export interface BookingRequest {
@@ -320,6 +324,15 @@ export interface BookingRequest {
   responded_at: string | null
   responded_by: string | null
   request_group_id: string | null
+  cancelled_at: string | null
+  cancelled_by: string | null
+  cancellation_charge_amount: number | null
+  cancellation_refund_amount: number | null
+  cancellation_policy_snapshot: Record<string, unknown> | null
+  cancellation_rule_set_id: string | null
+  cancellation_tier_label: string | null
+  cancellation_financial_status: CancellationFinancialStatus
+  cancelled_dates: string[]
   created_at: string
   updated_at: string
   request_group?: BookingRequestGroup | null
@@ -335,7 +348,14 @@ export interface BookingRequestGroup {
   drop_off_time: string | null
   pick_up_time: string | null
   created_at: string
+  sevdesk_invoice_id?: string | null
+  sevdesk_invoice_number?: string | null
+  sevdesk_invoice_synced_at?: string | null
+  sevdesk_invoice_sync_status?: SevdeskInvoiceSyncStatus
+  sevdesk_invoice_sync_error?: string | null
 }
+
+export type SevdeskInvoiceSyncStatus = 'none' | 'pending' | 'synced' | 'failed'
 
 export type BookingLineItemSource = 'customer' | 'admin'
 
@@ -346,6 +366,7 @@ export interface AddonService {
   amount: number
   sort_order: number
   is_active: boolean
+  sevdesk_article_id?: string | null
   created_at: string
   updated_at: string
 }
@@ -566,19 +587,65 @@ export interface SevdeskSettings {
   last_test_error: string | null
   connected_by: string | null
   connected_at: string | null
+  last_customer_import_at?: string | null
+  last_customer_import_summary?: SevdeskCustomerImportSummary | null
   updated_at: string
+}
+
+export interface SevdeskCustomerImportSummary {
+  created: number
+  updated: number
+  skipped: number
+  failed: number
+  skippedReasons?: Array<{ customerNumber: string | null; reason: string }>
+  failures?: Array<{ customerNumber: string | null; reason: string }>
 }
 
 export interface SevdeskConnectionStatus {
   settings: SevdeskSettings | null
 }
 
+export interface SevdeskTag {
+  id: string
+  name: string
+}
+
 export interface SevdeskContact {
   id: string
   name: string | null
   surename: string | null
+  familyname?: string | null
   customerNumber: string | null
   category: { id: string; objectName: string } | null
+  tags?: SevdeskTag[]
+}
+
+export interface SevdeskContactDetail extends SevdeskContact {
+  communicationWays: Array<{ type: string; value: string; key?: string | null }>
+  addresses: Array<{
+    street: string | null
+    zip: string | null
+    city: string | null
+    category: string | null
+  }>
+}
+
+export interface SevdeskInvoiceDraftResult {
+  invoiceId: string
+  invoiceNumber: string | null
+}
+
+export interface InvoiceSyncCandidate {
+  requestGroupId: string
+  customerId: string
+  customerName: string
+  kundennummer: string | null
+  startDate: string
+  endDate: string | null
+  lineItemCount: number
+  lineItemTotal: number
+  sevdeskInvoiceSyncStatus: SevdeskInvoiceSyncStatus
+  blockers: string[]
 }
 
 export interface SevdeskPart {

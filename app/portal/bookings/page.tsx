@@ -25,6 +25,7 @@ import type { VacationDate } from '@/lib/vacation-dates'
 import { groupBookingsForDisplay } from '@/lib/booking-request-groups'
 import { formatDayCareBookingSummary } from '@/lib/day-care-booking'
 import { BookingGroupListCard } from '@/components/booking/booking-group-list-card'
+import { BookingCancellationDialog } from '@/components/portal/booking-cancellation-dialog'
 
 interface PortalAvailability {
   vacationPeriods: Array<{ start_date: string; end_date: string; label: string }>
@@ -52,6 +53,8 @@ function getStatusColor(status: string) {
       return 'bg-red-100 text-red-800 border-red-300'
     case 'pending':
       return 'bg-yellow-100 text-yellow-800 border-yellow-300'
+    case 'cancelled':
+      return 'bg-slate-100 text-slate-800 border-slate-300'
     default:
       return 'bg-sage-100 text-sage-800 border-sage-300'
   }
@@ -65,6 +68,8 @@ function getStatusLabel(status: string) {
       return 'Abgelehnt'
     case 'pending':
       return 'Ausstehend'
+    case 'cancelled':
+      return 'Storniert'
     default:
       return status
   }
@@ -76,6 +81,7 @@ export default function BookingsPage() {
   const [loading, setLoading] = useState(true)
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [selectedBooking, setSelectedBooking] = useState<BookingRequest | null>(null)
+  const [cancellationBooking, setCancellationBooking] = useState<BookingRequest | null>(null)
   const { toast } = useToast()
 
   const [availability, setAvailability] = useState<PortalAvailability>({
@@ -160,6 +166,15 @@ export default function BookingsPage() {
   function handleWizardSuccess(created: BookingRequest[]) {
     setBookings([...created, ...bookings])
     setIsDialogOpen(false)
+  }
+
+  function handleBookingCancelled(updated: BookingRequest) {
+    setBookings((current) => current.map((b) => (b.id === updated.id ? updated : b)))
+    setSelectedBooking((current) => (current?.id === updated.id ? updated : current))
+  }
+
+  function canCancelBooking(booking: BookingRequest): boolean {
+    return booking.status === 'approved' || booking.status === 'pending'
   }
 
   const grouped = useMemo(() => groupBookingsForDisplay(bookings), [bookings])
@@ -364,10 +379,82 @@ export default function BookingsPage() {
                   <p className="text-sage-600">{selectedBooking.admin_notes}</p>
                 </div>
               )}
+              {selectedBooking.cancelled_at && (
+                <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm space-y-1">
+                  <p className="font-medium text-slate-900">Stornierung</p>
+                  <p>
+                    Storniert am{' '}
+                    {new Date(selectedBooking.cancelled_at).toLocaleString('de-DE')}
+                  </p>
+                  {selectedBooking.cancellation_tier_label && (
+                    <p>Staffel: {selectedBooking.cancellation_tier_label}</p>
+                  )}
+                  {selectedBooking.cancellation_charge_amount != null && (
+                    <p>
+                      Stornogebühr:{' '}
+                      {selectedBooking.cancellation_charge_amount.toFixed(2).replace('.', ',')} €
+                    </p>
+                  )}
+                  {selectedBooking.cancellation_refund_amount != null && (
+                    <p>
+                      Erstattung:{' '}
+                      {selectedBooking.cancellation_refund_amount.toFixed(2).replace('.', ',')} €
+                    </p>
+                  )}
+                </div>
+              )}
+              {selectedGroup ? (
+                <div className="space-y-2 border-t border-sage-200 pt-4">
+                  <Label>Positionen stornieren</Label>
+                  {selectedGroup.bookings.map((booking) => (
+                    <div
+                      key={booking.id}
+                      className="flex items-center justify-between gap-3 rounded-lg border border-sage-200 p-3"
+                    >
+                      <div className="text-sm">
+                        <p className="font-medium text-sage-900">
+                          {booking.pet?.name || 'Unbekannt'}
+                        </p>
+                        <p className="text-sage-600">{getServiceLabel(booking.service_type)}</p>
+                      </div>
+                      {canCancelBooking(booking) ? (
+                        <Button
+                          variant="outline"
+                          className="border-red-200 text-red-700 hover:bg-red-50"
+                          onClick={() => setCancellationBooking(booking)}
+                        >
+                          Stornieren
+                        </Button>
+                      ) : (
+                        <Badge className={getStatusColor(booking.status)}>
+                          {getStatusLabel(booking.status)}
+                        </Badge>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ) : canCancelBooking(selectedBooking) ? (
+                <Button
+                  variant="outline"
+                  className="border-red-200 text-red-700 hover:bg-red-50"
+                  onClick={() => setCancellationBooking(selectedBooking)}
+                >
+                  Buchung stornieren
+                </Button>
+              ) : null}
             </div>
           </DialogContent>
         </Dialog>
       )}
+
+      <BookingCancellationDialog
+        booking={cancellationBooking}
+        open={!!cancellationBooking}
+        onOpenChange={(open) => {
+          if (!open) setCancellationBooking(null)
+        }}
+        onCancelled={handleBookingCancelled}
+      />
     </div>
   )
 }

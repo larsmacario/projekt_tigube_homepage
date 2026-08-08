@@ -12,6 +12,7 @@ import {
   bookingRequestInternalHtml,
   customerConfirmationPlainText,
 } from '@/lib/booking-request-email'
+import type { BookingCancellationEmailContent } from '@/lib/booking-cancellation-email'
 import { DEFAULT_WAITLIST_CMS, type WaitlistCmsContent } from '@/lib/waitlist-defaults'
 
 const LEAD_CONFIRMATION_BANNER_CID = 'lead-confirmation-banner'
@@ -312,6 +313,60 @@ export async function sendBookingRequestEmails(
         heading: 'Buchungsanfrage erhalten',
         intro: `Hallo ${escapeHtml(content.customerName)}, vielen Dank für deine Buchungsanfrage. Wir haben sie erhalten und melden uns nach Prüfung bei dir.`,
       }),
+    })
+    .then((): EmailDelivery => ({ status: 'sent', error: null }))
+    .catch((error: unknown): EmailDelivery => ({
+      status: 'failed',
+      error: error instanceof Error ? error.message : 'Interner SMTP-Fehler',
+    }))
+
+  return { internal, confirmation }
+}
+
+export async function sendBookingCancellationEmails(
+  content: BookingCancellationEmailContent
+): Promise<BookingRequestEmailDeliveries> {
+  let config: SmtpConfig
+
+  try {
+    config = getSmtpConfig()
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'SMTP-Konfiguration ist ungültig'
+    return {
+      internal: { status: 'failed', error: message },
+      confirmation: { status: 'failed', error: message },
+    }
+  }
+
+  const transporter = nodemailer.createTransport({
+    host: config.host,
+    port: config.port,
+    secure: config.secure,
+    auth: { user: config.user, pass: config.password },
+  })
+
+  const internal = await transporter
+    .sendMail({
+      from: config.from,
+      to: config.to,
+      replyTo: content.customerEmail,
+      subject: content.internalSubject,
+      text: content.internalText,
+      html: content.internalHtml,
+    })
+    .then((): EmailDelivery => ({ status: 'sent', error: null }))
+    .catch((error: unknown): EmailDelivery => ({
+      status: 'failed',
+      error: error instanceof Error ? error.message : 'Interner SMTP-Fehler',
+    }))
+
+  const confirmation = await transporter
+    .sendMail({
+      from: config.from,
+      to: content.customerEmail,
+      subject: content.subject,
+      text: content.customerText,
+      html: content.customerHtml,
     })
     .then((): EmailDelivery => ({ status: 'sent', error: null }))
     .catch((error: unknown): EmailDelivery => ({

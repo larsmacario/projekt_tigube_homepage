@@ -29,7 +29,7 @@ import { CollapsibleAdminCard } from '@/components/admin/collapsible-admin-card'
 import { Switch } from '@/components/ui/switch'
 import { useToast } from '@/hooks/use-toast'
 import { authenticatedFetch } from '@/lib/authenticated-fetch'
-import type { SevdeskContact, SevdeskPart, SevdeskSettings, SiteSettings, WaitlistCmsContent } from '@/lib/types'
+import type { SevdeskContact, SevdeskCustomerImportSummary, SevdeskPart, SevdeskSettings, SiteSettings, WaitlistCmsContent } from '@/lib/types'
 import { ExternalLink, Loader2, RefreshCw } from 'lucide-react'
 import Link from 'next/link'
 
@@ -68,6 +68,10 @@ export default function AdminEinstellungenPage() {
   const [parts, setParts] = useState<SevdeskPart[]>([])
   const [loadingContacts, setLoadingContacts] = useState(false)
   const [loadingParts, setLoadingParts] = useState(false)
+  const [importingCustomers, setImportingCustomers] = useState(false)
+  const [lastImportSummary, setLastImportSummary] = useState<SevdeskCustomerImportSummary | null>(
+    null
+  )
 
   const loadWaitlistSettings = useCallback(async () => {
     const response = await authenticatedFetch('/api/admin/settings/waitlist')
@@ -86,6 +90,7 @@ export default function AdminEinstellungenPage() {
       throw new Error(data.error || 'Einstellungen konnten nicht geladen werden')
     }
     setSettings(data.settings ?? null)
+    setLastImportSummary(data.settings?.last_customer_import_summary ?? null)
   }, [])
 
   useEffect(() => {
@@ -236,6 +241,34 @@ export default function AdminEinstellungenPage() {
       })
     } finally {
       setLoadingContacts(false)
+    }
+  }
+
+  async function handleImportCustomers() {
+    setImportingCustomers(true)
+    try {
+      const response = await authenticatedFetch(
+        '/api/admin/integrations/sevdesk/import-customers',
+        { method: 'POST' }
+      )
+      const data = await response.json()
+      if (!response.ok) {
+        throw new Error(data.error || 'Kundenimport fehlgeschlagen')
+      }
+      setLastImportSummary(data.summary ?? null)
+      await loadSettings()
+      toast({
+        title: 'Kundenimport abgeschlossen',
+        description: `${data.summary?.created ?? 0} neu, ${data.summary?.updated ?? 0} aktualisiert, ${data.summary?.skipped ?? 0} übersprungen.`,
+      })
+    } catch (error) {
+      toast({
+        title: 'Fehler',
+        description: error instanceof Error ? error.message : 'Kundenimport fehlgeschlagen',
+        variant: 'destructive',
+      })
+    } finally {
+      setImportingCustomers(false)
     }
   }
 
@@ -429,6 +462,56 @@ export default function AdminEinstellungenPage() {
               </AlertDialogContent>
             </AlertDialog>
           </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>SevDesk-Kundenimport</CardTitle>
+          <CardDescription>
+            Importiert alle SevDesk-Kontakte mit dem Tag „aktiv“ ins Portal. Stammdaten aus SevDesk
+            überschreiben vorhandene Kunden mit derselben Kundennummer.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex flex-wrap gap-2">
+            <Button
+              onClick={() => void handleImportCustomers()}
+              disabled={!isConnected || importingCustomers}
+            >
+              {importingCustomers ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+              Aktive Kunden importieren
+            </Button>
+          </div>
+
+          <dl className="grid gap-3 sm:grid-cols-2 text-sm">
+            <div>
+              <dt className="text-sage-500">Letzter Import</dt>
+              <dd>{formatDateTime(settings?.last_customer_import_at)}</dd>
+            </div>
+            {lastImportSummary && (
+              <>
+                <div>
+                  <dt className="text-sage-500">Ergebnis</dt>
+                  <dd>
+                    {lastImportSummary.created} neu · {lastImportSummary.updated} aktualisiert ·{' '}
+                    {lastImportSummary.skipped} übersprungen · {lastImportSummary.failed} Fehler
+                  </dd>
+                </div>
+              </>
+            )}
+          </dl>
+
+          {lastImportSummary?.failures && lastImportSummary.failures.length > 0 && (
+            <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800 space-y-1">
+              <p className="font-medium">Fehler beim Import</p>
+              {lastImportSummary.failures.slice(0, 5).map((failure, index) => (
+                <p key={`${failure.customerNumber}-${index}`}>
+                  {failure.customerNumber || '—'}: {failure.reason}
+                </p>
+              ))}
+            </div>
+          )}
         </CardContent>
       </Card>
 

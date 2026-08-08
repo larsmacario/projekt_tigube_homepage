@@ -12,8 +12,11 @@ export interface BookingRequestGroup {
 }
 
 function pickStatus(bookings: BookingRequest[]): BookingStatus {
+  if (bookings.every((b) => b.status === 'cancelled')) return 'cancelled'
   if (bookings.some((b) => b.status === 'pending')) return 'pending'
-  if (bookings.some((b) => b.status === 'approved')) return 'approved'
+  const active = bookings.filter((b) => b.status !== 'cancelled')
+  if (active.some((b) => b.status === 'approved')) return 'approved'
+  if (active.some((b) => b.status === 'rejected')) return 'rejected'
   return bookings[0]?.status ?? 'pending'
 }
 

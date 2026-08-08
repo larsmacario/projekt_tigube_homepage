@@ -34,6 +34,7 @@ import { PetCarePlanSummary } from '@/components/portal/pet-care-plan-summary'
 import { buildPetSaveBody, carePlanFromPet } from '@/lib/pet-care-plan-form-state'
 import type { PetCarePlan } from '@/lib/pet-care-plan'
 import { readApiResponse } from '@/lib/read-api-response'
+import { uploadPortalDocument } from '@/lib/portal-document-upload'
 
 export default function PetsPage() {
   const [pets, setPets] = useState<Pet[]>([])
@@ -211,46 +212,40 @@ export default function PetsPage() {
 
       // Lade Dokumente hoch, falls vorhanden
       if (savedPetId) {
-        const uploadPromises = []
-        
+        const uploadPromises: Promise<void>[] = []
+
         if (impfpassFile) {
-          const formData = new FormData()
-          formData.append('file', impfpassFile)
-          formData.append('document_type', 'impfpass')
-          formData.append('pet_id', savedPetId)
-          
           uploadPromises.push(
-            authenticatedFetch('/api/portal/documents', {
-              method: 'POST',
-              body: formData,
-            }).catch(err => {
-              console.error('Error uploading impfpass:', err)
-              toast({
-                title: 'Warnung',
-                description: 'Impfpass konnte nicht hochgeladen werden',
-                variant: 'destructive',
-              })
+            uploadPortalDocument({
+              file: impfpassFile,
+              documentType: 'impfpass',
+              petId: savedPetId,
+            }).then(({ error }) => {
+              if (error) {
+                toast({
+                  title: 'Warnung',
+                  description: error || 'Impfpass konnte nicht hochgeladen werden',
+                  variant: 'destructive',
+                })
+              }
             })
           )
         }
 
         if (wurmtestFile) {
-          const formData = new FormData()
-          formData.append('file', wurmtestFile)
-          formData.append('document_type', 'wurmtest')
-          formData.append('pet_id', savedPetId)
-          
           uploadPromises.push(
-            authenticatedFetch('/api/portal/documents', {
-              method: 'POST',
-              body: formData,
-            }).catch(err => {
-              console.error('Error uploading wurmtest:', err)
-              toast({
-                title: 'Warnung',
-                description: 'Wurmtest konnte nicht hochgeladen werden',
-                variant: 'destructive',
-              })
+            uploadPortalDocument({
+              file: wurmtestFile,
+              documentType: 'wurmtest',
+              petId: savedPetId,
+            }).then(({ error }) => {
+              if (error) {
+                toast({
+                  title: 'Warnung',
+                  description: error || 'Wurmtest konnte nicht hochgeladen werden',
+                  variant: 'destructive',
+                })
+              }
             })
           )
         }

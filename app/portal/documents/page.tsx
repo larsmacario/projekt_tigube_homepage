@@ -222,14 +222,16 @@ export default function DocumentsPage() {
             <div>
               <Label htmlFor="pet_id">Tier (optional)</Label>
               <Select
-                value={uploadForm.pet_id}
-                onValueChange={(value) => setUploadForm({ ...uploadForm, pet_id: value })}
+                value={uploadForm.pet_id || 'none'}
+                onValueChange={(value) =>
+                  setUploadForm({ ...uploadForm, pet_id: value === 'none' ? '' : value })
+                }
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Tier wählen" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Kein spezifisches Tier</SelectItem>
+                  <SelectItem value="none">Kein spezifisches Tier</SelectItem>
                   {pets.map((pet) => (
                     <SelectItem key={pet.id} value={pet.id}>
                       {pet.name}

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerClient } from '@/lib/admin-auth'
 import {
+  ALLOWED_CUSTOMER_DOCUMENT_TYPES,
   buildCustomerDocumentStoragePath,
   CUSTOMER_DOCUMENTS_BUCKET,
 } from '@/lib/customer-documents'
@@ -85,6 +86,14 @@ export async function POST(request: NextRequest) {
         { error: 'Datei und Dokumenttyp sind erforderlich' },
         { status: 400 }
       )
+    }
+
+    if (
+      !ALLOWED_CUSTOMER_DOCUMENT_TYPES.includes(
+        documentType as (typeof ALLOWED_CUSTOMER_DOCUMENT_TYPES)[number]
+      )
+    ) {
+      return NextResponse.json({ error: 'Ungültiger Dokumenttyp' }, { status: 400 })
     }
 
     // Hole Customer-ID

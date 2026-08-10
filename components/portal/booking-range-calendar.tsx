@@ -17,11 +17,13 @@ export type BookingVacationPeriod = {
 }
 
 export const bookingRangeCalendarClassName =
-  'rounded-xl bg-sage-50/90 [--cell-size:3.35rem] !border border-sage-200/80 p-3 transition-all !ring-0 !ring-offset-0 focus:!ring-0 focus:!ring-offset-0 focus-visible:!ring-0 focus-visible:!ring-offset-0 [&_*]:!ring-0 [&_*]:!ring-offset-0 [&_*]:focus:!ring-0 [&_*]:focus-visible:!ring-0 [&_.rdp-day_today]:!bg-transparent'
+  'rounded-xl bg-white [--cell-size:3.35rem] !border border-sage-200/80 p-3 transition-all !ring-0 !ring-offset-0 focus:!ring-0 focus:!ring-offset-0 focus-visible:!ring-0 focus-visible:!ring-offset-0 [&_*]:!ring-0 [&_*]:!ring-offset-0 [&_*]:focus:!ring-0 [&_*]:focus-visible:!ring-0 [&_.rdp-day_today]:!bg-transparent'
 
 export const bookingRangeCalendarClassNames = {
   today: '!bg-transparent',
-  day: 'p-0.5',
+  week: 'mt-2 flex w-full gap-0',
+  day: 'relative overflow-hidden p-0.5',
+  outside: 'pointer-events-none opacity-0',
   day_button:
     '!ring-0 !ring-offset-0 focus:!ring-0 focus-visible:!ring-0 data-[range-middle=true]:!bg-accent data-[range-start=true]:!bg-primary data-[range-end=true]:!bg-primary',
 }
@@ -65,7 +67,7 @@ export function createBookingVacationDayButton(
         data-range-end={modifiers.range_end}
         data-range-middle={modifiers.range_middle}
         className={cn(
-          'flex h-auto min-h-[--cell-size] w-full min-w-[--cell-size] flex-col items-center justify-center gap-0.5 rounded-md p-0 font-normal leading-none',
+          'flex h-[--cell-size] min-h-[--cell-size] w-full min-w-[--cell-size] flex-col items-center justify-center gap-0.5 rounded-md bg-background p-0 font-normal leading-none',
           'data-[selected-single=true]:bg-primary data-[selected-single=true]:text-primary-foreground',
           'data-[range-middle=true]:bg-accent data-[range-middle=true]:text-accent-foreground',
           'data-[range-start=true]:bg-primary data-[range-start=true]:text-primary-foreground',
@@ -144,21 +146,24 @@ export function BookingRangeCalendar({
   )
 
   return (
-    <Calendar
-      mode="range"
-      locale={deDayPicker}
-      weekStartsOn={1}
-      selected={selected}
-      defaultMonth={defaultMonth ?? selected?.from}
-      month={month}
-      onMonthChange={onMonthChange}
-      onSelect={onSelect}
-      disabled={disabled}
-      classNames={bookingRangeCalendarClassNames}
-      className={cn(bookingRangeCalendarClassName, className)}
-      components={{
-        DayButton: DayButtonComponent,
-      }}
-    />
+    <div className="relative isolate overflow-hidden rounded-xl bg-white">
+      <Calendar
+        mode="range"
+        locale={deDayPicker}
+        weekStartsOn={1}
+        showOutsideDays={false}
+        selected={selected}
+        defaultMonth={defaultMonth ?? selected?.from}
+        month={month}
+        onMonthChange={onMonthChange}
+        onSelect={onSelect}
+        disabled={disabled}
+        classNames={bookingRangeCalendarClassNames}
+        className={cn(bookingRangeCalendarClassName, className)}
+        components={{
+          DayButton: DayButtonComponent,
+        }}
+      />
+    </div>
   )
 }

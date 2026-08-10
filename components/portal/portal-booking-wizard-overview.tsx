@@ -8,9 +8,11 @@ import { Textarea } from '@/components/ui/textarea'
 import type { BookingExtraCategory, BookingExtraPrice } from '@/lib/booking-extras'
 import {
   BOOKING_ESTIMATE_COST_NOTICE,
+  BOOKING_ESTIMATE_MANUAL_EXTRAS_NOTICE,
   estimateBookingCosts,
   type BookingEstimateLine,
 } from '@/lib/booking-price-estimate'
+import { addonSelectionTotal } from '@/lib/booking-addon-services'
 import {
   dayCareModeLabel,
   formatDayCareBookingSummary,
@@ -267,6 +269,7 @@ export function PortalBookingWizardOverview({
         >
           {estimate.disclaimer}
         </div>
+        <p className="mt-2 text-xs leading-relaxed text-sage-600">{BOOKING_ESTIMATE_MANUAL_EXTRAS_NOTICE}</p>
       </div>
 
       <div>

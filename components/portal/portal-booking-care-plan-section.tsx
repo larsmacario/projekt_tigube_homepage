@@ -1,16 +1,22 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import {
+  forwardRef,
+  useEffect,
+  useImperativeHandle,
+  useMemo,
+  useState,
+} from 'react'
 import { Button } from '@/components/ui/button'
 import { useToast } from '@/hooks/use-toast'
 import { authenticatedFetch } from '@/lib/authenticated-fetch'
 import { PetCarePlanForm } from '@/components/portal/pet-care-plan-form'
-import { PetCarePlanSummary } from '@/components/portal/pet-care-plan-summary'
 import {
   carePlanFromPet,
 } from '@/lib/pet-care-plan-form-state'
 import {
   isCarePlanComplete,
+  normalizeCarePlan,
   validateCarePlan,
   type PetCarePlan,
 } from '@/lib/pet-care-plan'
@@ -23,11 +29,38 @@ type PortalBookingCarePlanSectionProps = {
   onPetsUpdated: (pets: Pet[]) => void
 }
 
-export function PortalBookingCarePlanSection({
-  selectedPetIds,
-  pets,
-  onPetsUpdated,
-}: PortalBookingCarePlanSectionProps) {
+export type PortalBookingCarePlanSectionHandle = {
+  saveIncompleteCarePlans: () => Promise<
+    { success: true; pets: Pet[] } | { success: false; error: string }
+  >
+}
+
+function isCarePlanDraftDirty(pet: Pet, draft: PetCarePlan): boolean {
+  const saved = normalizeCarePlan(pet.care_plan)
+  const current = normalizeCarePlan(draft)
+  return JSON.stringify(saved) !== JSON.stringify(current)
+}
+
+async function persistCarePlan(petId: string, draft: PetCarePlan): Promise<Pet> {
+  const response = await authenticatedFetch(`/api/portal/pets/${petId}`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ care_plan: draft }),
+  })
+  const { data, error } = await readApiResponse<{ pet?: Pet; error?: string }>(response)
+  if (error || !data?.pet) {
+    throw new Error(error || 'Speichern fehlgeschlagen')
+  }
+  return data.pet
+}
+
+export const PortalBookingCarePlanSection = forwardRef<
+  PortalBookingCarePlanSectionHandle,
+  PortalBookingCarePlanSectionProps
+>(function PortalBookingCarePlanSection(
+  { selectedPetIds, pets, onPetsUpdated },
+  ref
+) {
   const { toast } = useToast()
   const selectedPets = useMemo(
     () => pets.filter((pet) => selectedPetIds.includes(pet.id)),
@@ -45,46 +78,118 @@ export function PortalBookingCarePlanSection({
           next[pet.id] = carePlanFromPet(pet)
         }
       }
+      for (const id of Object.keys(next)) {
+        if (!selectedPetIds.includes(id)) {
+          delete next[id]
+        }
+      }
       return next
     })
-  }, [selectedPets])
+  }, [selectedPets, selectedPetIds])
 
-  async function saveCarePlan(pet: Pet) {
-    const draft = drafts[pet.id]
-    if (!draft) return
-
+  async function saveDraftForPet(
+    pet: Pet,
+    draft: PetCarePlan,
+    currentPets: Pet[]
+  ): Promise<{ pets: Pet[]; pet: Pet }> {
     const validationError = validateCarePlan(draft)
     if (validationError) {
-      toast({
-        title: 'Pflegeplan unvollständig',
-        description: validationError,
-        variant: 'destructive',
-      })
-      return
+      throw new Error(validationError)
+    }
+
+    const updatedPet = await persistCarePlan(pet.id, draft)
+    return {
+      pets: currentPets.map((item) => (item.id === pet.id ? updatedPet : item)),
+      pet: updatedPet,
+    }
+  }
+
+  async function saveCarePlanDraft(
+    pet: Pet,
+    draft: PetCarePlan,
+    currentPets: Pet[],
+    options?: { silent?: boolean }
+  ): Promise<Pet[] | null> {
+    if (!isCarePlanDraftDirty(pet, draft) && isCarePlanComplete(pet)) {
+      return currentPets
     }
 
     setSavingPetId(pet.id)
     try {
-      const response = await authenticatedFetch(`/api/portal/pets/${pet.id}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ care_plan: draft }),
-      })
-      const { data, error } = await readApiResponse<{ pet?: Pet; error?: string }>(response)
-      if (error || !data?.pet) {
-        throw new Error(error || 'Speichern fehlgeschlagen')
+      const result = await saveDraftForPet(pet, draft, currentPets)
+      setDrafts((prev) => ({
+        ...prev,
+        [pet.id]: carePlanFromPet(result.pet),
+      }))
+      onPetsUpdated(result.pets)
+      if (!options?.silent) {
+        toast({ title: 'Gespeichert', description: `Pflegeplan für ${pet.name} aktualisiert.` })
       }
-      onPetsUpdated(pets.map((item) => (item.id === pet.id ? data.pet! : item)))
-      toast({ title: 'Gespeichert', description: `Pflegeplan für ${pet.name} aktualisiert.` })
+      return result.pets
     } catch (error) {
       toast({
-        title: 'Fehler',
-        description: error instanceof Error ? error.message : 'Pflegeplan konnte nicht gespeichert werden.',
+        title: error instanceof Error && error.message.includes('Bitte')
+          ? 'Pflegeplan unvollständig'
+          : 'Fehler',
+        description:
+          error instanceof Error ? error.message : 'Pflegeplan konnte nicht gespeichert werden.',
         variant: 'destructive',
       })
+      return null
     } finally {
       setSavingPetId(null)
     }
+  }
+
+  useImperativeHandle(ref, () => ({
+    async saveIncompleteCarePlans() {
+      let updatedPets = pets
+
+      for (const pet of selectedPets) {
+        const draft = drafts[pet.id] ?? carePlanFromPet(pet)
+        const needsSave =
+          !isCarePlanComplete(pet) || isCarePlanDraftDirty(pet, draft)
+
+        if (!needsSave) continue
+
+        const validationError = validateCarePlan(draft)
+        if (validationError) {
+          return {
+            success: false as const,
+            error: `${pet.name}: ${validationError}`,
+          }
+        }
+
+        try {
+          const result = await saveDraftForPet(pet, draft, updatedPets)
+          updatedPets = result.pets
+          setDrafts((prev) => ({
+            ...prev,
+            [pet.id]: carePlanFromPet(result.pet),
+          }))
+        } catch (error) {
+          return {
+            success: false as const,
+            error:
+              error instanceof Error
+                ? `${pet.name}: ${error.message}`
+                : `Pflegeplan für ${pet.name} konnte nicht gespeichert werden.`,
+          }
+        }
+      }
+
+      if (updatedPets !== pets) {
+        onPetsUpdated(updatedPets)
+      }
+
+      return { success: true as const, pets: updatedPets }
+    },
+  }))
+
+  async function saveCarePlan(pet: Pet) {
+    const draft = drafts[pet.id]
+    if (!draft) return
+    await saveCarePlanDraft(pet, draft, pets)
   }
 
   if (selectedPets.length === 0) return null
@@ -94,55 +199,51 @@ export function PortalBookingCarePlanSection({
       <div>
         <h3 className="font-semibold text-sage-900">Futter- & Medikamentenplan</h3>
         <p className="mt-1 text-sm text-sage-600">
-          Dein Pflegeplan wurde aus deinen Tierdaten übernommen. Bitte prüfe, ob sich etwas geändert hat.
+          Passe den Plan hier direkt an – Änderungen gelten für alle Buchungen und dein Tierprofil.
         </p>
       </div>
 
       {selectedPets.map((pet) => {
         const complete = isCarePlanComplete(pet)
         const draft = drafts[pet.id] ?? carePlanFromPet(pet)
+        const dirty = isCarePlanDraftDirty(pet, draft)
 
         return (
           <div key={pet.id} className="space-y-3 rounded-lg border border-sage-100 p-3">
             <p className="font-medium text-sage-900">{pet.name}</p>
-            {complete ? (
-              <PetCarePlanSummary
-                pet={pet}
-                compact
-                editHref="/portal/pets"
-                printHref={`/portal/pets/${pet.id}/care-plan/print`}
-              />
-            ) : (
-              <>
-                <p className="text-sm text-amber-800">
-                  Der Pflegeplan ist noch unvollständig. Bitte ergänze die Angaben, bevor du fortfährst.
-                </p>
-                <PetCarePlanForm
-                  value={draft}
-                  onChange={(value) =>
-                    setDrafts((prev) => ({
-                      ...prev,
-                      [pet.id]: value,
-                    }))
-                  }
-                  idPrefix={`booking-${pet.id}`}
-                />
-                <Button
-                  type="button"
-                  size="sm"
-                  onClick={() => void saveCarePlan(pet)}
-                  disabled={savingPetId === pet.id}
-                >
-                  {savingPetId === pet.id ? 'Speichern…' : 'Pflegeplan speichern'}
-                </Button>
-              </>
+            {!complete && (
+              <p className="text-sm text-amber-800">
+                Der Pflegeplan ist noch unvollständig. Bitte ergänze die Angaben, bevor du fortfährst.
+              </p>
             )}
+            <PetCarePlanForm
+              value={draft}
+              onChange={(value) =>
+                setDrafts((prev) => ({
+                  ...prev,
+                  [pet.id]: value,
+                }))
+              }
+              idPrefix={`booking-${pet.id}`}
+            />
+            <Button
+              type="button"
+              size="sm"
+              onClick={() => void saveCarePlan(pet)}
+              disabled={savingPetId === pet.id || (complete && !dirty)}
+            >
+              {savingPetId === pet.id
+                ? 'Speichern…'
+                : dirty || !complete
+                  ? 'Pflegeplan speichern'
+                  : 'Änderungen speichern'}
+            </Button>
           </div>
         )
       })}
     </div>
   )
-}
+})
 
 export function selectedPetsHaveCompleteCarePlans(
   petIds: string[],

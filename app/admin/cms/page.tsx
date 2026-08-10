@@ -13,7 +13,9 @@ import { LegalRichTextEditor } from "@/components/admin/cms/legal-rich-text-edit
 import { LegalContent } from "@/components/legal-content"
 import { adminFetch } from "@/lib/admin-fetch"
 import { mergeKundenportalData, type KundenportalData } from "@/lib/cms/portal-defaults"
+import { defaultPickupTimeDefaults, type PickupTimeDefaults } from "@/lib/pickup-time-defaults"
 import { CancellationSectionsEditor } from "@/components/admin/cms/cancellation-sections-editor"
+import { PickupTimeDefaultsFields } from "@/components/admin/cms/pickup-time-defaults-fields"
 import {
   defaultKatzenCancellationSections,
   defaultPensionCancellationSections,
@@ -81,6 +83,7 @@ interface DogPensionData {
   cancellationPolicy?: { period: string; refund: string }[]
   pickupTimesTitle?: string
   pickupTimesList?: { days: string; times: string }[]
+  pickupTimeDefaults?: PickupTimeDefaults
   warningBoxTitle?: string
   warningBoxNotes?: string[]
   warningBoxSummary?: string
@@ -771,6 +774,11 @@ export default function CMSPage() {
                   defaultObj={{ days: '', times: '' }}
                   onChange={(val) => updateData('hundepension', 'pickupTimesList', val)}
                 />
+                <PickupTimeDefaultsFields
+                  idPrefix="hundepension-pickup-defaults"
+                  value={dData.pickupTimeDefaults}
+                  onChange={(val) => updateData('hundepension', 'pickupTimeDefaults', val)}
+                />
               </div>
 
               <div className="space-y-4 pt-4 border-t">
@@ -963,6 +971,11 @@ export default function CMSPage() {
                   ]}
                   defaultObj={{ days: '', times: '' }}
                   onChange={(val) => updateData('kundenportal', 'pickupTimesList', val)}
+                />
+                <PickupTimeDefaultsFields
+                  idPrefix="kundenportal-pickup-defaults"
+                  value={kpData.pickupTimeDefaults ?? defaultPickupTimeDefaults}
+                  onChange={(val) => updateData('kundenportal', 'pickupTimeDefaults', val)}
                 />
                 <div className="space-y-2">
                   <Label>Hinweis zu Bring-/Holzeiten</Label>

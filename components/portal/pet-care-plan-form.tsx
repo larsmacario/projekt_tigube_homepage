@@ -1,6 +1,6 @@
 'use client'
 
-import { ChevronDown, ChevronUp } from 'lucide-react'
+import { ChevronDown, ChevronUp, Copy, Plus, Trash2 } from 'lucide-react'
 import { useState } from 'react'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
@@ -8,12 +8,22 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Button } from '@/components/ui/button'
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import {
   CARE_PLAN_FOOD_TYPES,
   CARE_PLAN_SLOT_LABELS,
+  emptyMedicationEntry,
   emptyPetCarePlan,
-  normalizeCarePlan,
+  nextTimeSlot,
+  normalizeCarePlanForForm,
   type CarePlanFeedingSlot,
-  type CarePlanMedicationSlot,
+  type CarePlanMedicationEntry,
+  type CarePlanSlotLabel,
   type PetCarePlan,
 } from '@/lib/pet-care-plan'
 
@@ -34,13 +44,43 @@ function updateFeedingSlot(
   return { ...plan, feeding }
 }
 
-function updateMedicationSlot(
+function updateMedicationEntry(
   plan: PetCarePlan,
   index: number,
-  patch: Partial<CarePlanMedicationSlot>
+  patch: Partial<CarePlanMedicationEntry>
 ): PetCarePlan {
   const medication = [...plan.medication]
   medication[index] = { ...medication[index], ...patch }
+  return { ...plan, medication }
+}
+
+function addMedicationEntry(plan: PetCarePlan): PetCarePlan {
+  return {
+    ...plan,
+    medication: [...plan.medication, emptyMedicationEntry()],
+  }
+}
+
+function removeMedicationEntry(plan: PetCarePlan, index: number): PetCarePlan {
+  return {
+    ...plan,
+    medication: plan.medication.filter((_, entryIndex) => entryIndex !== index),
+  }
+}
+
+function duplicateMedicationEntry(plan: PetCarePlan, index: number): PetCarePlan {
+  const source = plan.medication[index]
+  if (!source) return plan
+
+  const duplicate: CarePlanMedicationEntry = {
+    timeSlot: nextTimeSlot(source.timeSlot),
+    timing: source.timing,
+    medication: source.medication,
+    amount: source.amount,
+  }
+
+  const medication = [...plan.medication]
+  medication.splice(index + 1, 0, duplicate)
   return { ...plan, medication }
 }
 
@@ -51,7 +91,7 @@ export function PetCarePlanForm({
   idPrefix = 'care-plan',
 }: PetCarePlanFormProps) {
   const [showExample, setShowExample] = useState(false)
-  const plan = normalizeCarePlan(value) ?? emptyPetCarePlan()
+  const plan = normalizeCarePlanForForm(value) ?? emptyPetCarePlan()
 
   const toggleFoodType = (foodTypeId: (typeof CARE_PLAN_FOOD_TYPES)[number]['id']) => {
     if (readOnly) return
@@ -199,81 +239,141 @@ export function PetCarePlanForm({
       </div>
 
       <div className="space-y-3">
-        <h4 className="font-semibold text-sage-900">Medikamente</h4>
-        <div className="overflow-x-auto rounded-lg border border-sage-200">
-          <table className="min-w-full text-sm">
-            <thead className="bg-sage-50">
-              <tr>
-                <th className="px-3 py-2 text-left font-medium text-sage-700 w-24">Zeitpunkt</th>
-                <th className="px-3 py-2 text-left font-medium text-sage-700">Morgens</th>
-                <th className="px-3 py-2 text-left font-medium text-sage-700">Mittags</th>
-                <th className="px-3 py-2 text-left font-medium text-sage-700">Abends</th>
-              </tr>
-            </thead>
-            <tbody>
-              {[
-                { key: 'timing', label: 'Timing', placeholder: '½ h vor Futter' },
-                { key: 'medication', label: 'Medikament', placeholder: 'Apoquel' },
-                { key: 'amount', label: 'Menge', placeholder: '½ Tablette' },
-              ].map((row) => (
-                <tr key={row.key} className="border-t border-sage-100">
-                  <td className="px-3 py-2 align-top font-medium text-sage-600">{row.label}</td>
-                  {CARE_PLAN_SLOT_LABELS.map((slotLabel, index) => {
-                    const slot = plan.medication[index]
-                    const field = row.key as keyof CarePlanMedicationSlot
-                    const disabled = readOnly || !slot.enabled
-
-                    if (row.key === 'timing') {
-                      return (
-                        <td key={`${row.key}-${index}`} className="px-3 py-2 align-top">
-                          <div className="space-y-2">
-                            <label className="flex items-center gap-2 text-xs text-sage-600">
-                              <Checkbox
-                                checked={slot.enabled}
-                                onCheckedChange={(checked) =>
-                                  onChange(
-                                    updateMedicationSlot(plan, index, { enabled: checked === true })
-                                  )
-                                }
-                                disabled={readOnly}
-                              />
-                              {slotLabel}
-                            </label>
-                            <Input
-                              value={slot.timing}
-                              onChange={(e) =>
-                                onChange(
-                                  updateMedicationSlot(plan, index, { timing: e.target.value })
-                                )
-                              }
-                              placeholder={row.placeholder}
-                              disabled={readOnly || !slot.enabled}
-                            />
-                          </div>
-                        </td>
-                      )
-                    }
-
-                    return (
-                      <td key={`${row.key}-${index}`} className="px-3 py-2 align-top">
-                        <Input
-                          value={slot[field] as string}
-                          onChange={(e) =>
-                            onChange(
-                              updateMedicationSlot(plan, index, { [field]: e.target.value })
-                            )
-                          }
-                          placeholder={row.placeholder}
-                          disabled={disabled}
-                        />
-                      </td>
-                    )
-                  })}
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h4 className="font-semibold text-sage-900">Medikamente</h4>
+          {!readOnly && plan.medication.length === 0 && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => onChange(addMedicationEntry(plan))}
+            >
+              <Plus className="mr-1 h-4 w-4" />
+              Medikament hinzufügen
+            </Button>
+          )}
         </div>
+
+        {plan.medication.length === 0 ? (
+          <p className="rounded-lg border border-dashed border-sage-200 bg-sage-50/40 px-4 py-3 text-sm text-sage-600">
+            Keine Medikamente hinterlegt. Optional kannst du Medikamente mit Tageszeit, Timing und
+            Menge erfassen.
+          </p>
+        ) : (
+          <div className="space-y-3">
+            {plan.medication.map((entry, index) => (
+              <div
+                key={`${idPrefix}-med-${index}`}
+                className="rounded-lg border border-sage-200 bg-white p-3"
+              >
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-[140px_1fr_1fr_1fr_auto] lg:items-end">
+                  <div className="space-y-1">
+                    <Label htmlFor={`${idPrefix}-med-slot-${index}`} className="text-xs">
+                      Tageszeit
+                    </Label>
+                    <Select
+                      value={entry.timeSlot}
+                      onValueChange={(timeSlot: CarePlanSlotLabel) =>
+                        onChange(updateMedicationEntry(plan, index, { timeSlot }))
+                      }
+                      disabled={readOnly}
+                    >
+                      <SelectTrigger id={`${idPrefix}-med-slot-${index}`}>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {CARE_PLAN_SLOT_LABELS.map((label) => (
+                          <SelectItem key={label} value={label}>
+                            {label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor={`${idPrefix}-med-timing-${index}`} className="text-xs">
+                      Timing
+                    </Label>
+                    <Input
+                      id={`${idPrefix}-med-timing-${index}`}
+                      value={entry.timing}
+                      onChange={(e) =>
+                        onChange(updateMedicationEntry(plan, index, { timing: e.target.value }))
+                      }
+                      placeholder="½ h vor Futter"
+                      readOnly={readOnly}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor={`${idPrefix}-med-name-${index}`} className="text-xs">
+                      Medikament
+                    </Label>
+                    <Input
+                      id={`${idPrefix}-med-name-${index}`}
+                      value={entry.medication}
+                      onChange={(e) =>
+                        onChange(updateMedicationEntry(plan, index, { medication: e.target.value }))
+                      }
+                      placeholder="Apoquel"
+                      readOnly={readOnly}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor={`${idPrefix}-med-amount-${index}`} className="text-xs">
+                      Menge
+                    </Label>
+                    <Input
+                      id={`${idPrefix}-med-amount-${index}`}
+                      value={entry.amount}
+                      onChange={(e) =>
+                        onChange(updateMedicationEntry(plan, index, { amount: e.target.value }))
+                      }
+                      placeholder="½ Tablette"
+                      readOnly={readOnly}
+                    />
+                  </div>
+                  {!readOnly && (
+                    <div className="flex shrink-0 gap-1 sm:col-span-2 lg:col-span-1 lg:justify-self-end">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="text-sage-500 hover:text-sage-900"
+                        onClick={() => onChange(duplicateMedicationEntry(plan, index))}
+                        aria-label={`Medikament ${index + 1} zur nächsten Tageszeit duplizieren`}
+                        title="Zur nächsten Tageszeit duplizieren"
+                      >
+                        <Copy className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="text-sage-500 hover:text-destructive"
+                        onClick={() => onChange(removeMedicationEntry(plan, index))}
+                        aria-label={`Medikament ${index + 1} entfernen`}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {!readOnly && plan.medication.length > 0 && (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => onChange(addMedicationEntry(plan))}
+          >
+            <Plus className="mr-1 h-4 w-4" />
+            Medikament hinzufügen
+          </Button>
+        )}
       </div>
 
       <div>
@@ -303,7 +403,8 @@ export function PetCarePlanForm({
           {showExample && (
             <p className="mt-2 text-xs text-sage-600 leading-relaxed">
               Beispiel: Morgens 6 Uhr 200g Trockenfutter, abends 19 Uhr 150g Dose mit 1 TL Öl.
-              Medikament Apoquel abends ½ h vor Futter, ½ Tablette. Individuell: Trockenfutter 10 Min. einweichen.
+              Medikamente morgens: Apoquel ½ h vor Futter (½ Tablette) und Herzmedikament mit Futter
+              (1 Tablette). Individuell: Trockenfutter 10 Min. einweichen.
             </p>
           )}
         </div>

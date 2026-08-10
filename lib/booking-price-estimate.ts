@@ -17,6 +17,7 @@ import {
   WEEKEND_SURCHARGE_FOOTNOTE,
 } from '@/lib/booking-sunday-holiday-surcharge'
 import { buildPublicHolidayDateSet } from '@/lib/public-holidays-de'
+import { resolvePickupDateSpan } from '@/lib/pickup-date-span'
 import {
   evaluatePickupTimeOnDate,
   needsOutOfHoursPickupFee,
@@ -24,62 +25,25 @@ import {
   PICKUP_TIME_MIDDAY_NOTE,
   resolveOutOfHoursPickupUnitPrice,
 } from '@/lib/pickup-time-surcharge'
+import {
+  needsOvernightOnLastDay,
+  OVERNIGHT_PICKUP_NOTE,
+  resolveOvernightUnitPrice,
+} from '@/lib/overnight-surcharge'
 import { FIXED_PERCENTAGE_SURCHARGE_RATE } from '@/lib/price-catalog-policy'
 import { formatWeekdayList } from '@/lib/day-care-booking'
 import { formatEuro } from '@/lib/price-override'
 import type { DayCareMode, Pet, ServiceType } from '@/lib/types'
 import { toIsoDate } from '@/lib/vacation-dates'
 
-function resolvePickupDateSpan(input: BookingEstimateInput): { start: string; end: string } | null {
-  if (
-    input.petLines.some((l) => l.service_type === 'hundepension') &&
-    input.dateRange?.from
-  ) {
-    return {
-      start: toIsoDate(input.dateRange.from),
-      end: toIsoDate(input.dateRange.to ?? input.dateRange.from),
-    }
-  }
-
-  const oncePetIds = input.petLines
-    .filter((l) => l.service_type === 'tagesbetreuung' && l.day_care_mode === 'once')
-    .map((l) => l.pet_id)
-
-  if (oncePetIds.length > 0) {
-    const allDates: string[] = []
-    for (const petId of oncePetIds) {
-      for (const d of input.dayCareOnceDates[petId] || []) {
-        allDates.push(toIsoDate(d))
-      }
-    }
-    if (allDates.length === 0) return null
-    allDates.sort()
-    return { start: allDates[0], end: allDates[allDates.length - 1] }
-  }
-
-  const recurringPetIds = input.petLines
-    .filter((l) => l.service_type === 'tagesbetreuung' && l.day_care_mode === 'recurring')
-    .map((l) => l.pet_id)
-
-  if (recurringPetIds.length > 0) {
-    const starts: string[] = []
-    for (const petId of recurringPetIds) {
-      const d = input.dayCareRecurring[petId]?.startDate
-      if (d) starts.push(toIsoDate(d))
-    }
-    if (starts.length === 0) return null
-    starts.sort()
-    return { start: starts[0], end: starts[starts.length - 1] }
-  }
-
-  return null
-}
-
 export const BOOKING_ESTIMATE_DISCLAIMER =
-  'Die angezeigten Beträge sind eine unverbindliche Orientierung auf Basis deiner hinterlegten Preise. Sie stellen weder ein Angebot noch einen verbindlichen Preis dar. Endgültiger Leistungsumfang und Rechnungsbetrag legen wir nach Prüfung deiner Anfrage fest – unter anderem je Tarifstufe, Betreuungstagen, Zusatzleistungen pro Tier und individuellen Vereinbarungen. Abweichungen bleiben vorbehalten.'
+  'Die angezeigten Beträge sind eine unverbindliche Orientierung auf Basis deiner hinterlegten Preise. Sie stellen weder ein Angebot noch einen verbindlichen Preis dar. Endgültiger Leistungsumfang und Rechnungsbetrag legen wir nach Prüfung deiner Anfrage fest – unter anderem je Tarifstufe, Betreuungstagen, Zusatzleistungen pro Tier und individuellen Vereinbarungen. Leistungen wie Futter oder Medikamentengabe können wir nach Bedarf nachträglich ergänzen. Abweichungen bleiben vorbehalten.'
 
 export const BOOKING_ESTIMATE_COST_NOTICE =
-  'Zusatzleistungen gelten jeweils pro Tier. Die Summe kann sich ändern, wenn wir Leistungen anpassen, ergänzen oder streichen.'
+  'Enthalten sind Grundpreis, Sonn- und Feiertagszuschlag, gewählte Zusatzleistungen aus dem Wizard, Bring-/Hol-Zuschläge und ggf. Übernachtung. Leistungen wie Futter, Medikamentengabe oder spezielle Pflege vergeben wir nach Bedarf individuell nachträglich – sie sind in dieser Schätzung nicht enthalten.'
+
+export const BOOKING_ESTIMATE_MANUAL_EXTRAS_NOTICE =
+  'Futter, Medikamentengabe und ähnliche Leistungen werden erst nach deiner Anfrage individuell festgelegt und erscheinen daher nicht in der Summe.'
 
 export const HUND_GRUNDPREISE_TIER_NOTE =
   'Weitere Tarifstufen findest du unter „Preise“ im Kundenportal.'
@@ -337,6 +301,12 @@ export function estimateBookingCosts(input: BookingEstimateInput): BookingEstima
     }
     for (const note of notes) {
       lines.push({ kind: 'note', label: note })
+    }
+
+    if (needsOvernightOnLastDay(input.pickUpTime)) {
+      const overnightFee = resolveOvernightUnitPrice(input.prices, input.categories)
+      addChargeLine(lines, 'Übernachtung (geschätzt)', 1, overnightFee, 'je Nacht')
+      lines.push({ kind: 'note', label: OVERNIGHT_PICKUP_NOTE })
     }
   }
 

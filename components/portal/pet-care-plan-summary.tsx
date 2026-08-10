@@ -5,10 +5,12 @@ import {
   CARE_PLAN_FOOD_TYPES,
   CARE_PLAN_SLOT_LABELS,
   formatCarePlanSummary,
+  getActiveMedicationEntries,
   normalizeCarePlan,
   type PetCarePlan,
 } from '@/lib/pet-care-plan'
 import type { Pet } from '@/lib/types'
+import { MedicationGroupedList } from '@/components/portal/medication-grouped-list'
 
 type PetCarePlanSummaryProps = {
   pet: Pick<Pet, 'name' | 'care_plan'>
@@ -105,34 +107,10 @@ export function PetCarePlanSummary({
         </table>
       </div>
 
-      {plan.medication.some((slot) => slot.enabled) && (
-        <div className="overflow-x-auto">
-          <table className="min-w-full text-sm border border-sage-200">
-            <thead className="bg-sage-50">
-              <tr>
-                <th className="px-3 py-2 text-left">Medikamente</th>
-                {CARE_PLAN_SLOT_LABELS.map((label) => (
-                  <th key={label} className="px-3 py-2 text-left">{label}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {[
-                { label: 'Timing', key: 'timing' as const },
-                { label: 'Medikament', key: 'medication' as const },
-                { label: 'Menge', key: 'amount' as const },
-              ].map((row) => (
-                <tr key={row.key} className="border-t border-sage-100">
-                  <td className="px-3 py-2 font-medium text-sage-600">{row.label}</td>
-                  {plan.medication.map((slot, index) => (
-                    <td key={`${row.key}-${index}`} className="px-3 py-2">
-                      {slot.enabled ? slot[row.key] || '–' : '–'}
-                    </td>
-                  ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
+      {getActiveMedicationEntries(plan).length > 0 && (
+        <div className="space-y-2">
+          <p className="text-sm font-medium text-sage-900">Medikamente</p>
+          <MedicationGroupedList plan={plan} />
         </div>
       )}
 

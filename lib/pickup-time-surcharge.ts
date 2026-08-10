@@ -97,15 +97,34 @@ export const PICKUP_TIME_EARLY_ARRIVAL_NOTE =
 
 export const DEFAULT_OUT_OF_HOURS_PICKUP_FEE = 8
 
+export const BRING_HOLZEITEN_CATEGORY_ID = 'e5555555-5555-4555-e555-555555555555'
+export const OUT_OF_HOURS_PICKUP_PRICE_ID = 'e5555555-5555-4555-a555-555555555551'
+
+export function isBringHolCategory(category: Pick<BookingExtraCategory, 'id' | 'name'>): boolean {
+  const name = category.name.toLowerCase()
+  return category.id === BRING_HOLZEITEN_CATEGORY_ID || (name.includes('bring') && name.includes('hol'))
+}
+
 export function findOutOfHoursPickupCatalogPrice(
   prices: BookingExtraPrice[],
   categories: BookingExtraCategory[]
 ): BookingExtraPrice | null {
   const bringCategoryIds = new Set(
-    categories
-      .filter((c) => c.name.toLowerCase().includes('bring') && c.name.toLowerCase().includes('hol'))
-      .map((c) => c.id)
+    categories.filter((c) => isBringHolCategory(c)).map((c) => c.id)
   )
+
+  const byId = prices.find(
+    (p) => p.id === OUT_OF_HOURS_PICKUP_PRICE_ID && bringCategoryIds.has(p.category_id)
+  )
+  if (byId && byId.price_type !== 'text') return byId
+
+  const byUsage = prices.find(
+    (p) =>
+      bringCategoryIds.has(p.category_id) &&
+      p.usage === 'surcharge' &&
+      p.price_type !== 'text'
+  )
+  if (byUsage) return byUsage
 
   const candidates = prices.filter(
     (p) =>

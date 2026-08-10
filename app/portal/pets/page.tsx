@@ -679,11 +679,7 @@ export default function PetsPage() {
                   {(pet.care_plan || pet.futtermenge || pet.medikamente || pet.besonderheiten || pet.intervall_impfung || pet.letzte_stuhlprobe || pet.naechste_stuhlprobe) && (
                     <div className="border-t pt-3 mt-3 space-y-2 text-sm">
                       {pet.care_plan && (
-                        <PetCarePlanSummary
-                          pet={pet}
-                          compact
-                          printHref={`/portal/pets/${pet.id}/care-plan/print`}
-                        />
+                        <PetCarePlanSummary pet={pet} compact />
                       )}
                       {pet.letzte_stuhlprobe && (
                         <div>

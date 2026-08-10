@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { type DateRange } from 'react-day-picker'
 import { de as deDayPicker } from 'react-day-picker/locale'
 import { Plus, Trash2 } from 'lucide-react'
@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { useSidebar } from '@/components/ui/sidebar'
 import {
   Select,
   SelectContent,
@@ -22,7 +23,21 @@ import { Calendar } from '@/components/ui/calendar'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { useToast } from '@/hooks/use-toast'
 import { authenticatedFetch } from '@/lib/authenticated-fetch'
-import { isValidTimeHHmm } from '@/lib/pickup-time-surcharge'
+import { mergeKundenportalData } from '@/lib/cms/portal-defaults'
+import { buildPublicHolidayDateSet } from '@/lib/public-holidays-de'
+import {
+  defaultPickupTimeDefaults,
+  resolveDefaultPickupTimesForSpan,
+} from '@/lib/pickup-time-defaults'
+import { resolvePickupDateSpan } from '@/lib/pickup-date-span'
+import {
+  evaluatePickupTimeOnDate,
+  isValidTimeHHmm,
+  needsOutOfHoursPickupFee,
+  PICKUP_TIME_EARLY_ARRIVAL_NOTE,
+  PICKUP_TIME_MIDDAY_NOTE,
+  resolveOutOfHoursPickupUnitPrice,
+} from '@/lib/pickup-time-surcharge'
 import { readApiResponse } from '@/lib/read-api-response'
 import type { BookingExtraCategory, BookingExtraPrice } from '@/lib/booking-extras'
 import { getServicesForPetType } from '@/lib/booking-service'
@@ -31,6 +46,7 @@ import {
   iterateIsoDateRange,
 } from '@/lib/booking-availability'
 import { formatEuro } from '@/lib/price-override'
+import { cn } from '@/lib/utils'
 import { formatDateRangeDE } from '@/lib/format-date-range-de'
 import {
   DAY_CARE_WEEKDAY_OPTIONS,
@@ -44,6 +60,7 @@ import { PortalBookingWizardOverview } from '@/components/portal/portal-booking-
 import {
   PortalBookingCarePlanSection,
   selectedPetsHaveCompleteCarePlans,
+  type PortalBookingCarePlanSectionHandle,
 } from '@/components/portal/portal-booking-care-plan-section'
 
 const OVERVIEW_STEP = 4
@@ -55,19 +72,82 @@ function PickupTimesFields({
   onDropOffChange,
   onPickUpChange,
   compact = false,
+  pickupSpan,
+  publicHolidays,
+  prices,
+  categories,
+  pickupTimesNote,
 }: {
   dropOffTime: string
   pickUpTime: string
   onDropOffChange: (value: string) => void
   onPickUpChange: (value: string) => void
   compact?: boolean
+  pickupSpan?: { start: string; end: string } | null
+  publicHolidays?: Array<{ date: string }>
+  prices?: BookingExtraPrice[]
+  categories?: BookingExtraCategory[]
+  pickupTimesNote?: string
 }) {
+  const holidaySet = useMemo(
+    () => buildPublicHolidayDateSet(publicHolidays ?? []),
+    [publicHolidays]
+  )
+
+  const outOfHoursFee = useMemo(() => {
+    if (!prices?.length || !categories?.length) return null
+    return resolveOutOfHoursPickupUnitPrice(prices, categories)
+  }, [prices, categories])
+
+  const dropEval =
+    pickupSpan && dropOffTime && isValidTimeHHmm(dropOffTime)
+      ? evaluatePickupTimeOnDate(pickupSpan.start, dropOffTime, holidaySet)
+      : null
+  const pickEval =
+    pickupSpan && pickUpTime && isValidTimeHHmm(pickUpTime)
+      ? evaluatePickupTimeOnDate(pickupSpan.end, pickUpTime, holidaySet)
+      : null
+
+  const dropFee = dropEval && needsOutOfHoursPickupFee(dropEval)
+  const pickFee = pickEval && needsOutOfHoursPickupFee(pickEval)
+  const middayNote =
+    (dropEval?.middayAppointmentNote || pickEval?.middayAppointmentNote) ?? false
+  const earlyNote =
+    (dropEval?.earlyArrivalNote || pickEval?.earlyArrivalNote) ?? false
+
   const hint = (
     <p className="text-sm text-sage-600">
       Wann möchtest du deinen Hund bringen und wieder abholen? Standardzeiten findest du im
       Kundenportal unter „Bring- und Holzeiten“. Bei Tagesbetreuung gilt: erster bzw. letzter
       Betreuungstag.
     </p>
+  )
+
+  const notes = (
+    <div className="space-y-2 md:col-span-2">
+      {pickupTimesNote?.trim() && (
+        <p className="text-sm text-sage-600">{pickupTimesNote.trim()}</p>
+      )}
+      {middayNote && (
+        <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+          {PICKUP_TIME_MIDDAY_NOTE}
+        </p>
+      )}
+      {earlyNote && (
+        <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+          {PICKUP_TIME_EARLY_ARRIVAL_NOTE}
+        </p>
+      )}
+      {(dropFee || pickFee) && outOfHoursFee != null && (
+        <p className="rounded-md border border-sage-300 bg-sage-100 px-3 py-2 text-sm text-sage-900">
+          {dropFee && pickFee
+            ? `Bringen und Abholen außerhalb der Standardzeiten: je ${formatEuro(outOfHoursFee)} Zuschlag (${formatEuro(outOfHoursFee * 2)} gesamt).`
+            : dropFee
+              ? `Bringen außerhalb der Standardzeit: ${formatEuro(outOfHoursFee)} Zuschlag pro Termin.`
+              : `Abholen außerhalb der Standardzeit: ${formatEuro(outOfHoursFee)} Zuschlag pro Termin.`}
+        </p>
+      )}
+    </div>
   )
 
   const fields = (
@@ -102,6 +182,7 @@ function PickupTimesFields({
       <div className="space-y-4">
         {hint}
         {fields}
+        {notes}
       </div>
     )
   }
@@ -110,6 +191,7 @@ function PickupTimesFields({
     <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
       <div className="md:col-span-2">{hint}</div>
       {fields}
+      {notes}
     </div>
   )
 }
@@ -138,6 +220,7 @@ export function PortalBookingWizard({
   onCancel,
 }: PortalBookingWizardProps) {
   const { toast } = useToast()
+  const { state: sidebarState, isMobile } = useSidebar()
   const [wizardPets, setWizardPets] = useState<Pet[]>(initialPets)
   const [step, setStep] = useState(1)
   const [petLines, setPetLines] = useState<PetServiceLine[]>([{ pet_id: '', service_type: '' }])
@@ -155,6 +238,10 @@ export function PortalBookingWizard({
   })
   const [dropOffTime, setDropOffTime] = useState('')
   const [pickUpTime, setPickUpTime] = useState('')
+  const [dropOffTimeTouched, setDropOffTimeTouched] = useState(false)
+  const [pickUpTimeTouched, setPickUpTimeTouched] = useState(false)
+  const [pickupTimeDefaults, setPickupTimeDefaults] = useState(defaultPickupTimeDefaults)
+  const [pickupTimesNote, setPickupTimesNote] = useState('')
   const [addonServices, setAddonServices] = useState<AddonService[]>([])
   const [addonsLoading, setAddonsLoading] = useState(false)
   const [selectedAddonIds, setSelectedAddonIds] = useState<string[]>([])
@@ -169,6 +256,8 @@ export function PortalBookingWizard({
 
   const pets = wizardPets
   const [submitting, setSubmitting] = useState(false)
+  const [advancingStep, setAdvancingStep] = useState(false)
+  const carePlanSectionRef = useRef<PortalBookingCarePlanSectionHandle>(null)
 
   const today = useMemo(() => startOfDay(new Date()), [])
 
@@ -203,6 +292,47 @@ export function PortalBookingWizard({
       resolvedPetLines.some((l) => l.service_type === 'tagesbetreuung'),
     [resolvedPetLines, hundepensionRange]
   )
+
+  const pickupSpan = useMemo(
+    () =>
+      resolvePickupDateSpan({
+        petLines: resolvedPetLines.map((line) => ({
+          pet_id: line.pet_id,
+          service_type: line.service_type,
+          day_care_mode: line.day_care_mode,
+        })),
+        dateRange,
+        dayCareOnceDates,
+        dayCareRecurring,
+      }),
+    [resolvedPetLines, dateRange, dayCareOnceDates, dayCareRecurring]
+  )
+
+  const holidaySet = useMemo(
+    () => buildPublicHolidayDateSet(availability.publicHolidays),
+    [availability.publicHolidays]
+  )
+
+  const pickupTimesFieldProps = useMemo(
+    () => ({
+      pickupSpan,
+      publicHolidays: availability.publicHolidays,
+      prices: catalogPrices,
+      categories: priceCategories,
+      pickupTimesNote,
+    }),
+    [pickupSpan, availability.publicHolidays, catalogPrices, priceCategories, pickupTimesNote]
+  )
+
+  const handleDropOffTimeChange = useCallback((value: string) => {
+    setDropOffTimeTouched(true)
+    setDropOffTime(value)
+  }, [])
+
+  const handlePickUpTimeChange = useCallback((value: string) => {
+    setPickUpTimeTouched(true)
+    setPickUpTime(value)
+  }, [])
 
   const hasAddonStep = addonServices.length > 0
 
@@ -320,16 +450,55 @@ export function PortalBookingWizard({
   }, [loadAddonServices])
 
   useEffect(() => {
+    async function loadPortalCms() {
+      try {
+        const response = await authenticatedFetch('/api/cms?key=kundenportal')
+        const { data, error } = await readApiResponse<{ data?: Record<string, unknown> }>(response)
+        if (error) return
+        const merged = mergeKundenportalData(data?.data)
+        setPickupTimeDefaults(merged.pickupTimeDefaults ?? defaultPickupTimeDefaults)
+        setPickupTimesNote(merged.pickupTimesNote ?? '')
+      } catch (error) {
+        console.error('Error loading portal CMS defaults:', error)
+      }
+    }
+    void loadPortalCms()
+  }, [])
+
+  useEffect(() => {
+    if (!needsPickupTimes) {
+      setDropOffTime('')
+      setPickUpTime('')
+      setDropOffTimeTouched(false)
+      setPickUpTimeTouched(false)
+      return
+    }
+    if (!pickupSpan) return
+    const next = resolveDefaultPickupTimesForSpan(pickupSpan, pickupTimeDefaults, holidaySet)
+    if (!dropOffTimeTouched) setDropOffTime(next.dropOffTime)
+    if (!pickUpTimeTouched) setPickUpTime(next.pickUpTime)
+  }, [
+    needsPickupTimes,
+    pickupSpan,
+    pickupTimeDefaults,
+    holidaySet,
+    dropOffTimeTouched,
+    pickUpTimeTouched,
+  ])
+
+  useEffect(() => {
     if (step >= 2) {
       loadAvailability()
     }
   }, [step, loadAvailability])
 
   useEffect(() => {
-    if (step >= OVERVIEW_STEP || (step >= 2 && !hasAddonStep)) {
+    const needsPriceCatalog =
+      step >= OVERVIEW_STEP || (step >= 2 && !hasAddonStep) || (step >= 2 && needsPickupTimes)
+    if (needsPriceCatalog) {
       void loadPriceCatalog()
     }
-  }, [step, hasAddonStep, loadPriceCatalog])
+  }, [step, hasAddonStep, needsPickupTimes, loadPriceCatalog])
 
   useEffect(() => {
     setSelectedAddonIds((prev) =>
@@ -420,9 +589,9 @@ export function PortalBookingWizard({
     return true
   }
 
-  function validateCarePlansForBooking(): boolean {
+  function validateCarePlansForBooking(petsToCheck = pets): boolean {
     const petIds = resolvedPetLines.map((line) => line.pet_id)
-    if (!selectedPetsHaveCompleteCarePlans(petIds, pets)) {
+    if (!selectedPetsHaveCompleteCarePlans(petIds, petsToCheck)) {
       toast({
         title: 'Pflegeplan fehlt',
         description: 'Bitte vervollständige den Futter- und Medikamentenplan für alle ausgewählten Tiere.',
@@ -647,10 +816,6 @@ export function PortalBookingWizard({
 
       const created = data?.bookings ?? (data?.booking ? [data.booking] : [])
       onSuccess(created)
-      toast({
-        title: 'Erfolg',
-        description: 'Buchungsanfrage wurde erfolgreich erstellt',
-      })
     } catch (err: unknown) {
       toast({
         title: 'Fehler',
@@ -672,9 +837,29 @@ export function PortalBookingWizard({
     })
   }
 
-  function goToNextStep() {
-    if (step === 1 && validateStep1() && validateCarePlansForBooking()) {
-      setStep(2)
+  async function goToNextStep() {
+    if (step === 1) {
+      if (!validateStep1()) return
+
+      setAdvancingStep(true)
+      try {
+        const saveResult = await carePlanSectionRef.current?.saveIncompleteCarePlans()
+        if (saveResult && !saveResult.success) {
+          toast({
+            title: 'Pflegeplan unvollständig',
+            description: saveResult.error,
+            variant: 'destructive',
+          })
+          return
+        }
+
+        const petsToCheck = saveResult?.pets ?? pets
+        if (!validateCarePlansForBooking(petsToCheck)) return
+
+        setStep(2)
+      } finally {
+        setAdvancingStep(false)
+      }
       return
     }
     if (step === 2 && validateStep2()) {
@@ -701,8 +886,8 @@ export function PortalBookingWizard({
   }
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-4">
-      <nav aria-label="Fortschritt" className="flex shrink-0 gap-2">
+    <div className="flex flex-col">
+      <nav aria-label="Fortschritt" className="mb-6 flex shrink-0 gap-2">
         {progressSteps.map((s, index) => (
           <div
             key={s.step}
@@ -719,7 +904,7 @@ export function PortalBookingWizard({
         ))}
       </nav>
 
-      <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+      <div className="space-y-6 pb-28">
       {step === 1 && (
         <div className="space-y-4">
           <p className="text-sm text-sage-600">
@@ -832,6 +1017,7 @@ export function PortalBookingWizard({
 
           {resolvedPetLines.length > 0 && (
             <PortalBookingCarePlanSection
+              ref={carePlanSectionRef}
               selectedPetIds={resolvedPetLines.map((line) => line.pet_id)}
               pets={pets}
               onPetsUpdated={setWizardPets}
@@ -848,13 +1034,14 @@ export function PortalBookingWizard({
               <div
                 className={
                   needsPickupTimes
-                    ? 'flex flex-col gap-6 lg:flex-row lg:items-start'
+                    ? 'grid grid-cols-1 items-start gap-8 lg:grid-cols-[minmax(0,1fr)_min(100%,22rem)]'
                     : undefined
                 }
               >
-                <div className="min-w-0 flex-1 space-y-3">
-                  <div className="flex justify-center rounded-xl border border-sage-200/80 bg-sage-50/80 p-3">
-                    <BookingRangeCalendar
+                <div className="min-w-0 space-y-3">
+                  <div className="relative isolate overflow-hidden rounded-xl border border-sage-200/80 bg-white p-3">
+                    <div className="flex justify-center">
+                      <BookingRangeCalendar
                       selected={dateRange}
                       onSelect={handleRangeSelect}
                       disabled={isDateUnavailable}
@@ -865,6 +1052,7 @@ export function PortalBookingWizard({
                       month={calendarMonth}
                       onMonthChange={setCalendarMonth}
                     />
+                    </div>
                   </div>
                   {dateRange?.from && (
                     <p className="text-muted-foreground text-center text-sm lg:text-left">
@@ -873,13 +1061,14 @@ export function PortalBookingWizard({
                   )}
                 </div>
                 {needsPickupTimes && (
-                  <div className="w-full shrink-0 rounded-lg border border-sage-200 bg-white p-4 lg:w-[min(100%,20rem)]">
+                  <div className="w-full shrink-0 rounded-lg border border-sage-200 bg-white p-4 lg:sticky lg:top-4">
                     <PickupTimesFields
                       dropOffTime={dropOffTime}
                       pickUpTime={pickUpTime}
-                      onDropOffChange={setDropOffTime}
-                      onPickUpChange={setPickUpTime}
+                      onDropOffChange={handleDropOffTimeChange}
+                      onPickUpChange={handlePickUpTimeChange}
                       compact
+                      {...pickupTimesFieldProps}
                     />
                   </div>
                 )}
@@ -897,8 +1086,9 @@ export function PortalBookingWizard({
                 <p className="text-sm text-sage-600">
                   Wähle einzelne Betreuungstage (mehrere möglich).
                 </p>
-                <div className="flex justify-center rounded-xl border border-sage-200/80 bg-sage-50/80 p-3">
-                  <BookingMultiDayCalendar
+                <div className="relative isolate overflow-hidden rounded-xl border border-sage-200/80 bg-white p-3">
+                  <div className="flex justify-center">
+                    <BookingMultiDayCalendar
                     selected={dayCareOnceDates[line.pet_id] || []}
                     onSelect={(dates) =>
                       setDayCareOnceDates((prev) => ({
@@ -914,6 +1104,7 @@ export function PortalBookingWizard({
                     month={calendarMonth}
                     onMonthChange={setCalendarMonth}
                   />
+                  </div>
                 </div>
                 {(dayCareOnceDates[line.pet_id]?.length ?? 0) > 0 && (
                   <p className="text-center text-sm text-sage-700">
@@ -996,8 +1187,9 @@ export function PortalBookingWizard({
               <PickupTimesFields
                 dropOffTime={dropOffTime}
                 pickUpTime={pickUpTime}
-                onDropOffChange={setDropOffTime}
-                onPickUpChange={setPickUpTime}
+                onDropOffChange={handleDropOffTimeChange}
+                onPickUpChange={handlePickUpTimeChange}
+                {...pickupTimesFieldProps}
               />
             </div>
           )}
@@ -1088,19 +1280,34 @@ export function PortalBookingWizard({
       )}
       </div>
 
-      <div className="flex shrink-0 justify-between gap-2 border-t border-sage-100 pt-4">
-        <Button type="button" variant="outline" onClick={step === 1 ? onCancel : goToPreviousStep}>
-          {step === 1 ? 'Abbrechen' : 'Zurück'}
-        </Button>
-        {step < OVERVIEW_STEP ? (
-          <Button type="button" onClick={goToNextStep} disabled={pets.length === 0}>
-            Weiter
-          </Button>
-        ) : (
-          <Button type="button" onClick={handleSubmit} disabled={submitting || pets.length === 0}>
-            {submitting ? 'Wird gesendet…' : 'Anfrage stellen'}
-          </Button>
+      <div
+        className={cn(
+          'fixed bottom-0 right-0 z-40 border-t border-sage-200 bg-sage-50/95 py-4 shadow-[0_-8px_24px_-12px_rgba(0,0,0,0.12)] backdrop-blur-sm',
+          isMobile
+            ? 'left-0'
+            : sidebarState === 'expanded'
+              ? 'left-[var(--sidebar-width)]'
+              : 'left-[var(--sidebar-width-icon)]'
         )}
+      >
+        <div className="mx-auto flex max-w-5xl justify-between gap-2 px-4 sm:px-6 lg:px-8">
+          <Button type="button" variant="outline" onClick={step === 1 ? onCancel : goToPreviousStep}>
+            {step === 1 ? 'Abbrechen' : 'Zurück'}
+          </Button>
+          {step < OVERVIEW_STEP ? (
+            <Button
+              type="button"
+              onClick={() => void goToNextStep()}
+              disabled={pets.length === 0 || advancingStep}
+            >
+              {advancingStep ? 'Wird geprüft…' : 'Weiter'}
+            </Button>
+          ) : (
+            <Button type="button" onClick={handleSubmit} disabled={submitting || pets.length === 0}>
+              {submitting ? 'Wird gesendet…' : 'Anfrage stellen'}
+            </Button>
+          )}
+        </div>
       </div>
     </div>
   )

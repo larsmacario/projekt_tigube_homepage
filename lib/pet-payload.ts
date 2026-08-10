@@ -44,17 +44,27 @@ export function finalizePetPayloadUpdates(
 }
 
 export function validatePetPayload(payload: Record<string, unknown>): string | null {
-  const name = typeof payload.name === 'string' ? payload.name.trim() : ''
-  if (!name) {
-    return 'Name des Tieres ist erforderlich.'
+  if (Object.prototype.hasOwnProperty.call(payload, 'name')) {
+    const name = typeof payload.name === 'string' ? payload.name.trim() : ''
+    if (!name) {
+      return 'Name des Tieres ist erforderlich.'
+    }
   }
 
-  const tierart = typeof payload.tierart === 'string' ? payload.tierart.trim() : ''
-  if (!tierart) {
-    return 'Tierart ist erforderlich.'
+  if (Object.prototype.hasOwnProperty.call(payload, 'tierart')) {
+    const tierart = typeof payload.tierart === 'string' ? payload.tierart.trim() : ''
+    if (!tierart) {
+      return 'Tierart ist erforderlich.'
+    }
   }
 
-  if (isDog(tierart) && payload.intervall_impfung) {
+  const tierart =
+    typeof payload.tierart === 'string' ? payload.tierart.trim() : ''
+  if (
+    Object.prototype.hasOwnProperty.call(payload, 'tierart') &&
+    isDog(tierart) &&
+    payload.intervall_impfung
+  ) {
     const intervall = String(payload.intervall_impfung)
     if (!KOMBI_INTERVALL_VALUES.has(intervall)) {
       return 'Für Hunde ist bei der Kombiimpfung nur jährlich oder alle 2 Jahre erlaubt.'

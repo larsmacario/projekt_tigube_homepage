@@ -52,21 +52,24 @@ export function BookingMultiDayCalendar({
   )
 
   return (
-    <Calendar
-      mode="multiple"
-      locale={deDayPicker}
-      weekStartsOn={1}
-      selected={selected}
-      defaultMonth={defaultMonth ?? selected?.[0]}
-      month={month}
-      onMonthChange={onMonthChange}
-      onSelect={onSelect}
-      disabled={disabled}
-      classNames={bookingRangeCalendarClassNames}
-      className={cn(bookingRangeCalendarClassName, className)}
-      components={{
-        DayButton: DayButtonComponent,
-      }}
-    />
+    <div className="relative isolate overflow-hidden rounded-xl bg-white">
+      <Calendar
+        mode="multiple"
+        locale={deDayPicker}
+        weekStartsOn={1}
+        showOutsideDays={false}
+        selected={selected}
+        defaultMonth={defaultMonth ?? selected?.[0]}
+        month={month}
+        onMonthChange={onMonthChange}
+        onSelect={onSelect}
+        disabled={disabled}
+        classNames={bookingRangeCalendarClassNames}
+        className={cn(bookingRangeCalendarClassName, className)}
+        components={{
+          DayButton: DayButtonComponent,
+        }}
+      />
+    </div>
   )
 }

@@ -3,6 +3,13 @@ import {
   normalizeCancellationSections,
   type CancellationSection,
 } from '@/lib/cms/cancellation-policy'
+import {
+  defaultPickupTimeDefaults,
+  normalizePickupTimeDefaults,
+  type PickupTimeDefaults,
+} from '@/lib/pickup-time-defaults'
+
+export type { PickupTimeDefaults }
 
 export interface KundenportalDocumentItem {
   title: string
@@ -30,6 +37,7 @@ export interface KundenportalData {
   pickupTimesTitle?: string
   pickupTimesList?: KundenportalPickupRow[]
   pickupTimesNote?: string
+  pickupTimeDefaults?: PickupTimeDefaults
   documentsTitle?: string
   documentsIntro?: string
   documentsItems?: KundenportalDocumentItem[]
@@ -66,6 +74,7 @@ export const defaultKundenportalData: KundenportalData = {
   ],
   pickupTimesNote:
     'Außerhalb der offiziellen Zeiten nur mit Termin und gegen Aufpreis.',
+  pickupTimeDefaults: defaultPickupTimeDefaults,
   documentsTitle: 'Nötige Unterlagen für den Hundeurlaub und die Tagesbetreuung',
   documentsIntro:
     'Diese Unterlagen sind zwingend notwendig für den Aufenthalt in unserer Pension. Bitte überprüfe rechtzeitig vor dem Urlaubsantritt, ob sie auf dem aktuellen Stand sind. Ohne gültige Nachweise kann keine Betreuung stattfinden.',
@@ -181,6 +190,7 @@ export function mergeKundenportalData(partial: KundenportalData | null | undefin
     pickupTimesTitle: pickString(p.pickupTimesTitle, d.pickupTimesTitle!),
     pickupTimesList: pickPickupList(p.pickupTimesList, d.pickupTimesList!),
     pickupTimesNote: pickString(p.pickupTimesNote, d.pickupTimesNote!),
+    pickupTimeDefaults: normalizePickupTimeDefaults(p.pickupTimeDefaults ?? d.pickupTimeDefaults),
     documentsTitle: pickString(p.documentsTitle, d.documentsTitle!),
     documentsIntro: pickString(p.documentsIntro, d.documentsIntro!),
     documentsItems: pickDocumentItems(p.documentsItems, d.documentsItems!),

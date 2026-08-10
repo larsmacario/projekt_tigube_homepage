@@ -5,6 +5,11 @@ import {
   estimateBookingCosts,
   type BookingEstimateInput,
 } from '@/lib/booking-price-estimate'
+import {
+  BRING_HOLZEITEN_CATEGORY_ID,
+  OUT_OF_HOURS_PICKUP_PRICE_ID,
+} from '@/lib/pickup-time-surcharge'
+import { DEFAULT_OVERNIGHT_FEE } from '@/lib/overnight-surcharge'
 import type { BookingExtraCategory, BookingExtraPrice } from '@/lib/booking-extras'
 
 const grundCategory: BookingExtraCategory = {
@@ -152,5 +157,137 @@ describe('estimateBookingCosts', () => {
   it('includes disclaimer', () => {
     const result = estimateBookingCosts(minimalInput({}))
     expect(result.disclaimer).toBe(BOOKING_ESTIMATE_DISCLAIMER)
+  })
+
+  it('adds pickup surcharge and overnight for late pickup after 20:00', () => {
+    const bringHolCategory: BookingExtraCategory = {
+      id: BRING_HOLZEITEN_CATEGORY_ID,
+      name: 'Hundepension Bring- und Holzeiten',
+      description: null,
+      service_type: 'hundepension',
+      sort_order: 5,
+    }
+    const pickupSurcharge: BookingExtraPrice = {
+      id: OUT_OF_HOURS_PICKUP_PRICE_ID,
+      category_id: bringHolCategory.id,
+      name: 'Bring-/Holzeit außerhalb Standardzeit',
+      description: null,
+      price: 8,
+      price_type: 'fixed',
+      unit: 'pro Termin',
+      note: null,
+      sort_order: 1,
+      usage: 'surcharge',
+      final_price: 8,
+      catalog_price: 8,
+    }
+    const extrasCategory: BookingExtraCategory = {
+      id: 'c3333333-3333-4333-c333-333333333333',
+      name: 'Hundepension Zusatzleistungen',
+      description: null,
+      service_type: 'hundepension',
+      sort_order: 3,
+    }
+    const overnightPrice: BookingExtraPrice = {
+      id: 'overnight-1',
+      category_id: extrasCategory.id,
+      name: 'Übernachtung',
+      description: null,
+      price: 10,
+      price_type: 'fixed',
+      unit: 'je Nacht',
+      note: null,
+      sort_order: 1,
+      usage: 'extra',
+      final_price: 10,
+      catalog_price: 10,
+    }
+
+    const result = estimateBookingCosts(
+      minimalInput({
+        petLines: [{ pet_id: 'pet-1', service_type: 'hundepension' }],
+        dateRange: { from: new Date(2026, 6, 27), to: new Date(2026, 6, 31) },
+        dropOffTime: '07:00',
+        pickUpTime: '21:00',
+        prices: [basePrice, pickupSurcharge, overnightPrice],
+        categories: [grundCategory, bringHolCategory, extrasCategory],
+      })
+    )
+
+    expect(
+      result.lines.some(
+        (l) => l.kind === 'charge' && l.label.includes('Abholen außerhalb Standardzeit')
+      )
+    ).toBe(true)
+    expect(
+      result.lines.some((l) => l.kind === 'charge' && l.label.includes('Übernachtung'))
+    ).toBe(true)
+
+    const pensionTotal = 5 * 40
+    const pickupTotal = 8
+    const overnightTotal = 10
+    expect(result.total).toBe(pensionTotal + pickupTotal + overnightTotal)
+  })
+
+  it('adds pickup surcharge at 19:00 without overnight', () => {
+    const bringHolCategory: BookingExtraCategory = {
+      id: BRING_HOLZEITEN_CATEGORY_ID,
+      name: 'Hundepension Bring- und Holzeiten',
+      description: null,
+      service_type: 'hundepension',
+      sort_order: 5,
+    }
+    const pickupSurcharge: BookingExtraPrice = {
+      id: OUT_OF_HOURS_PICKUP_PRICE_ID,
+      category_id: bringHolCategory.id,
+      name: 'Bring-/Holzeit außerhalb Standardzeit',
+      description: null,
+      price: 8,
+      price_type: 'fixed',
+      unit: 'pro Termin',
+      note: null,
+      sort_order: 1,
+      usage: 'surcharge',
+      final_price: 8,
+      catalog_price: 8,
+    }
+
+    const result = estimateBookingCosts(
+      minimalInput({
+        petLines: [{ pet_id: 'pet-1', service_type: 'hundepension' }],
+        dateRange: { from: new Date(2026, 6, 27), to: new Date(2026, 6, 27) },
+        dropOffTime: '07:00',
+        pickUpTime: '19:00',
+        prices: [basePrice, pickupSurcharge],
+        categories: [grundCategory, bringHolCategory],
+      })
+    )
+
+    expect(
+      result.lines.some(
+        (l) => l.kind === 'charge' && l.label.includes('Abholen außerhalb Standardzeit')
+      )
+    ).toBe(true)
+    expect(result.lines.some((l) => l.label.includes('Übernachtung'))).toBe(false)
+    expect(result.total).toBe(40 + 8)
+  })
+
+  it('uses default overnight fee when catalog price missing', () => {
+    const result = estimateBookingCosts(
+      minimalInput({
+        petLines: [{ pet_id: 'pet-1', service_type: 'hundepension' }],
+        dateRange: { from: new Date(2026, 6, 27), to: new Date(2026, 6, 27) },
+        dropOffTime: '07:00',
+        pickUpTime: '21:00',
+        prices: [basePrice],
+        categories: [grundCategory],
+      })
+    )
+
+    const overnight = result.lines.find(
+      (l) => l.kind === 'charge' && l.label.includes('Übernachtung')
+    )
+    expect(overnight?.lineTotal).toBe(DEFAULT_OVERNIGHT_FEE)
+    expect(result.total).toBe(40 + DEFAULT_OVERNIGHT_FEE + 8)
   })
 })

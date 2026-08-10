@@ -66,7 +66,7 @@ export async function PATCH(
         .eq('id', bookingId)
         .select(`
           *,
-          pet:pets(id, name, tierart),
+          pet:pets(id, name, tierart, care_plan),
           customer:contacts!bookings_customer_id_fkey(id, vorname, nachname, email, telefonnummer),
           responded_by_user:users!bookings_responded_by_fkey(id, email)
         `)
@@ -157,7 +157,7 @@ export async function PATCH(
       .eq('id', bookingId)
       .select(`
         *,
-        pet:pets(id, name, tierart),
+        pet:pets(id, name, tierart, care_plan),
         customer:contacts!bookings_customer_id_fkey(id, vorname, nachname, email, telefonnummer),
         responded_by_user:users!bookings_responded_by_fkey(id, email)
       `)

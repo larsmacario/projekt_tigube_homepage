@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Label } from '@/components/ui/label'
@@ -12,6 +13,7 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet'
 import { BookingLineItemsPanel } from '@/components/admin/booking-line-items-panel'
+import { PetCarePlanSummary } from '@/components/portal/pet-care-plan-summary'
 import { formatEuro } from '@/lib/price-override'
 import { formatDayCareBookingSummary } from '@/lib/day-care-booking'
 import type { BookingRequest } from '@/lib/types'
@@ -155,6 +157,27 @@ export function BookingDetailSheet({
                   {getStatusLabel(booking.status)}
                 </Badge>
               </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Futter- & Medikamentenplan</Label>
+              {booking.pet?.care_plan ? (
+                <PetCarePlanSummary
+                  pet={{ name: booking.pet.name, care_plan: booking.pet.care_plan }}
+                  compact
+                  printHref={`/admin/customers/${booking.customer_id}/pets/${booking.pet_id}/care-plan/print`}
+                />
+              ) : (
+                <p className="text-sm text-sage-600">
+                  Kein Pflegeplan hinterlegt.{' '}
+                  <Link
+                    href={`/admin/customers/${booking.customer_id}`}
+                    className="text-primary hover:underline"
+                  >
+                    Kundenprofil ansehen
+                  </Link>
+                </p>
+              )}
             </div>
 
             {booking.message && (

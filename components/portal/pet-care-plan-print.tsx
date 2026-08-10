@@ -5,8 +5,10 @@ import { Button } from '@/components/ui/button'
 import {
   CARE_PLAN_FOOD_TYPES,
   CARE_PLAN_SLOT_LABELS,
+  getActiveMedicationEntries,
   normalizeCarePlan,
 } from '@/lib/pet-care-plan'
+import { MedicationGroupedList } from '@/components/portal/medication-grouped-list'
 
 type PetCarePlanPrintProps = {
   petName: string
@@ -100,33 +102,17 @@ export function PetCarePlanPrintView({
         </tbody>
       </table>
 
-      <h2 className="mb-2 text-lg font-semibold">Medikamente</h2>
-      <table className="mb-6 w-full border-collapse border border-black text-sm">
-        <thead>
-          <tr className="bg-gray-100">
-            <th className="border border-black px-2 py-1 text-left"></th>
-            {CARE_PLAN_SLOT_LABELS.map((label) => (
-              <th key={label} className="border border-black px-2 py-1 text-left">{label}</th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {[
-            ['Timing', 'timing'],
-            ['Medikament', 'medication'],
-            ['Menge', 'amount'],
-          ].map(([label, key]) => (
-            <tr key={label}>
-              <td className="border border-black px-2 py-1 font-medium">{label}</td>
-              {plan.medication.map((slot, index) => (
-                <td key={`${label}-${index}`} className="border border-black px-2 py-1">
-                  {slot.enabled ? (slot[key as keyof typeof slot] as string) || '–' : '–'}
-                </td>
-              ))}
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      {getActiveMedicationEntries(plan).length > 0 && (
+        <>
+          <h2 className="mb-2 text-lg font-semibold">Medikamente</h2>
+          <div className="mb-6 rounded border border-black p-3">
+            <MedicationGroupedList
+              plan={plan}
+              itemClassName="text-sm text-black"
+            />
+          </div>
+        </>
+      )}
 
       {plan.intolerances && (
         <p className="mb-2 text-sm"><strong>Unverträglichkeiten:</strong> {plan.intolerances}</p>

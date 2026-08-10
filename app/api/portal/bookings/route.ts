@@ -25,6 +25,10 @@ import { randomUUID } from 'crypto'
 import { buildBookingRequestEmailContent } from '@/lib/booking-request-email'
 import { sendBookingRequestEmails } from '@/lib/email'
 import { isValidTimeHHmm } from '@/lib/pickup-time-surcharge'
+import { resolvePickupDateSpanFromPortalLines } from '@/lib/pickup-date-span'
+import { buildPickupSurchargeLineItems } from '@/lib/pickup-surcharge-line-items'
+import { buildOvernightSurchargeLineItems } from '@/lib/overnight-surcharge-line-items'
+import { getPublicHolidaysInRange } from '@/lib/public-holidays-de'
 import type { SupabaseClient } from '@supabase/supabase-js'
 
 export const runtime = 'nodejs'
@@ -499,6 +503,39 @@ export async function POST(request: NextRequest) {
         addonLineItems = addonResult.lineItems
       }
 
+      let pickupSurchargeLineItems: BookingLineItemInsert[] = []
+      let overnightSurchargeLineItems: BookingLineItemInsert[] = []
+      if (needsPickupTimes && pickupTimesForEmail) {
+        const pickupSpan = resolvePickupDateSpanFromPortalLines(petLines, groupRange)
+        if (pickupSpan) {
+          const catalog = await loadBookingExtraCatalogForCustomer(
+            supabase,
+            customer.id,
+            customer.customer_group_id,
+            serviceTypes,
+            null
+          )
+          const publicHolidays = await getPublicHolidaysInRange(pickupSpan.start, pickupSpan.end)
+          pickupSurchargeLineItems = buildPickupSurchargeLineItems({
+            requestGroupId,
+            dropOffTime: pickupTimesForEmail.drop_off_time,
+            pickUpTime: pickupTimesForEmail.pick_up_time,
+            pickupSpan,
+            publicHolidays,
+            prices: catalog.prices,
+            categories: catalog.categories,
+            createdBy: userData.id,
+          })
+          overnightSurchargeLineItems = buildOvernightSurchargeLineItems({
+            requestGroupId,
+            pickUpTime: pickupTimesForEmail.pick_up_time,
+            prices: catalog.prices,
+            categories: catalog.categories,
+            createdBy: userData.id,
+          })
+        }
+      }
+
       const createdBookingIds: string[] = []
       const createdBookings: any[] = []
       const bookingIdByPetId = new Map<string, string>()
@@ -548,7 +585,12 @@ export async function POST(request: NextRequest) {
           )
         }
 
-        lineItemsToInsert = [...lineItemsToInsert, ...addonLineItems]
+        lineItemsToInsert = [
+          ...lineItemsToInsert,
+          ...addonLineItems,
+          ...pickupSurchargeLineItems,
+          ...overnightSurchargeLineItems,
+        ]
 
         if (lineItemsToInsert.length > 0) {
           const adminClient = getAdminDbClient()

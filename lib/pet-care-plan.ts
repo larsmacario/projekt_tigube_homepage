@@ -23,8 +23,16 @@ export interface CarePlanFeedingSlot {
   additiveAmount: string
 }
 
+/** @deprecated Legacy slot format – migrated automatically via normalizeCarePlan */
 export interface CarePlanMedicationSlot {
   enabled: boolean
+  timing: string
+  medication: string
+  amount: string
+}
+
+export interface CarePlanMedicationEntry {
+  timeSlot: CarePlanSlotLabel
   timing: string
   medication: string
   amount: string
@@ -35,7 +43,7 @@ export interface PetCarePlan {
   intolerances: string
   individualWishes: string
   feeding: CarePlanFeedingSlot[]
-  medication: CarePlanMedicationSlot[]
+  medication: CarePlanMedicationEntry[]
 }
 
 export type PetCarePlanInput = PetCarePlan | Record<string, unknown> | null | undefined
@@ -49,12 +57,22 @@ const EMPTY_FEEDING_SLOT = (): CarePlanFeedingSlot => ({
   additiveAmount: '',
 })
 
-const EMPTY_MEDICATION_SLOT = (): CarePlanMedicationSlot => ({
-  enabled: false,
-  timing: '',
-  medication: '',
-  amount: '',
-})
+export function emptyMedicationEntry(
+  timeSlot: CarePlanSlotLabel = 'Morgens'
+): CarePlanMedicationEntry {
+  return {
+    timeSlot,
+    timing: '',
+    medication: '',
+    amount: '',
+  }
+}
+
+export function nextTimeSlot(timeSlot: CarePlanSlotLabel): CarePlanSlotLabel {
+  const index = CARE_PLAN_SLOT_LABELS.indexOf(timeSlot)
+  const nextIndex = index >= 0 ? (index + 1) % CARE_PLAN_SLOT_LABELS.length : 0
+  return CARE_PLAN_SLOT_LABELS[nextIndex]
+}
 
 export function emptyPetCarePlan(): PetCarePlan {
   return {
@@ -62,13 +80,20 @@ export function emptyPetCarePlan(): PetCarePlan {
     intolerances: '',
     individualWishes: '',
     feeding: CARE_PLAN_SLOT_LABELS.map(() => EMPTY_FEEDING_SLOT()),
-    medication: CARE_PLAN_SLOT_LABELS.map(() => EMPTY_MEDICATION_SLOT()),
+    medication: [],
   }
 }
 
 function normalizeString(value: unknown): string {
   if (typeof value !== 'string') return ''
   return value.trim()
+}
+
+function normalizeTimeSlot(value: unknown): CarePlanSlotLabel {
+  if (typeof value === 'string' && CARE_PLAN_SLOT_LABELS.includes(value as CarePlanSlotLabel)) {
+    return value as CarePlanSlotLabel
+  }
+  return 'Morgens'
 }
 
 function normalizeFoodTypes(value: unknown): CarePlanFoodTypeId[] {
@@ -92,14 +117,59 @@ function normalizeFeedingSlot(value: unknown): CarePlanFeedingSlot {
   }
 }
 
-function normalizeMedicationSlot(value: unknown): CarePlanMedicationSlot {
-  const slot = (value && typeof value === 'object' ? value : {}) as Partial<CarePlanMedicationSlot>
+function isLegacyMedicationArray(items: unknown[]): boolean {
+  return items.some(
+    (item) => item != null && typeof item === 'object' && 'enabled' in item
+  )
+}
+
+function migrateLegacyMedication(items: unknown[]): CarePlanMedicationEntry[] {
+  const entries: CarePlanMedicationEntry[] = []
+
+  items.forEach((item, index) => {
+    if (!item || typeof item !== 'object') return
+    const slot = item as Partial<CarePlanMedicationSlot>
+    if (!slot.enabled) return
+
+    entries.push({
+      timeSlot: CARE_PLAN_SLOT_LABELS[index] ?? 'Morgens',
+      timing: normalizeString(slot.timing),
+      medication: normalizeString(slot.medication),
+      amount: normalizeString(slot.amount),
+    })
+  })
+
+  return entries
+}
+
+function normalizeMedicationEntry(value: unknown): CarePlanMedicationEntry | null {
+  if (!value || typeof value !== 'object') return null
+
+  const raw = value as Partial<CarePlanMedicationEntry & CarePlanMedicationSlot>
+  const timing = normalizeString(raw.timing)
+  const medication = normalizeString(raw.medication)
+  const amount = normalizeString(raw.amount)
+
+  if (!timing && !medication && !amount) return null
+
   return {
-    enabled: Boolean(slot.enabled),
-    timing: normalizeString(slot.timing),
-    medication: normalizeString(slot.medication),
-    amount: normalizeString(slot.amount),
+    timeSlot: normalizeTimeSlot(raw.timeSlot),
+    timing,
+    medication,
+    amount,
   }
+}
+
+function normalizeMedicationList(items: unknown[]): CarePlanMedicationEntry[] {
+  if (items.length === 0) return []
+
+  if (isLegacyMedicationArray(items)) {
+    return migrateLegacyMedication(items)
+  }
+
+  return items
+    .map(normalizeMedicationEntry)
+    .filter((entry): entry is CarePlanMedicationEntry => entry != null)
 }
 
 function padSlots<T>(items: T[], length: number, factory: () => T): T[] {
@@ -108,6 +178,36 @@ function padSlots<T>(items: T[], length: number, factory: () => T): T[] {
     result.push(factory())
   }
   return result
+}
+
+export function isMedicationEntryEmpty(entry: CarePlanMedicationEntry): boolean {
+  return !entry.timing && !entry.medication && !entry.amount
+}
+
+export function isMedicationEntryComplete(entry: CarePlanMedicationEntry): boolean {
+  if (isMedicationEntryEmpty(entry)) return true
+  return Boolean(entry.timing && entry.medication && entry.amount)
+}
+
+export function getActiveMedicationEntries(
+  plan: PetCarePlan
+): CarePlanMedicationEntry[] {
+  return plan.medication.filter((entry) => !isMedicationEntryEmpty(entry))
+}
+
+export function groupMedicationsByTimeSlot(
+  entries: CarePlanMedicationEntry[]
+): Record<CarePlanSlotLabel, CarePlanMedicationEntry[]> {
+  const grouped = Object.fromEntries(
+    CARE_PLAN_SLOT_LABELS.map((label) => [label, [] as CarePlanMedicationEntry[]])
+  ) as Record<CarePlanSlotLabel, CarePlanMedicationEntry[]>
+
+  for (const entry of entries) {
+    if (isMedicationEntryEmpty(entry)) continue
+    grouped[entry.timeSlot].push(entry)
+  }
+
+  return grouped
 }
 
 export function normalizeCarePlan(input: PetCarePlanInput): PetCarePlan | null {
@@ -127,11 +227,35 @@ export function normalizeCarePlan(input: PetCarePlanInput): PetCarePlan | null {
       CARE_PLAN_SLOT_LABELS.length,
       EMPTY_FEEDING_SLOT
     ),
-    medication: padSlots(
-      medicationRaw.map(normalizeMedicationSlot),
-      CARE_PLAN_SLOT_LABELS.length,
-      EMPTY_MEDICATION_SLOT
-    ),
+    medication: normalizeMedicationList(medicationRaw),
+  }
+}
+
+/** Behält leere Medikamenten-Zeilen für die Formularbearbeitung. */
+export function normalizeCarePlanForForm(input: PetCarePlanInput): PetCarePlan {
+  const base = normalizeCarePlan(input) ?? emptyPetCarePlan()
+  if (input == null || typeof input !== 'object') return base
+
+  const medicationRaw = Array.isArray((input as Record<string, unknown>).medication)
+    ? ((input as Record<string, unknown>).medication as unknown[])
+    : []
+
+  if (isLegacyMedicationArray(medicationRaw)) {
+    return base
+  }
+
+  return {
+    ...base,
+    medication: medicationRaw.map((item) => {
+      if (!item || typeof item !== 'object') return emptyMedicationEntry()
+      const raw = item as Partial<CarePlanMedicationEntry>
+      return {
+        timeSlot: normalizeTimeSlot(raw.timeSlot),
+        timing: normalizeString(raw.timing),
+        medication: normalizeString(raw.medication),
+        amount: normalizeString(raw.amount),
+      }
+    }),
   }
 }
 
@@ -140,7 +264,7 @@ export function hasMeaningfulCarePlan(plan: PetCarePlan | null): boolean {
   if (plan.foodTypes.length > 0) return true
   if (plan.intolerances.trim() || plan.individualWishes.trim()) return true
   if (plan.feeding.some((slot) => slot.enabled)) return true
-  if (plan.medication.some((slot) => slot.enabled)) return true
+  if (getActiveMedicationEntries(plan).length > 0) return true
   return false
 }
 
@@ -162,17 +286,12 @@ function isFeedingSlotComplete(slot: CarePlanFeedingSlot): boolean {
   return Boolean(slot.time && slot.food && slot.amount)
 }
 
-function isMedicationSlotComplete(slot: CarePlanMedicationSlot): boolean {
-  if (!slot.enabled) return true
-  return Boolean(slot.timing && slot.medication && slot.amount)
-}
-
 export function getActiveFeedingSlotCount(plan: PetCarePlan): number {
   return plan.feeding.filter((slot) => slot.enabled).length
 }
 
 export function getActiveMedicationSlotCount(plan: PetCarePlan): number {
-  return plan.medication.filter((slot) => slot.enabled).length
+  return getActiveMedicationEntries(plan).length
 }
 
 export function isCarePlanComplete(
@@ -188,8 +307,8 @@ export function isCarePlanComplete(
   if (activeFeeding.length === 0) return false
   if (!activeFeeding.every(isFeedingSlotComplete)) return false
 
-  const activeMedication = plan.medication.filter((slot) => slot.enabled)
-  if (!activeMedication.every(isMedicationSlotComplete)) return false
+  const activeMedication = getActiveMedicationEntries(plan)
+  if (!activeMedication.every(isMedicationEntryComplete)) return false
 
   const legacyHasMeds = Boolean(pet.medikamente?.trim())
   if (options?.requireMedicationWhenLegacy && legacyHasMeds && activeMedication.length === 0) {
@@ -221,13 +340,12 @@ export function validateCarePlan(input: PetCarePlanInput): string | null {
     }
   }
 
-  for (let index = 0; index < plan.medication.length; index += 1) {
-    const slot = plan.medication[index]
-    if (!slot.enabled) continue
-    const label = CARE_PLAN_SLOT_LABELS[index]
-    if (!slot.timing || !slot.medication || !slot.amount) {
-      return `Bitte fülle Timing, Medikament und Menge für ${label} aus.`
-    }
+  for (const entry of plan.medication) {
+    if (isMedicationEntryEmpty(entry)) continue
+    if (isMedicationEntryComplete(entry)) continue
+
+    const label = entry.medication || 'Medikament'
+    return `Bitte fülle Timing, Medikament und Menge für ${entry.timeSlot} (${label}) aus.`
   }
 
   return null
@@ -256,12 +374,10 @@ export function carePlanToLegacyFields(plan: PetCarePlan): {
     })
     .filter(Boolean)
 
-  const medicationLines = plan.medication
-    .map((slot, index) => {
-      if (!slot.enabled) return null
-      return `${CARE_PLAN_SLOT_LABELS[index]} (${slot.timing}): ${slot.medication} ${slot.amount}`.trim()
-    })
-    .filter(Boolean)
+  const medicationLines = getActiveMedicationEntries(plan).map(
+    (entry) =>
+      `${entry.timeSlot} (${entry.timing}): ${entry.medication} ${entry.amount}`.trim()
+  )
 
   const futtermengeParts = [
     foodTypeLabels ? `Futterarten: ${foodTypeLabels}` : null,
@@ -327,12 +443,9 @@ export function formatCarePlanSummary(plan: PetCarePlan): string {
       return `${label} ${slot.time}: ${slot.food} (${slot.amount})`
     })
 
-  const medication = plan.medication
-    .filter((slot) => slot.enabled)
-    .map((slot, index) => {
-      const label = CARE_PLAN_SLOT_LABELS[index]
-      return `${label}: ${slot.medication} (${slot.amount}, ${slot.timing})`
-    })
+  const medication = getActiveMedicationEntries(plan).map(
+    (entry) => `${entry.timeSlot}: ${entry.medication} (${entry.amount}, ${entry.timing})`
+  )
 
   return [
     foodTypes ? `Futterarten: ${foodTypes}` : null,

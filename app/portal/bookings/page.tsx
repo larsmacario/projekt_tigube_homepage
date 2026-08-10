@@ -1,22 +1,21 @@
 'use client'
 
 import { useEffect, useState, useMemo } from 'react'
+import Link from 'next/link'
+import { useSearchParams } from 'next/navigation'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
 import { BookingCalendar } from '@/components/booking-calendar'
-import { PortalBookingWizard } from '@/components/portal/portal-booking-wizard'
 import { useToast } from '@/hooks/use-toast'
-import type { BookingRequest, Pet } from '@/lib/types'
+import type { BookingRequest } from '@/lib/types'
 import { authenticatedFetch } from '@/lib/authenticated-fetch'
 import { readApiResponse } from '@/lib/read-api-response'
 import { startOfDay, toIsoDate } from '@/lib/vacation-dates'
@@ -76,10 +75,9 @@ function getStatusLabel(status: string) {
 }
 
 export default function BookingsPage() {
+  const searchParams = useSearchParams()
   const [bookings, setBookings] = useState<BookingRequest[]>([])
-  const [pets, setPets] = useState<Pet[]>([])
   const [loading, setLoading] = useState(true)
-  const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [selectedBooking, setSelectedBooking] = useState<BookingRequest | null>(null)
   const [cancellationBooking, setCancellationBooking] = useState<BookingRequest | null>(null)
   const { toast } = useToast()
@@ -134,23 +132,27 @@ export default function BookingsPage() {
     loadAvailability()
   }, [])
 
+  useEffect(() => {
+    if (searchParams.get('created') === '1') {
+      toast({
+        title: 'Anfrage gesendet',
+        description: 'Deine Buchungsanfrage wurde erfolgreich übermittelt.',
+      })
+      window.history.replaceState({}, '', '/portal/bookings')
+    }
+  }, [searchParams, toast])
+
   async function loadData() {
     try {
-      const [bookingsRes, petsRes] = await Promise.all([
-        authenticatedFetch('/api/portal/bookings'),
-        authenticatedFetch('/api/portal/pets'),
-      ])
+      const bookingsRes = await authenticatedFetch('/api/portal/bookings')
 
       const bookingsResult = await readApiResponse<{ bookings?: BookingRequest[]; error?: string }>(
         bookingsRes
       )
-      const petsResult = await readApiResponse<{ pets?: Pet[]; error?: string }>(petsRes)
 
       if (bookingsResult.error) throw new Error(bookingsResult.error)
-      if (petsResult.error) throw new Error(petsResult.error)
 
       setBookings(bookingsResult.data?.bookings || [])
-      setPets(petsResult.data?.pets || [])
     } catch (error) {
       console.error('Error loading data:', error)
       toast({
@@ -161,11 +163,6 @@ export default function BookingsPage() {
     } finally {
       setLoading(false)
     }
-  }
-
-  function handleWizardSuccess(created: BookingRequest[]) {
-    setBookings([...created, ...bookings])
-    setIsDialogOpen(false)
   }
 
   function handleBookingCancelled(updated: BookingRequest) {
@@ -213,24 +210,9 @@ export default function BookingsPage() {
           <h1 className="text-3xl font-bold text-sage-900">Meine Buchungen</h1>
           <p className="mt-2 text-sage-600">Verwalte deine Betreuungsanfragen</p>
         </div>
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogTrigger asChild>
-            <Button className="bg-sage-600 hover:bg-sage-700">Neue Anfrage</Button>
-          </DialogTrigger>
-          <DialogContent className="flex h-[min(720px,90vh)] max-h-[90vh] max-w-3xl flex-col overflow-hidden">
-            <DialogHeader className="shrink-0">
-              <DialogTitle>Neue Buchungsanfrage</DialogTitle>
-              <DialogDescription>
-                Tier und Leistung, Zeitraum und optionale Zusatzleistungen
-              </DialogDescription>
-            </DialogHeader>
-            <PortalBookingWizard
-              pets={pets}
-              onSuccess={handleWizardSuccess}
-              onCancel={() => setIsDialogOpen(false)}
-            />
-          </DialogContent>
-        </Dialog>
+        <Button className="bg-sage-600 hover:bg-sage-700" asChild>
+          <Link href="/portal/bookings/new">Neue Anfrage</Link>
+        </Button>
       </div>
 
       <Card>

@@ -9,6 +9,7 @@ import { useToast } from '@/hooks/use-toast'
 import { authenticatedFetch } from '@/lib/authenticated-fetch'
 import type { Document, Pet } from '@/lib/types'
 import { DOCUMENT_TYPE_OPTIONS } from '@/lib/pet-form-options'
+import { getImpfpassCategoryLabel } from '@/lib/impfpass-photo-categories'
 import { AdminSection } from '@/components/admin/admin-section'
 import {
   AlertDialog,
@@ -223,6 +224,14 @@ export function DocumentManager({
                   <div className="min-w-0">
                     <p className="truncate font-medium text-sage-900">{doc.file_name}</p>
                     <p className="text-sm text-sage-600">{getDocumentTypeLabel(doc.document_type)}</p>
+                    {doc.document_type === 'impfpass' && doc.page_category && (
+                      <p className="text-xs text-sage-600">
+                        {getImpfpassCategoryLabel(doc.page_category)}
+                      </p>
+                    )}
+                    {doc.description && (
+                      <p className="text-xs text-sage-500 line-clamp-2">{doc.description}</p>
+                    )}
                     <p className="text-xs text-sage-500">
                       {new Date(doc.uploaded_at).toLocaleDateString('de-DE')}
                     </p>

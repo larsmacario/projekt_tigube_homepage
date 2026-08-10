@@ -24,6 +24,7 @@ import {
   validatePetSaveRequired,
 } from '@/lib/pet-vaccination'
 import { PetPhotoGallery, type PetPhotoGalleryHandle } from '@/components/portal/pet-photo-gallery'
+import type { PetImpfpassGalleryHandle } from '@/components/portal/pet-impfpass-gallery'
 import { PetRecognitionField } from '@/components/portal/pet-recognition-field'
 import { PetDewormingDateField } from '@/components/portal/pet-deworming-date-field'
 import { PetMissingFieldsHint } from '@/components/portal/pet-missing-fields-hint'
@@ -112,10 +113,11 @@ function ProfileContent() {
   const [showPetForm, setShowPetForm] = useState(false)
   const [editingPetId, setEditingPetId] = useState<string | null>(null)
   const [uploadingDocuments, setUploadingDocuments] = useState(false)
-  const [impfpassFile, setImpfpassFile] = useState<File | null>(null)
   const [wurmtestFile, setWurmtestFile] = useState<File | null>(null)
   const [formPhotoCount, setFormPhotoCount] = useState(0)
+  const [formImpfpassCount, setFormImpfpassCount] = useState(0)
   const petPhotoGalleryRef = useRef<PetPhotoGalleryHandle>(null)
+  const petImpfpassGalleryRef = useRef<PetImpfpassGalleryHandle>(null)
   const [photoGalleryKey, setPhotoGalleryKey] = useState('new-pet')
   const [carePlan, setCarePlan] = useState<PetCarePlan>(() => carePlanFromPet())
 
@@ -664,7 +666,7 @@ function ProfileContent() {
         formData: petFormData,
         documents,
         editingPetId,
-        impfpassFile,
+        impfpassCount: formImpfpassCount,
         wurmtestFile,
         photoCount: formPhotoCount,
       })
@@ -713,24 +715,6 @@ function ProfileContent() {
       if (savedPetId) {
         const uploadPromises: Promise<void>[] = []
 
-        if (impfpassFile) {
-          uploadPromises.push(
-            uploadPortalDocument({
-              file: impfpassFile,
-              documentType: 'impfpass',
-              petId: savedPetId,
-            }).then(({ error }) => {
-              if (error) {
-                toast({
-                  title: 'Warnung',
-                  description: error || 'Impfpass konnte nicht hochgeladen werden',
-                  variant: 'destructive',
-                })
-              }
-            })
-          )
-        }
-
         if (wurmtestFile) {
           uploadPromises.push(
             uploadPortalDocument({
@@ -750,6 +734,14 @@ function ProfileContent() {
         }
 
         await Promise.all(uploadPromises)
+
+        if (petImpfpassGalleryRef.current) {
+          try {
+            await petImpfpassGalleryRef.current.flushPendingUploads(savedPetId)
+          } catch {
+            // Fehlertoast kommt aus der Galerie
+          }
+        }
 
         if (petPhotoGalleryRef.current) {
           try {
@@ -786,11 +778,11 @@ function ProfileContent() {
         letzte_stuhlprobe: '',
         naechste_stuhlprobe: '',
       })
-      setImpfpassFile(null)
       setWurmtestFile(null)
       setShowPetForm(false)
       setEditingPetId(null)
       setFormPhotoCount(0)
+      setFormImpfpassCount(0)
       toast({
         title: 'Erfolg',
         description: wasEditing ? 'Tier erfolgreich aktualisiert' : 'Tier erfolgreich hinzugefügt',
@@ -860,9 +852,9 @@ function ProfileContent() {
       setCarePlan(carePlanFromPet())
     }
     // Dateien zurücksetzen beim Öffnen des Formulars
-    setImpfpassFile(null)
     setWurmtestFile(null)
     setFormPhotoCount(pet?.photo_count ?? 0)
+    setFormImpfpassCount(0)
     setPhotoGalleryKey(pet?.id ?? crypto.randomUUID())
     setShowPetForm(true)
   }
@@ -1007,7 +999,6 @@ function ProfileContent() {
     )
   }
 
-  const hasExistingImpfpass = editingPetId && documents.some(d => d.pet_id === editingPetId && d.document_type === 'impfpass')
   const hasExistingWurmtest = editingPetId && documents.some(d => d.pet_id === editingPetId && d.document_type === 'wurmtest')
   const step1FormComplete = isCustomerProfileComplete(personalData as Customer)
   const contractPartyAddress = formatCustomerAddress(customer ?? personalData)
@@ -1444,12 +1435,15 @@ function ProfileContent() {
                     <h3 className="font-semibold text-sage-900">Dokumente & Vorsorge</h3>
                     
                     <PetVaccinationSection
+                      key={photoGalleryKey}
                       values={petFormData}
                       onChange={(updates) => setPetFormData({ ...petFormData, ...updates })}
                       idPrefix="profile-pet"
-                      hasExistingImpfpass={!!hasExistingImpfpass}
-                      impfpassFile={impfpassFile}
-                      onImpfpassChange={setImpfpassFile}
+                      petId={editingPetId}
+                      documents={documents}
+                      onDocumentsChange={setDocuments}
+                      impfpassGalleryRef={petImpfpassGalleryRef}
+                      onImpfpassCountChange={setFormImpfpassCount}
                     />
 
                     {/* Wurmtest Bereich */}
@@ -1528,9 +1522,9 @@ function ProfileContent() {
                           letzte_stuhlprobe: '',
                           naechste_stuhlprobe: '',
                         })
-                        setImpfpassFile(null)
                         setWurmtestFile(null)
                         setFormPhotoCount(0)
+                        setFormImpfpassCount(0)
                       }}
                     >
                       Abbrechen

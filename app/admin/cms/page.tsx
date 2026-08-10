@@ -17,7 +17,8 @@ import { CancellationSectionsEditor } from "@/components/admin/cms/cancellation-
 import {
   defaultKatzenCancellationSections,
   defaultPensionCancellationSections,
-  normalizeCancellationSections,
+  defaultPortalCancellationSections,
+  getCancellationSectionsForEditor,
   type CancellationSection,
 } from "@/lib/cms/cancellation-policy"
 
@@ -754,7 +755,7 @@ export default function CMSPage() {
                   mainTitleLabel="Stornierung – Hauptüberschrift"
                   mainTitle={dData.cancellationPolicyTitle || ''}
                   onMainTitleChange={(val) => updateData('hundepension', 'cancellationPolicyTitle', val)}
-                  sections={normalizeCancellationSections(dData, defaultPensionCancellationSections)}
+                  sections={getCancellationSectionsForEditor(dData, defaultPensionCancellationSections)}
                   onSectionsChange={(val) => updateData('hundepension', 'cancellationSections', val)}
                 />
               </div>
@@ -878,7 +879,7 @@ export default function CMSPage() {
                   mainTitleLabel="Stornierung – Hauptüberschrift"
                   mainTitle={cData.cancellationPolicyTitle || ''}
                   onMainTitleChange={(val) => updateData('katzenbetreuung', 'cancellationPolicyTitle', val)}
-                  sections={normalizeCancellationSections(cData, defaultKatzenCancellationSections)}
+                  sections={getCancellationSectionsForEditor(cData, defaultKatzenCancellationSections)}
                   onSectionsChange={(val) => updateData('katzenbetreuung', 'cancellationSections', val)}
                 />
               </div>
@@ -989,7 +990,7 @@ export default function CMSPage() {
                   mainTitleLabel="Stornierung – Hauptüberschrift"
                   mainTitle={kpData.cancellationTitle || ''}
                   onMainTitleChange={(val) => updateData('kundenportal', 'cancellationTitle', val)}
-                  sections={kpData.cancellationSections || []}
+                  sections={getCancellationSectionsForEditor(kpData, defaultPortalCancellationSections)}
                   onSectionsChange={(val) => updateData('kundenportal', 'cancellationSections', val)}
                   globalNotesLabel="Storno-Zusatzhinweise (Absätze am Ende)"
                   globalNotes={kpData.cancellationNotes || []}

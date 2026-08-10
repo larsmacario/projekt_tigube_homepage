@@ -12,6 +12,12 @@ import {
   getZwingerhustenDueDate,
   isDog,
 } from '@/lib/pet-vaccination'
+import {
+  PetImpfpassGallery,
+  type PetImpfpassGalleryHandle,
+} from '@/components/portal/pet-impfpass-gallery'
+import type { Document } from '@/lib/types'
+import type { RefObject } from 'react'
 
 type VaccinationFormValues = {
   tierart: string
@@ -24,18 +30,22 @@ type PetVaccinationSectionProps = {
   values: VaccinationFormValues
   onChange: (updates: Partial<VaccinationFormValues>) => void
   idPrefix?: string
-  hasExistingImpfpass?: boolean
-  impfpassFile?: File | null
-  onImpfpassChange?: (file: File | null) => void
+  petId?: string | null
+  documents?: Document[]
+  onDocumentsChange?: (documents: Document[]) => void
+  impfpassGalleryRef?: RefObject<PetImpfpassGalleryHandle | null>
+  onImpfpassCountChange?: (count: number) => void
 }
 
 export function PetVaccinationSection({
   values,
   onChange,
   idPrefix = 'pet',
-  hasExistingImpfpass = false,
-  impfpassFile = null,
-  onImpfpassChange,
+  petId = null,
+  documents = [],
+  onDocumentsChange,
+  impfpassGalleryRef,
+  onImpfpassCountChange,
 }: PetVaccinationSectionProps) {
   const today = new Date().toISOString().split('T')[0]
   const isDogPet = isDog(values.tierart)
@@ -53,23 +63,13 @@ export function PetVaccinationSection({
         Impfpass & Impfstatus
       </h4>
 
-      {onImpfpassChange && (
-        <div>
-          <Label htmlFor={`${idPrefix}-impfpass`}>
-            Impfpass (Foto aufnehmen, Bild oder PDF)
-            {hasExistingImpfpass ? ' (bereits hochgeladen)' : ''}
-          </Label>
-          <Input
-            id={`${idPrefix}-impfpass`}
-            type="file"
-            accept="image/*,application/pdf"
-            onChange={(e) => onImpfpassChange(e.target.files?.[0] || null)}
-          />
-          {impfpassFile && (
-            <p className="text-sm text-sage-600 mt-1">Ausgewählt: {impfpassFile.name}</p>
-          )}
-        </div>
-      )}
+      <PetImpfpassGallery
+        ref={impfpassGalleryRef}
+        petId={petId}
+        documents={documents}
+        onDocumentsChange={onDocumentsChange}
+        onImpfpassCountChange={onImpfpassCountChange}
+      />
 
       {isDogPet ? (
         <>

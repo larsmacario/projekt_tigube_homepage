@@ -8,8 +8,12 @@ export type CustomerDocumentType = (typeof ALLOWED_CUSTOMER_DOCUMENT_TYPES)[numb
 export function buildCustomerDocumentStoragePath(
   customerId: string,
   documentType: string,
-  fileExt: string
+  fileExt: string,
+  petId?: string | null
 ): string {
+  if (documentType === 'impfpass' && petId) {
+    return `${customerId}/${petId}/impfpass/${Date.now()}.${fileExt}`
+  }
   return `${customerId}/${documentType}/${Date.now()}.${fileExt}`
 }
 

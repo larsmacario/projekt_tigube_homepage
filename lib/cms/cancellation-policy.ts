@@ -116,6 +116,17 @@ export function normalizeCancellationSections(
   return fallbackSections
 }
 
+/** Liefert Abschnitte für den CMS-Editor – behält leere Platzhalter beim Bearbeiten. */
+export function getCancellationSectionsForEditor(
+  data: CancellationPolicyContent | null | undefined,
+  fallbackSections: CancellationSection[]
+): CancellationSection[] {
+  if (Array.isArray(data?.cancellationSections)) {
+    return data.cancellationSections
+  }
+  return normalizeCancellationSections(data, fallbackSections)
+}
+
 export function getCancellationMainTitle(
   data: CancellationPolicyContent | null | undefined,
   fallback: string,

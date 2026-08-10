@@ -5,6 +5,11 @@ import {
   buildCustomerDocumentStoragePath,
   CUSTOMER_DOCUMENTS_BUCKET,
 } from '@/lib/customer-documents'
+import {
+  DEFAULT_IMPFASS_PAGE_CATEGORY,
+  isImpfpassPageCategory,
+  normalizeImpfpassPageCategory,
+} from '@/lib/impfpass-photo-categories'
 
 export async function GET(request: NextRequest) {
   try {
@@ -48,6 +53,8 @@ export async function POST(request: NextRequest) {
     const documentType = formData.get('document_type') as string | null
     const customerId = formData.get('customer_id') as string | null
     const petId = formData.get('pet_id') as string | null
+    const pageCategoryRaw = formData.get('page_category') as string | null
+    const descriptionRaw = formData.get('description') as string | null
 
     if (!file || !documentType || !customerId) {
       return NextResponse.json(
@@ -58,6 +65,17 @@ export async function POST(request: NextRequest) {
 
     if (!ALLOWED_CUSTOMER_DOCUMENT_TYPES.includes(documentType as (typeof ALLOWED_CUSTOMER_DOCUMENT_TYPES)[number])) {
       return NextResponse.json({ error: 'Ungültiger Dokumenttyp' }, { status: 400 })
+    }
+
+    if (documentType === 'impfpass' && !petId) {
+      return NextResponse.json(
+        { error: 'Impfpass-Fotos müssen einem Tier zugeordnet werden.' },
+        { status: 400 }
+      )
+    }
+
+    if (pageCategoryRaw && !isImpfpassPageCategory(pageCategoryRaw)) {
+      return NextResponse.json({ error: 'Ungültige Impfpass-Kategorie' }, { status: 400 })
     }
 
     const { data: customer, error: customerError } = await auth.client
@@ -73,7 +91,7 @@ export async function POST(request: NextRequest) {
     }
 
     const fileExt = file.name.split('.').pop() || 'bin'
-    const filePath = buildCustomerDocumentStoragePath(customerId, documentType, fileExt)
+    const filePath = buildCustomerDocumentStoragePath(customerId, documentType, fileExt, petId)
 
     const { error: uploadError } = await auth.client.storage
       .from(CUSTOMER_DOCUMENTS_BUCKET)
@@ -81,12 +99,21 @@ export async function POST(request: NextRequest) {
 
     if (uploadError) throw uploadError
 
+    const pageCategory =
+      documentType === 'impfpass'
+        ? normalizeImpfpassPageCategory(pageCategoryRaw ?? DEFAULT_IMPFASS_PAGE_CATEGORY)
+        : null
+    const description =
+      descriptionRaw?.trim() ? descriptionRaw.trim().slice(0, 500) : null
+
     const { data, error: dbError } = await auth.client
       .from('documents')
       .insert({
         customer_id: customerId,
         pet_id: petId || null,
         document_type: documentType,
+        page_category: pageCategory,
+        description,
         file_path: filePath,
         file_name: file.name,
         file_size: file.size,

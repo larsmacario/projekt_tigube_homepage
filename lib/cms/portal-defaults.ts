@@ -167,7 +167,9 @@ function pickPolicyList(
 export function mergeKundenportalData(partial: KundenportalData | null | undefined): KundenportalData {
   const d = defaultKundenportalData
   const p = partial ?? {}
-  const cancellationSections = normalizeCancellationSections(p, d.cancellationSections!)
+  const cancellationSections = Array.isArray(p.cancellationSections)
+    ? p.cancellationSections
+    : normalizeCancellationSections(p, d.cancellationSections!)
   return {
     checklistTitle: pickString(p.checklistTitle, d.checklistTitle!),
     checklistSubtitle: pickString(p.checklistSubtitle, d.checklistSubtitle!),

@@ -157,12 +157,15 @@ export interface Document {
   customer_id: string
   pet_id: string | null
   document_type: 'vertrag' | 'impfpass' | 'wurmtest'
+  page_category: import('@/lib/impfpass-photo-categories').ImpfpassPageCategory | null
+  description: string | null
   file_path: string
   file_name: string
   file_size: number | null
   mime_type: string | null
   uploaded_at: string
   created_at: string
+  signedUrl?: string
 }
 
 /** Onboarding-Link (customer_id zeigt auf `contacts`) */

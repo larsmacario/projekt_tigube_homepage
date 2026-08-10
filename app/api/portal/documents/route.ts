@@ -5,6 +5,12 @@ import {
   buildCustomerDocumentStoragePath,
   CUSTOMER_DOCUMENTS_BUCKET,
 } from '@/lib/customer-documents'
+import {
+  DEFAULT_IMPFASS_PAGE_CATEGORY,
+  isImpfpassPageCategory,
+  MAX_IMPFASS_PHOTOS,
+  normalizeImpfpassPageCategory,
+} from '@/lib/impfpass-photo-categories'
 
 export async function GET(request: NextRequest) {
   try {
@@ -80,12 +86,25 @@ export async function POST(request: NextRequest) {
     const file = formData.get('file') as File
     const documentType = formData.get('document_type') as string
     const petId = formData.get('pet_id') as string | null
+    const pageCategoryRaw = formData.get('page_category') as string | null
+    const descriptionRaw = formData.get('description') as string | null
 
     if (!file || !documentType) {
       return NextResponse.json(
         { error: 'Datei und Dokumenttyp sind erforderlich' },
         { status: 400 }
       )
+    }
+
+    if (documentType === 'impfpass' && !petId) {
+      return NextResponse.json(
+        { error: 'Impfpass-Fotos müssen einem Tier zugeordnet werden.' },
+        { status: 400 }
+      )
+    }
+
+    if (pageCategoryRaw && !isImpfpassPageCategory(pageCategoryRaw)) {
+      return NextResponse.json({ error: 'Ungültige Impfpass-Kategorie' }, { status: 400 })
     }
 
     if (
@@ -111,8 +130,41 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    if (documentType === 'impfpass' && petId) {
+      const { count, error: countError } = await supabase
+        .from('documents')
+        .select('*', { count: 'exact', head: true })
+        .eq('pet_id', petId)
+        .eq('document_type', 'impfpass')
+
+      if (countError) throw countError
+      if ((count ?? 0) >= MAX_IMPFASS_PHOTOS) {
+        return NextResponse.json(
+          { error: `Maximal ${MAX_IMPFASS_PHOTOS} Impfpass-Fotos pro Tier erlaubt.` },
+          { status: 400 }
+        )
+      }
+
+      const { data: pet, error: petError } = await supabase
+        .from('pets')
+        .select('id')
+        .eq('id', petId)
+        .eq('customer_id', customer.id)
+        .maybeSingle()
+
+      if (petError) throw petError
+      if (!pet) {
+        return NextResponse.json({ error: 'Tier nicht gefunden' }, { status: 404 })
+      }
+    }
+
     const fileExt = file.name.split('.').pop() || 'bin'
-    const filePath = buildCustomerDocumentStoragePath(customer.id, documentType, fileExt)
+    const filePath = buildCustomerDocumentStoragePath(
+      customer.id,
+      documentType,
+      fileExt,
+      petId
+    )
 
     const { error: uploadError } = await supabase.storage
       .from(CUSTOMER_DOCUMENTS_BUCKET)
@@ -122,6 +174,13 @@ export async function POST(request: NextRequest) {
       throw uploadError
     }
 
+    const pageCategory =
+      documentType === 'impfpass'
+        ? normalizeImpfpassPageCategory(pageCategoryRaw ?? DEFAULT_IMPFASS_PAGE_CATEGORY)
+        : null
+    const description =
+      descriptionRaw?.trim() ? descriptionRaw.trim().slice(0, 500) : null
+
     // Erstelle Datenbank-Eintrag
     const { data, error: dbError } = await supabase
       .from('documents')
@@ -129,6 +188,8 @@ export async function POST(request: NextRequest) {
         customer_id: customer.id,
         pet_id: petId || null,
         document_type: documentType,
+        page_category: pageCategory,
+        description,
         file_path: filePath,
         file_name: file.name,
         file_size: file.size,

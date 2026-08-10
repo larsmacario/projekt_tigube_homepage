@@ -4,7 +4,13 @@ import { isDog } from '@/lib/pet-vaccination'
 
 const KOMBI_INTERVALL_VALUES = new Set(['jährlich', 'alle_2_jahre'])
 
-const DATE_FIELDS = ['letzte_impfung', 'letzte_impfung_zusatz', 'letzte_stuhlprobe', 'naechste_stuhlprobe'] as const
+const DATE_FIELDS = [
+  'letzte_impfung',
+  'letzte_impfung_zusatz',
+  'letzte_stuhlprobe',
+  'naechste_stuhlprobe',
+  'deceased_at',
+] as const
 
 function normalizeNullableString(value: unknown): string | null {
   if (value === null || value === undefined) return null
@@ -75,6 +81,19 @@ export function validatePetPayload(payload: Record<string, unknown>): string | n
     const carePlanError = validateCarePlan(payload.care_plan)
     if (carePlanError) {
       return carePlanError
+    }
+  }
+
+  if (Object.prototype.hasOwnProperty.call(payload, 'deceased_at') && payload.deceased_at != null) {
+    const deceasedAt = String(payload.deceased_at)
+    const parsed = new Date(`${deceasedAt}T23:59:59`)
+    if (Number.isNaN(parsed.getTime())) {
+      return 'Ungültiges Datum für den Verstorben-Status.'
+    }
+    const today = new Date()
+    today.setHours(23, 59, 59, 999)
+    if (parsed > today) {
+      return 'Das Datum darf nicht in der Zukunft liegen.'
     }
   }
 

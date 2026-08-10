@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerClient } from '@/lib/admin-auth'
-import { randomBytes } from 'crypto'
-import { sendOnboardingEmail } from '@/lib/email'
+import {
+  resolveRequestBaseUrl,
+  sendOnboardingInviteForCustomer,
+} from '@/lib/onboarding-invite'
 
 async function checkAdminAuth(supabase: any, accessToken: string | undefined) {
   if (!accessToken) {
@@ -31,7 +33,7 @@ export async function POST(request: NextRequest) {
   try {
     const { client: supabase, accessToken } = await getServerClient(request)
     const authError = await checkAdminAuth(supabase, accessToken)
-    
+
     if (authError) {
       return NextResponse.json(
         { error: authError.error },
@@ -53,7 +55,6 @@ export async function POST(request: NextRequest) {
     const cleanVorname = vorname.trim()
     const cleanNachname = nachname.trim()
 
-    // 1. Prüfen, ob bereits ein Kunde mit dieser E-Mail existiert
     const { data: existingCustomer } = await supabase
       .from('contacts')
       .select('id')
@@ -70,7 +71,6 @@ export async function POST(request: NextRequest) {
 
     let customerId: string
 
-    // 2. Prüfen, ob bereits ein Lead mit dieser E-Mail existiert
     const { data: existingLead } = await supabase
       .from('contacts')
       .select('*')
@@ -81,35 +81,24 @@ export async function POST(request: NextRequest) {
     if (existingLead) {
       customerId = existingLead.id
 
-      // Lead zu Kunde konvertieren
       const { error: updateErr } = await supabase
         .from('contacts')
         .update({
           contact_type: 'customer',
           status: 'pending',
-          vorname: cleanVorname || existingLead.vorname, // falls leer, behalte alten Vornamen
-          nachname: cleanNachname || existingLead.nachname, // falls leer, behalte alten Nachnamen
+          vorname: cleanVorname || existingLead.vorname,
+          nachname: cleanNachname || existingLead.nachname,
         })
         .eq('id', customerId)
 
       if (updateErr) throw updateErr
 
-      // Property Values auf entity_type customer anpassen
       await supabase
         .from('property_values')
         .update({ entity_type: 'customer' })
         .eq('entity_type', 'lead')
         .eq('entity_id', customerId)
-
-      // Bestehende Onboarding-Tokens entwerten
-      await supabase
-        .from('onboarding_tokens')
-        .update({ used: true, used_at: new Date().toISOString() })
-        .eq('customer_id', customerId)
-        .eq('used', false)
-
     } else {
-      // Neuen Kunden anlegen (mit leeren Werten für Pflichtfelder in DB)
       const { data: newCustomer, error: insertError } = await supabase
         .from('contacts')
         .insert({
@@ -122,7 +111,7 @@ export async function POST(request: NextRequest) {
           service: '',
           message: '',
           availability: '',
-          datenschutz: false
+          datenschutz: false,
         })
         .select()
         .single()
@@ -135,85 +124,30 @@ export async function POST(request: NextRequest) {
       customerId = newCustomer.id
     }
 
-    // 3. Onboarding Token generieren
-    const token = randomBytes(32).toString('hex')
-    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString() // 7 Tage gültig
-
-    const { data: onboardingToken, error: tokenError } = await supabase
-      .from('onboarding_tokens')
-      .insert({
-        customer_id: customerId,
-        token,
-        expires_at: expiresAt,
-        used: false,
-      })
-      .select()
-      .single()
-
-    if (tokenError) {
-      console.error('Fehler beim Erstellen des Onboarding-Tokens:', tokenError)
-      throw tokenError
-    }
-
-    // 4. Onboarding E-Mail senden
-    const host = request.headers.get('host') || 'localhost:3000'
-    const protocol = request.headers.get('x-forwarded-proto') || 'http'
-    const baseUrl = `${protocol}://${host}`
-    const onboardingUrl = `${baseUrl}/onboarding/${token}`
-    
-    const emailDelivery = await sendOnboardingEmail({
-      email: cleanEmail,
-      name: [cleanVorname, cleanNachname].filter(Boolean).join(' '),
-      onboardingUrl,
+    const result = await sendOnboardingInviteForCustomer({
+      db: supabase,
+      customerId,
+      baseUrl: resolveRequestBaseUrl(request),
     })
 
-    // 5. Webhook triggern
-    const webhookUrl = process.env.ONBOARDING_WEBHOOK_URL
-    if (webhookUrl) {
-      try {
-        const { data: contactRow } = await supabase
-          .from('contacts')
-          .select('*')
-          .eq('id', customerId)
-          .single()
-
-        const webhookPayload = {
-          event: 'onboarding_link_created',
-          customer: contactRow ? {
-            id: contactRow.id,
-            name: contactRow.nachname,
-            vorname: contactRow.vorname,
-            email: contactRow.email,
-            phone: contactRow.telefonnummer,
-            status: contactRow.status,
-          } : {},
-          onboarding_url: onboardingUrl,
-          timestamp: new Date().toISOString(),
-        }
-
-        const webhookResponse = await fetch(webhookUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(webhookPayload),
-        })
-
-        if (!webhookResponse.ok) {
-          const errorText = await webhookResponse.text()
-          console.error('Webhook-Fehler:', webhookResponse.status, errorText)
-        }
-      } catch (webhookError: any) {
-        console.error('Fehler beim Senden des Webhooks:', webhookError.message || webhookError)
-      }
+    if (result.emailDelivery.status === 'failed') {
+      return NextResponse.json(
+        {
+          error: result.emailDelivery.error || 'E-Mail konnte nicht versendet werden',
+          customer_id: customerId,
+          onboarding_url: result.onboardingUrl,
+          email_delivery: result.emailDelivery,
+        },
+        { status: 502 }
+      )
     }
 
     return NextResponse.json({
       success: true,
       customer_id: customerId,
-      token: onboardingToken,
-      onboarding_url: onboardingUrl,
-      email_delivery: emailDelivery,
+      onboarding_url: result.onboardingUrl,
+      email_delivery: result.emailDelivery,
     })
-
   } catch (error: any) {
     console.error('Error inviting customer:', error)
     return NextResponse.json(

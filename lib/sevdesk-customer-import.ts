@@ -9,14 +9,70 @@ import {
   updateSevdeskCustomerImportSummary,
 } from '@/lib/sevdesk'
 import type { SevdeskCustomerImportSummary } from '@/lib/types'
+import { ONBOARDING_EMAIL_STATUS_RESET } from '@/lib/onboarding-email'
 
-const PLACEHOLDER_FIELDS = {
+type MappedSevdeskCustomer = ReturnType<typeof mapSevdeskContactToPortalFields>
+
+const IMPORT_PLACEHOLDER_FIELDS = {
   service: 'import',
   message: 'Import aus SevDesk',
   availability: '-',
-  datenschutz: true,
   contact_type: 'customer' as const,
-  status: 'active' as const,
+}
+
+function buildStammdatenPayload(mapped: MappedSevdeskCustomer, sevdeskContactId: string) {
+  return {
+    nachname: mapped.nachname,
+    vorname: mapped.vorname,
+    email: mapped.email,
+    telefonnummer: mapped.telefonnummer,
+    kundennummer: mapped.kundennummer,
+    strasse: mapped.strasse,
+    hausnummer: mapped.hausnummer,
+    plz: mapped.plz,
+    ort: mapped.ort,
+    sevdesk_contact_id: sevdeskContactId,
+    sevdesk_synced_at: new Date().toISOString(),
+    sevdesk_sync_error: null,
+  }
+}
+
+export function buildSevdeskImportCreatePayload(
+  mapped: MappedSevdeskCustomer,
+  sevdeskContactId: string
+) {
+  return {
+    ...IMPORT_PLACEHOLDER_FIELDS,
+    ...buildStammdatenPayload(mapped, sevdeskContactId),
+    status: 'pending' as const,
+    datenschutz: false,
+    onboarding_completed: false,
+    ...ONBOARDING_EMAIL_STATUS_RESET,
+  }
+}
+
+export function buildSevdeskImportUpdatePayload(
+  mapped: MappedSevdeskCustomer,
+  sevdeskContactId: string,
+  existing: { user_id?: string | null }
+) {
+  const payload = {
+    ...buildStammdatenPayload(mapped, sevdeskContactId),
+    service: 'import',
+  }
+
+  if (!existing.user_id) {
+    return {
+      ...payload,
+      status: 'pending' as const,
+      datenschutz: false,
+      onboarding_completed: false,
+      contract_signed: false,
+      ...ONBOARDING_EMAIL_STATUS_RESET,
+    }
+  }
+
+  return payload
 }
 
 export async function importActiveSevdeskCustomers(options: {
@@ -68,14 +124,14 @@ export async function importActiveSevdeskCustomers(options: {
 
         const existingByNumber = await options.db
           .from('contacts')
-          .select('id, sevdesk_contact_id')
+          .select('id, sevdesk_contact_id, user_id')
           .eq('contact_type', 'customer')
           .eq('kundennummer', mapped.kundennummer)
           .maybeSingle()
 
         const existingBySevdesk = await options.db
           .from('contacts')
-          .select('id, kundennummer')
+          .select('id, kundennummer, user_id')
           .eq('contact_type', 'customer')
           .eq('sevdesk_contact_id', detail.id)
           .maybeSingle()
@@ -94,24 +150,9 @@ export async function importActiveSevdeskCustomers(options: {
         }
 
         const existing = existingByNumber.data ?? existingBySevdesk.data
-        const payload = {
-          ...PLACEHOLDER_FIELDS,
-          nachname: mapped.nachname,
-          vorname: mapped.vorname,
-          email: mapped.email,
-          telefonnummer: mapped.telefonnummer,
-          kundennummer: mapped.kundennummer,
-          strasse: mapped.strasse,
-          hausnummer: mapped.hausnummer,
-          plz: mapped.plz,
-          ort: mapped.ort,
-          sevdesk_contact_id: detail.id,
-          sevdesk_synced_at: new Date().toISOString(),
-          sevdesk_sync_error: null,
-          onboarding_completed: true,
-        }
 
         if (existing) {
+          const payload = buildSevdeskImportUpdatePayload(mapped, detail.id, existing)
           const { error } = await options.db
             .from('contacts')
             .update(payload)
@@ -122,6 +163,7 @@ export async function importActiveSevdeskCustomers(options: {
           }
           summary.updated += 1
         } else {
+          const payload = buildSevdeskImportCreatePayload(mapped, detail.id)
           const { error } = await options.db.from('contacts').insert(payload)
           if (error) {
             throw new Error(error.message)

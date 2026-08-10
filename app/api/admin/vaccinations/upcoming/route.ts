@@ -61,6 +61,7 @@ export async function GET(request: NextRequest) {
         'id, name, customer_id, tierart, letzte_impfung, intervall_impfung, letzte_impfung_zusatz, contacts(vorname, nachname, email)'
       )
       .ilike('tierart', 'hund')
+      .is('deceased_at', null)
       .order('name', { ascending: true })
 
     if (error) {

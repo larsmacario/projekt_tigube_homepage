@@ -1,19 +1,19 @@
 # Aktueller Stand
 
 ## Letzte Änderungen
-- Strukturierter Futter-/Medikamentenplan pro Tier: `pets.care_plan` (JSONB), UI in Onboarding, Meine Tiere, Admin PetManager; Buchungs-Wizard lädt Plan vorausgefüllt, Gate vor Schritt 2 bei Lücken.
-- Änderungsprotokoll `pet_care_plan_changes` + Admin `/admin/care-plans` mit Nav-Badge; Druck unter Portal/Admin; Vertrag-PDF nutzt Plan-Kurzfassung.
-- Dev-Fix HTTP 431: `lib/auth-cookies.ts` räumt alte Supabase-Cookies auf; `npm run dev` mit größerem Header-Limit.
+- CMS Stornierungsbedingungen: Button „Abschnitt hinzufügen“ funktioniert wieder in Hundepension, Katzenbetreuung und Kundenportal.
+- Ursache: `normalizeCancellationSections` hat leere Editor-Platzhalter beim Re-Render entfernt; Fix via `getCancellationSectionsForEditor` in `lib/cms/cancellation-policy.ts`.
+- `mergeKundenportalData` re-normalisiert vorhandene `cancellationSections` nicht mehr; Regressionstests in `lib/cms/cancellation-policy.test.ts`.
 
 ## Fokus
-- Pflegeplan manuell testen: Onboarding → Buchung → Admin-Badge → Druck.
-- Kunden-Preis-UI und Legacy-Preistabellen-Abbau (parallel).
+- CMS Storno-Abschnitte manuell testen (`/admin/cms` → Abschnitt hinzufügen, speichern, neu laden).
+- SevDesk-Kundenimport und Rechnungsentwürfe weiter testen (Tag `aktiv`, Artikel-IDs in Preisverwaltung).
 
 ## Nächste Schritte
-- Optional: Buchungs-Wizard Schritt 3 – Warnung bei Medikamenten-Extra ohne Plan; Mengenvorschlag aus Mahlzeiten-Slots.
-- `20260804170100_drop_legacy_price_tables.sql` anwenden, wenn Preis-Migration stabil.
+- Optional: separater SevDesk-Entwurfsprozess für Storno-Gebühren/Gutschriften (`cancellation_financial_status`).
+- Buchungs-Wizard: Medikamenten-Warnung bei Extra ohne Plan.
 
 ## Offene Punkte
-- Bestehende Tiere mit nur Freitext (`futtermenge`/`medikamente`) → Banner „übertragen“, bis `care_plan` ausgefüllt.
-- Keine E-Mail bei Planänderungen (nur Admin-Badge); keine Auto-Migration Freitext → Slots.
+- Storno-Abrechnung bewusst noch nicht im regulären Rechnungs-Sync (nur manuell markiert).
+- Rechnungsentwürfe erfordern gepflegte `booking_line_items` und SevDesk-Kundenverknüpfung.
 - Bei HTTP 431 in Dev: localhost-Cookies löschen und neu einloggen.

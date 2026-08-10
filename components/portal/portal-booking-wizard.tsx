@@ -221,7 +221,9 @@ export function PortalBookingWizard({
 }: PortalBookingWizardProps) {
   const { toast } = useToast()
   const { state: sidebarState, isMobile } = useSidebar()
-  const [wizardPets, setWizardPets] = useState<Pet[]>(initialPets)
+  const [wizardPets, setWizardPets] = useState<Pet[]>(() =>
+    initialPets.filter((pet) => !pet.deceased_at)
+  )
   const [step, setStep] = useState(1)
   const [petLines, setPetLines] = useState<PetServiceLine[]>([{ pet_id: '', service_type: '' }])
   const [dateRange, setDateRange] = useState<DateRange | undefined>()
@@ -251,7 +253,7 @@ export function PortalBookingWizard({
   const [pricesLoading, setPricesLoading] = useState(false)
 
   useEffect(() => {
-    setWizardPets(initialPets)
+    setWizardPets(initialPets.filter((pet) => !pet.deceased_at))
   }, [initialPets])
 
   const pets = wizardPets

@@ -70,6 +70,9 @@ export interface Contact {
   contract_email_status?: 'sent' | 'failed' | null
   contract_email_error?: string | null
   contract_email_sent_at?: string | null
+  onboarding_email_status?: 'sent' | 'failed' | null
+  onboarding_email_error?: string | null
+  onboarding_email_sent_at?: string | null
   sevdesk_contact_id?: string | null
   sevdesk_synced_at?: string | null
   sevdesk_sync_error?: string | null
@@ -106,6 +109,8 @@ export interface Pet {
   intervall_entwurmung: string | null
   letzte_stuhlprobe: string | null
   naechste_stuhlprobe: string | null
+  /** Datum, an dem das Tier verstorben ist (Soft-Archivierung) */
+  deceased_at: string | null
   created_at: string
   updated_at: string
 }

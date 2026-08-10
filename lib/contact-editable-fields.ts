@@ -7,6 +7,9 @@ export const CONTACT_BLOCKED_FIELDS = [
   'contract_email_status',
   'contract_email_error',
   'contract_email_sent_at',
+  'onboarding_email_status',
+  'onboarding_email_error',
+  'onboarding_email_sent_at',
   'created_at',
   'updated_at',
   'timestamp',
@@ -107,6 +110,7 @@ export const PET_EDITABLE_FIELDS = [
   'intervall_entwurmung',
   'letzte_stuhlprobe',
   'naechste_stuhlprobe',
+  'deceased_at',
 ] as const
 
 export function pickAllowedFields(

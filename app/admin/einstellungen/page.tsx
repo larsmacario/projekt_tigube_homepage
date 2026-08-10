@@ -72,6 +72,22 @@ export default function AdminEinstellungenPage() {
   const [lastImportSummary, setLastImportSummary] = useState<SevdeskCustomerImportSummary | null>(
     null
   )
+  const [importMailStats, setImportMailStats] = useState<{
+    importedTotal: number
+    onboardingOpen: number
+    mailNotSent: number
+    mailFailed: number
+    mailSent: number
+  } | null>(null)
+
+  const loadImportMailStats = useCallback(async () => {
+    const response = await authenticatedFetch('/api/admin/integrations/sevdesk/import-stats')
+    const data = await response.json()
+    if (!response.ok) {
+      throw new Error(data.error || 'Import-Statistiken konnten nicht geladen werden')
+    }
+    setImportMailStats(data)
+  }, [])
 
   const loadWaitlistSettings = useCallback(async () => {
     const response = await authenticatedFetch('/api/admin/settings/waitlist')
@@ -94,7 +110,7 @@ export default function AdminEinstellungenPage() {
   }, [])
 
   useEffect(() => {
-    Promise.all([loadSettings(), loadWaitlistSettings()])
+    Promise.all([loadSettings(), loadWaitlistSettings(), loadImportMailStats()])
       .catch((error) => {
         console.error(error)
         toast({
@@ -104,7 +120,7 @@ export default function AdminEinstellungenPage() {
         })
       })
       .finally(() => setLoading(false))
-  }, [loadSettings, loadWaitlistSettings, toast])
+  }, [loadSettings, loadWaitlistSettings, loadImportMailStats, toast])
 
   async function handleWaitlistToggle(enabled: boolean) {
     setWaitlistSaving(true)
@@ -256,6 +272,8 @@ export default function AdminEinstellungenPage() {
         throw new Error(data.error || 'Kundenimport fehlgeschlagen')
       }
       setLastImportSummary(data.summary ?? null)
+      await loadImportMailStats()
+      await loadSettings()
       await loadSettings()
       toast({
         title: 'Kundenimport abgeschlossen',
@@ -500,7 +518,38 @@ export default function AdminEinstellungenPage() {
                 </div>
               </>
             )}
+            {importMailStats && importMailStats.importedTotal > 0 && (
+              <>
+                <div>
+                  <dt className="text-sage-500">Importierte Kunden gesamt</dt>
+                  <dd>{importMailStats.importedTotal}</dd>
+                </div>
+                <div>
+                  <dt className="text-sage-500">Ohne Onboarding-Mail</dt>
+                  <dd>
+                    {importMailStats.mailNotSent}
+                    {importMailStats.mailFailed > 0 && (
+                      <span className="text-red-600">
+                        {' '}
+                        ({importMailStats.mailFailed} fehlgeschlagen)
+                      </span>
+                    )}
+                  </dd>
+                </div>
+              </>
+            )}
           </dl>
+
+          {importMailStats && importMailStats.mailNotSent > 0 && (
+            <p className="text-sm text-sage-600">
+              {importMailStats.mailNotSent} importierte Kunden haben noch keine Onboarding-Einladung
+              erhalten. Nutzen Sie in der{' '}
+              <Link href="/admin/customers" className="underline hover:text-sage-800">
+                Kundenliste
+              </Link>{' '}
+              die Sammel-Einladung.
+            </p>
+          )}
 
           {lastImportSummary?.failures && lastImportSummary.failures.length > 0 && (
             <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800 space-y-1">

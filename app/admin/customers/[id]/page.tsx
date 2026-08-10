@@ -82,6 +82,7 @@ export default function CustomerDetailPage() {
   const [formData, setFormData] = useState<CustomerFormData | null>(null)
   const [savingContact, setSavingContact] = useState(false)
   const [resendingContractEmail, setResendingContractEmail] = useState(false)
+  const [sendingOnboardingInvite, setSendingOnboardingInvite] = useState(false)
 
   const [groups, setGroups] = useState<any[]>([])
 
@@ -173,6 +174,43 @@ export default function CustomerDetailPage() {
       })
     } finally {
       setResendingContractEmail(false)
+    }
+  }
+
+  async function handleSendOnboardingInvite() {
+    setSendingOnboardingInvite(true)
+    try {
+      const response = await authenticatedFetch(
+        `/api/admin/customers/${customerId}/send-onboarding-invite`,
+        {
+          method: 'POST',
+          credentials: 'include',
+        }
+      )
+      const data = await response.json()
+
+      if (response.ok) {
+        toast({
+          title: 'Onboarding-Einladung gesendet',
+          description: 'Der Kunde hat eine E-Mail mit dem Onboarding-Link erhalten.',
+        })
+        await loadCustomer()
+      } else {
+        toast({
+          title: 'Versand fehlgeschlagen',
+          description: data.error || 'Die Onboarding-Einladung konnte nicht gesendet werden.',
+          variant: 'destructive',
+        })
+      }
+    } catch (error) {
+      console.error('Error sending onboarding invite:', error)
+      toast({
+        title: 'Fehler',
+        description: 'Die Onboarding-Einladung konnte nicht gesendet werden.',
+        variant: 'destructive',
+      })
+    } finally {
+      setSendingOnboardingInvite(false)
     }
   }
 
@@ -603,32 +641,46 @@ export default function CustomerDetailPage() {
             ) : null}
 
             <div className="border-t pt-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                <div>
-                  <p className="text-sm text-sage-500">Onboarding Status</p>
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs text-sage-500">Onboarding</span>
                   <Badge
                     variant={customer.onboarding_completed ? 'default' : 'secondary'}
-                    className="mt-1"
+                    className="text-xs"
                   >
                     {customer.onboarding_completed ? 'Vollständig' : 'In Bearbeitung'}
                   </Badge>
                 </div>
-                <div>
-                  <p className="text-sm text-sage-500">Betreuungsvertrag</p>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs text-sage-500">Vertrag</span>
                   <Badge
                     variant={customer.contract_signed ? 'default' : 'destructive'}
-                    className="mt-1"
+                    className="text-xs"
                   >
-                    {customer.contract_signed ? 'Unterzeichnet' : 'Nicht unterzeichnet'}
+                    {customer.contract_signed ? 'Unterzeichnet' : 'Offen'}
                   </Badge>
-                  {customer.contract_signed_at && (
-                    <p className="text-[10px] text-sage-500 mt-0.5">
-                      {new Date(customer.contract_signed_at).toLocaleDateString('de-DE')}
-                    </p>
-                  )}
                 </div>
-                <div>
-                  <p className="text-sm text-sage-500">Vertrags-Mail</p>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs text-sage-500">Onboarding-Mail</span>
+                  <Badge
+                    variant={
+                      customer.onboarding_email_status === 'sent'
+                        ? 'default'
+                        : customer.onboarding_email_status === 'failed'
+                          ? 'destructive'
+                          : 'secondary'
+                    }
+                    className="text-xs"
+                  >
+                    {customer.onboarding_email_status === 'sent'
+                      ? 'Versendet'
+                      : customer.onboarding_email_status === 'failed'
+                        ? 'Fehlgeschlagen'
+                        : '—'}
+                  </Badge>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs text-sage-500">Vertrags-Mail</span>
                   <Badge
                     variant={
                       customer.contract_email_status === 'sent'
@@ -637,69 +689,93 @@ export default function CustomerDetailPage() {
                           ? 'destructive'
                           : 'secondary'
                     }
-                    className="mt-1"
+                    className="text-xs"
                   >
                     {customer.contract_email_status === 'sent'
                       ? 'Versendet'
                       : customer.contract_email_status === 'failed'
                         ? 'Fehlgeschlagen'
-                        : 'Kein Status'}
+                        : '—'}
                   </Badge>
-                  {customer.contract_email_sent_at && (
-                    <p className="text-[10px] text-sage-500 mt-0.5">
-                      {new Date(customer.contract_email_sent_at).toLocaleString('de-DE')}
-                    </p>
-                  )}
-                  {customer.contract_email_error && (
-                    <p className="text-[10px] text-red-600 mt-0.5">{customer.contract_email_error}</p>
-                  )}
                 </div>
-                <div>
-                  <p className="text-sm text-sage-500">Datenschutz</p>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs text-sage-500">Datenschutz</span>
                   <Badge
                     variant={customer.datenschutz ? 'default' : 'outline'}
-                    className="mt-1"
+                    className="text-xs"
                   >
-                    {customer.datenschutz ? 'Zugestimmt' : 'Nicht zugestimmt'}
+                    {customer.datenschutz ? 'Ja' : 'Nein'}
                   </Badge>
                 </div>
-              </div>
-              {!customer.onboarding_completed && onboardingToken && (
-                <div className="mt-4 p-4 bg-sage-50 rounded-lg border border-sage-200">
-                  <p className="text-sm font-semibold text-sage-900 mb-2">Onboarding-Link</p>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="text"
-                      readOnly
-                      value={onboardingToken.url}
-                      className="flex-1 px-3 py-2 text-sm border border-sage-300 rounded-md bg-white"
-                    />
-                    <Button
-                      size="sm"
-                      onClick={() => {
-                        navigator.clipboard.writeText(onboardingToken.url)
-                        toast({
-                          title: 'Kopiert',
-                          description: 'Onboarding-Link wurde in die Zwischenablage kopiert',
-                        })
-                      }}
-                    >
-                      Kopieren
-                    </Button>
-                  </div>
-                </div>
-              )}
-              {customer.contract_signed && (
-                <div className="mt-4">
+                {!customer.onboarding_completed && (
+                  <Button
+                    size="sm"
+                    className="h-7 text-xs ml-auto"
+                    onClick={() => void handleSendOnboardingInvite()}
+                    disabled={sendingOnboardingInvite}
+                  >
+                    {sendingOnboardingInvite ? 'Sende…' : 'Einladung senden'}
+                  </Button>
+                )}
+                {customer.contract_signed && (
                   <Button
                     size="sm"
                     variant="outline"
+                    className="h-7 text-xs"
                     onClick={handleResendContractEmail}
                     disabled={resendingContractEmail}
                   >
-                    {resendingContractEmail ? 'Wird gesendet...' : 'Vertrags-Mail erneut senden'}
+                    {resendingContractEmail ? 'Sende…' : 'Vertrag erneut senden'}
+                  </Button>
+                )}
+              </div>
+              {!customer.onboarding_completed && onboardingToken && (
+                <div className="mt-2 flex items-center gap-2">
+                  <input
+                    type="text"
+                    readOnly
+                    value={onboardingToken.url}
+                    className="flex-1 min-w-0 h-8 px-2 text-xs border border-sage-300 rounded-md bg-sage-50"
+                  />
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-8 text-xs shrink-0"
+                    onClick={() => {
+                      navigator.clipboard.writeText(onboardingToken.url)
+                      toast({
+                        title: 'Kopiert',
+                        description: 'Onboarding-Link wurde in die Zwischenablage kopiert',
+                      })
+                    }}
+                  >
+                    Kopieren
                   </Button>
                 </div>
+              )}
+              {(customer.onboarding_email_error ||
+                customer.onboarding_email_sent_at ||
+                customer.contract_email_error ||
+                customer.contract_signed_at ||
+                customer.contract_email_sent_at) && (
+                <p className="mt-1.5 text-[10px] text-sage-500">
+                  {customer.onboarding_email_sent_at &&
+                    `Onboarding-Mail: ${new Date(customer.onboarding_email_sent_at).toLocaleString('de-DE')}`}
+                  {customer.onboarding_email_sent_at &&
+                    (customer.contract_signed_at || customer.contract_email_sent_at) &&
+                    ' · '}
+                  {customer.contract_signed_at &&
+                    `Vertrag: ${new Date(customer.contract_signed_at).toLocaleDateString('de-DE')}`}
+                  {customer.contract_signed_at && customer.contract_email_sent_at && ' · '}
+                  {customer.contract_email_sent_at &&
+                    `Vertrags-Mail: ${new Date(customer.contract_email_sent_at).toLocaleString('de-DE')}`}
+                  {customer.onboarding_email_error && (
+                    <span className="text-red-600"> · Onboarding: {customer.onboarding_email_error}</span>
+                  )}
+                  {customer.contract_email_error && (
+                    <span className="text-red-600"> · Vertrag: {customer.contract_email_error}</span>
+                  )}
+                </p>
               )}
             </div>
 

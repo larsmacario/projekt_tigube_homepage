@@ -19,7 +19,8 @@ import {
 } from '@/components/ui/dialog'
 import { authenticatedFetch } from '@/lib/authenticated-fetch'
 import { Label } from '@/components/ui/label'
-import { UserPlus, Loader2 } from 'lucide-react'
+import { UserPlus, Loader2, Mail } from 'lucide-react'
+import { Checkbox } from '@/components/ui/checkbox'
 
 export default function CustomersPage() {
   const [customers, setCustomers] = useState<Record<string, any>[]>([])
@@ -35,6 +36,9 @@ export default function CustomersPage() {
   const [nachname, setNachname] = useState('')
   const [email, setEmail] = useState('')
   const [isInviting, setIsInviting] = useState(false)
+  const [isBulkInviteOpen, setIsBulkInviteOpen] = useState(false)
+  const [selectedCustomerIds, setSelectedCustomerIds] = useState<string[]>([])
+  const [isSendingBulkInvites, setIsSendingBulkInvites] = useState(false)
 
   useEffect(() => {
     loadData()
@@ -73,6 +77,63 @@ export default function CustomersPage() {
       })
     } finally {
       setLoading(false)
+    }
+  }
+
+  const pendingOnboardingCustomers = customers.filter(
+    (customer) => customer.onboarding_completed === false
+  )
+
+  function openBulkInviteDialog() {
+    setSelectedCustomerIds(pendingOnboardingCustomers.map((customer) => String(customer.id)))
+    setIsBulkInviteOpen(true)
+  }
+
+  function toggleBulkCustomerSelection(customerId: string, checked: boolean) {
+    setSelectedCustomerIds((current) =>
+      checked
+        ? [...new Set([...current, customerId])]
+        : current.filter((id) => id !== customerId)
+    )
+  }
+
+  async function handleSendBulkInvites() {
+    if (selectedCustomerIds.length === 0) {
+      toast({
+        title: 'Keine Auswahl',
+        description: 'Bitte mindestens einen Kunden auswählen.',
+        variant: 'destructive',
+      })
+      return
+    }
+
+    setIsSendingBulkInvites(true)
+    try {
+      const response = await authenticatedFetch('/api/admin/customers/send-onboarding-invites', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ customerIds: selectedCustomerIds }),
+      })
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Versand fehlgeschlagen')
+      }
+
+      toast({
+        title: 'Onboarding-Einladungen versendet',
+        description: `${data.sent?.length ?? 0} gesendet, ${data.failed?.length ?? 0} Fehler.`,
+      })
+      setIsBulkInviteOpen(false)
+      setSelectedCustomerIds([])
+    } catch (error) {
+      toast({
+        title: 'Fehler',
+        description: error instanceof Error ? error.message : 'Versand fehlgeschlagen',
+        variant: 'destructive',
+      })
+    } finally {
+      setIsSendingBulkInvites(false)
     }
   }
 
@@ -207,6 +268,78 @@ export default function CustomersPage() {
             onChange={(e) => setSearch(e.target.value)}
             className="max-w-md"
           />
+          <Button
+            variant="outline"
+            className="whitespace-nowrap"
+            disabled={pendingOnboardingCustomers.length === 0}
+            onClick={openBulkInviteDialog}
+          >
+            <Mail className="mr-2 h-4 w-4" />
+            Onboarding-Einladungen
+          </Button>
+          <Dialog open={isBulkInviteOpen} onOpenChange={setIsBulkInviteOpen}>
+            <DialogContent className="sm:max-w-[520px]">
+              <DialogHeader>
+                <DialogTitle>Onboarding-Einladungen senden</DialogTitle>
+                <DialogDescription>
+                  Wähle Kunden mit offenem Onboarding aus. Jeder erhält eine neue E-Mail mit
+                  Onboarding-Link.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="max-h-72 overflow-y-auto space-y-2 py-2">
+                {pendingOnboardingCustomers.length === 0 ? (
+                  <p className="text-sm text-sage-600">Keine Kunden mit offenem Onboarding.</p>
+                ) : (
+                  pendingOnboardingCustomers.map((customer) => {
+                    const customerId = String(customer.id)
+                    const label = [customer.vorname, customer.nachname].filter(Boolean).join(' ')
+                    return (
+                      <label
+                        key={customerId}
+                        className="flex items-start gap-3 rounded-md border border-sage-200 p-3 cursor-pointer"
+                      >
+                        <Checkbox
+                          checked={selectedCustomerIds.includes(customerId)}
+                          onCheckedChange={(checked) =>
+                            toggleBulkCustomerSelection(customerId, checked === true)
+                          }
+                        />
+                        <span className="text-sm">
+                          <span className="font-medium text-sage-900">
+                            {label || customer.email}
+                          </span>
+                          <span className="block text-sage-500">{customer.email}</span>
+                        </span>
+                      </label>
+                    )
+                  })
+                )}
+              </div>
+              <DialogFooter>
+                <Button
+                  variant="outline"
+                  onClick={() => setIsBulkInviteOpen(false)}
+                  disabled={isSendingBulkInvites}
+                >
+                  Abbrechen
+                </Button>
+                <Button
+                  onClick={() => void handleSendBulkInvites()}
+                  disabled={isSendingBulkInvites || selectedCustomerIds.length === 0}
+                  className="bg-sage-600 hover:bg-sage-700 text-white"
+                >
+                  {isSendingBulkInvites ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Wird gesendet...
+                    </>
+                  ) : (
+                    `${selectedCustomerIds.length} Einladung(en) senden`
+                  )}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
           <Dialog open={isInviteOpen} onOpenChange={setIsInviteOpen}>
             <DialogTrigger asChild>
               <Button className="bg-sage-600 hover:bg-sage-700 text-white whitespace-nowrap">

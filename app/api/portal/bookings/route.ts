@@ -326,7 +326,7 @@ export async function POST(request: NextRequest) {
       const petIds = petLines.map((l) => l.pet_id)
       const { data: petsData, error: petsError } = await supabase
         .from('pets')
-        .select('id, customer_id, tierart')
+        .select('id, customer_id, tierart, deceased_at')
         .in('id', petIds)
 
       if (petsError || !petsData || petsData.length !== petIds.length) {
@@ -344,6 +344,12 @@ export async function POST(request: NextRequest) {
           return NextResponse.json(
             { error: 'Tier nicht gefunden oder gehört nicht zu diesem Kunden' },
             { status: 403 }
+          )
+        }
+        if (pet.deceased_at) {
+          return NextResponse.json(
+            { error: 'Dieses Tier ist als verstorben markiert und kann nicht gebucht werden.' },
+            { status: 400 }
           )
         }
         if (!isServiceAllowedForPetType(line.service_type, pet.tierart)) {
@@ -651,7 +657,7 @@ export async function POST(request: NextRequest) {
     // Prüfe ob das Tier dem Kunden gehört
     const { data: pet, error: petError } = await supabase
       .from('pets')
-      .select('id, customer_id, tierart')
+      .select('id, customer_id, tierart, deceased_at')
       .eq('id', pet_id)
       .single()
 
@@ -659,6 +665,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { error: 'Tier nicht gefunden oder gehört nicht zu diesem Kunden' },
         { status: 403 }
+      )
+    }
+
+    if (pet.deceased_at) {
+      return NextResponse.json(
+        { error: 'Dieses Tier ist als verstorben markiert und kann nicht gebucht werden.' },
+        { status: 400 }
       )
     }
 

@@ -23,12 +23,15 @@ import { PetVaccinationSummary } from '@/components/portal/pet-vaccination-secti
 import { PetPhotoGallery } from '@/components/portal/pet-photo-gallery'
 import { PetRecognitionField } from '@/components/portal/pet-recognition-field'
 import { PetDewormingDateField } from '@/components/portal/pet-deworming-date-field'
+import { PetDeceasedSection } from '@/components/portal/pet-deceased-section'
 import { PetCarePlanForm } from '@/components/portal/pet-care-plan-form'
 import { PetCarePlanLegacyBanner } from '@/components/portal/pet-care-plan-legacy-banner'
 import { PetCarePlanSummary } from '@/components/portal/pet-care-plan-summary'
 import { buildPetSaveBody, carePlanFromPet } from '@/lib/pet-care-plan-form-state'
 import type { PetCarePlan } from '@/lib/pet-care-plan'
 import { isDog } from '@/lib/pet-vaccination'
+import { formatDeceasedLabel, isPetDeceased } from '@/lib/pet-lifecycle'
+import { Badge } from '@/components/ui/badge'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -62,6 +65,7 @@ const emptyPetForm = {
   intervall_entwurmung: '',
   letzte_stuhlprobe: '',
   naechste_stuhlprobe: '',
+  deceased_at: '',
 }
 
 interface PetManagerProps {
@@ -113,6 +117,7 @@ export function PetManager({
       intervall_entwurmung: pet.intervall_entwurmung || '',
       letzte_stuhlprobe: pet.letzte_stuhlprobe ? pet.letzte_stuhlprobe.split('T')[0] : '',
       naechste_stuhlprobe: pet.naechste_stuhlprobe ? pet.naechste_stuhlprobe.split('T')[0] : '',
+      deceased_at: pet.deceased_at ? pet.deceased_at.split('T')[0] : '',
     })
     setCarePlan(carePlanFromPet(pet))
     setShowForm(true)
@@ -140,6 +145,7 @@ export function PetManager({
           letzte_impfung_zusatz: formData.letzte_impfung_zusatz || null,
           letzte_stuhlprobe: formData.letzte_stuhlprobe || null,
           naechste_stuhlprobe: formData.naechste_stuhlprobe || null,
+          deceased_at: formData.deceased_at || null,
         },
         carePlan
       )
@@ -379,6 +385,15 @@ export function PetManager({
                 </div>
               )}
             </div>
+            {editingId && (
+              <PetDeceasedSection
+                idPrefix="admin-pet"
+                deceasedAt={formData.deceased_at || null}
+                onChange={(deceasedAt) =>
+                  setFormData({ ...formData, deceased_at: deceasedAt || '' })
+                }
+              />
+            )}
             <div className="flex gap-2">
               <Button onClick={savePet} disabled={saving}>{saving ? 'Speichern…' : 'Speichern'}</Button>
               <Button variant="outline" onClick={cancelForm} disabled={saving}>Abbrechen</Button>
@@ -410,7 +425,14 @@ export function PetManager({
                     ) : (
                       <PetAvatar name={pet.name} photoUrl={pet.primary_photo_url} />
                     )}
-                    <h3 className="font-semibold text-lg">{pet.name}</h3>
+                    <div className="flex flex-wrap items-center gap-2 min-w-0">
+                      <h3 className="font-semibold text-lg">{pet.name}</h3>
+                      {isPetDeceased(pet) && pet.deceased_at && (
+                        <Badge variant="secondary" className="font-normal">
+                          {formatDeceasedLabel(pet.deceased_at)}
+                        </Badge>
+                      )}
+                    </div>
                   </div>
                   <div className="flex gap-1">
                     <Button size="sm" variant="ghost" onClick={() => openEdit(pet)}>

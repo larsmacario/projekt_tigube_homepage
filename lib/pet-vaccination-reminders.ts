@@ -89,6 +89,7 @@ export async function executeVaccinationReminders(
       'id, name, tierart, letzte_impfung, intervall_impfung, letzte_impfung_zusatz, customer_id, contacts(email, vorname, nachname)'
     )
     .ilike('tierart', 'hund')
+    .is('deceased_at', null)
 
   if (error) {
     throw new Error(error.message)

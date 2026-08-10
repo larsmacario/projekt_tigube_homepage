@@ -40,7 +40,7 @@ export const BOOKING_ESTIMATE_DISCLAIMER =
   'Die angezeigten Beträge sind eine unverbindliche Orientierung auf Basis deiner hinterlegten Preise. Sie stellen weder ein Angebot noch einen verbindlichen Preis dar. Endgültiger Leistungsumfang und Rechnungsbetrag legen wir nach Prüfung deiner Anfrage fest – unter anderem je Tarifstufe, Betreuungstagen, Zusatzleistungen pro Tier und individuellen Vereinbarungen. Leistungen wie Futter oder Medikamentengabe können wir nach Bedarf nachträglich ergänzen. Abweichungen bleiben vorbehalten.'
 
 export const BOOKING_ESTIMATE_COST_NOTICE =
-  'Enthalten sind Grundpreis, Sonn- und Feiertagszuschlag, gewählte Zusatzleistungen aus dem Wizard, Bring-/Hol-Zuschläge und ggf. Übernachtung. Leistungen wie Futter, Medikamentengabe oder spezielle Pflege vergeben wir nach Bedarf individuell nachträglich – sie sind in dieser Schätzung nicht enthalten.'
+  'Enthalten sind Grundpreis, Sonn- und Feiertagszuschlag, ggf. von dir gewählte Zusatzleistungen, Bring-/Hol-Zuschläge und ggf. Übernachtung. Leistungen wie Futter, Medikamentengabe oder spezielle Pflege vergeben wir nach Bedarf individuell nachträglich – sie sind in dieser Schätzung nicht enthalten.'
 
 export const BOOKING_ESTIMATE_MANUAL_EXTRAS_NOTICE =
   'Futter, Medikamentengabe und ähnliche Leistungen werden erst nach deiner Anfrage individuell festgelegt und erscheinen daher nicht in der Summe.'

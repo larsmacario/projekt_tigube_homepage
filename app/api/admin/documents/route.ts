@@ -8,6 +8,7 @@ import {
 import {
   DEFAULT_IMPFASS_PAGE_CATEGORY,
   isImpfpassPageCategory,
+  MAX_IMPFASS_PHOTOS,
   normalizeImpfpassPageCategory,
 } from '@/lib/impfpass-photo-categories'
 
@@ -67,9 +68,17 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Ungültiger Dokumenttyp' }, { status: 400 })
     }
 
-    if (documentType === 'impfpass' && !petId) {
+    const requiresPet = documentType === 'impfpass' || documentType === 'wurmtest'
+    if (requiresPet && !petId) {
       return NextResponse.json(
-        { error: 'Impfpass-Fotos müssen einem Tier zugeordnet werden.' },
+        { error: 'Dieses Dokument muss einem Tier zugeordnet werden.' },
+        { status: 400 }
+      )
+    }
+
+    if (!descriptionRaw?.trim()) {
+      return NextResponse.json(
+        { error: 'Beschreibung ist erforderlich' },
         { status: 400 }
       )
     }
@@ -88,6 +97,36 @@ export async function POST(request: NextRequest) {
     if (customerError) throw customerError
     if (!customer) {
       return NextResponse.json({ error: 'Kunde nicht gefunden' }, { status: 404 })
+    }
+
+    if (requiresPet && petId) {
+      if (documentType === 'impfpass') {
+        const { count, error: countError } = await auth.client
+          .from('documents')
+          .select('*', { count: 'exact', head: true })
+          .eq('pet_id', petId)
+          .eq('document_type', 'impfpass')
+
+        if (countError) throw countError
+        if ((count ?? 0) >= MAX_IMPFASS_PHOTOS) {
+          return NextResponse.json(
+            { error: `Maximal ${MAX_IMPFASS_PHOTOS} Impfpass-Fotos pro Tier erlaubt.` },
+            { status: 400 }
+          )
+        }
+      }
+
+      const { data: pet, error: petError } = await auth.client
+        .from('pets')
+        .select('id')
+        .eq('id', petId)
+        .eq('customer_id', customerId)
+        .maybeSingle()
+
+      if (petError) throw petError
+      if (!pet) {
+        return NextResponse.json({ error: 'Tier nicht gefunden' }, { status: 404 })
+      }
     }
 
     const fileExt = file.name.split('.').pop() || 'bin'

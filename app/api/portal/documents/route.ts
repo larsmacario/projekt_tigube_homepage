@@ -96,9 +96,17 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    if (documentType === 'impfpass' && !petId) {
+    const requiresPet = documentType === 'impfpass' || documentType === 'wurmtest'
+    if (requiresPet && !petId) {
       return NextResponse.json(
-        { error: 'Impfpass-Fotos müssen einem Tier zugeordnet werden.' },
+        { error: 'Dieses Dokument muss einem Tier zugeordnet werden.' },
+        { status: 400 }
+      )
+    }
+
+    if (!descriptionRaw?.trim()) {
+      return NextResponse.json(
+        { error: 'Beschreibung ist erforderlich' },
         { status: 400 }
       )
     }
@@ -130,19 +138,21 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    if (documentType === 'impfpass' && petId) {
-      const { count, error: countError } = await supabase
-        .from('documents')
-        .select('*', { count: 'exact', head: true })
-        .eq('pet_id', petId)
-        .eq('document_type', 'impfpass')
+    if (requiresPet && petId) {
+      if (documentType === 'impfpass') {
+        const { count, error: countError } = await supabase
+          .from('documents')
+          .select('*', { count: 'exact', head: true })
+          .eq('pet_id', petId)
+          .eq('document_type', 'impfpass')
 
-      if (countError) throw countError
-      if ((count ?? 0) >= MAX_IMPFASS_PHOTOS) {
-        return NextResponse.json(
-          { error: `Maximal ${MAX_IMPFASS_PHOTOS} Impfpass-Fotos pro Tier erlaubt.` },
-          { status: 400 }
-        )
+        if (countError) throw countError
+        if ((count ?? 0) >= MAX_IMPFASS_PHOTOS) {
+          return NextResponse.json(
+            { error: `Maximal ${MAX_IMPFASS_PHOTOS} Impfpass-Fotos pro Tier erlaubt.` },
+            { status: 400 }
+          )
+        }
       }
 
       const { data: pet, error: petError } = await supabase

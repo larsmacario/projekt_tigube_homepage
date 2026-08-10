@@ -4,6 +4,7 @@ import { useEffect, useState, useRef } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
 import { useToast } from '@/hooks/use-toast'
@@ -19,6 +20,7 @@ export default function DocumentsPage() {
   const [uploadForm, setUploadForm] = useState({
     document_type: '',
     pet_id: '',
+    description: '',
   })
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [documentToDelete, setDocumentToDelete] = useState<Document | null>(null)
@@ -51,6 +53,9 @@ export default function DocumentsPage() {
     }
   }
 
+  const requiresPet =
+    uploadForm.document_type === 'impfpass' || uploadForm.document_type === 'wurmtest'
+
   async function handleUpload() {
     if (!fileInputRef.current?.files?.[0] || !uploadForm.document_type) {
       toast({
@@ -61,11 +66,30 @@ export default function DocumentsPage() {
       return
     }
 
+    if (requiresPet && !uploadForm.pet_id) {
+      toast({
+        title: 'Fehler',
+        description: 'Bitte wähle ein Tier aus',
+        variant: 'destructive',
+      })
+      return
+    }
+
+    if (!uploadForm.description.trim()) {
+      toast({
+        title: 'Fehler',
+        description: 'Bitte gib eine Beschreibung ein',
+        variant: 'destructive',
+      })
+      return
+    }
+
     setUploading(true)
     try {
       const formData = new FormData()
       formData.append('file', fileInputRef.current.files[0])
       formData.append('document_type', uploadForm.document_type)
+      formData.append('description', uploadForm.description.trim())
       if (uploadForm.pet_id) {
         formData.append('pet_id', uploadForm.pet_id)
       }
@@ -77,7 +101,7 @@ export default function DocumentsPage() {
 
       if (response.ok) {
         loadDocuments()
-        setUploadForm({ document_type: '', pet_id: '' })
+        setUploadForm({ document_type: '', pet_id: '', description: '' })
         if (fileInputRef.current) {
           fileInputRef.current.value = ''
         }
@@ -218,20 +242,19 @@ export default function DocumentsPage() {
             </Select>
           </div>
 
-          {uploadForm.document_type === 'impfpass' || uploadForm.document_type === 'wurmtest' ? (
+          {requiresPet ? (
             <div>
-              <Label htmlFor="pet_id">Tier (optional)</Label>
+              <Label htmlFor="pet_id">Tier *</Label>
               <Select
-                value={uploadForm.pet_id || 'none'}
+                value={uploadForm.pet_id}
                 onValueChange={(value) =>
-                  setUploadForm({ ...uploadForm, pet_id: value === 'none' ? '' : value })
+                  setUploadForm({ ...uploadForm, pet_id: value })
                 }
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Tier wählen" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="none">Kein spezifisches Tier</SelectItem>
                   {pets.map((pet) => (
                     <SelectItem key={pet.id} value={pet.id}>
                       {pet.name}
@@ -241,6 +264,21 @@ export default function DocumentsPage() {
               </Select>
             </div>
           ) : null}
+
+          <div>
+            <Label htmlFor="description">Beschreibung *</Label>
+            <Textarea
+              id="description"
+              value={uploadForm.description}
+              onChange={(event) =>
+                setUploadForm({ ...uploadForm, description: event.target.value })
+              }
+              placeholder="z. B. aktuelle Tollwutimpfung, Wurmtest vom …"
+              rows={2}
+              maxLength={500}
+              className="mt-2"
+            />
+          </div>
 
           <div>
             <Label htmlFor="file">Datei *</Label>
@@ -290,6 +328,9 @@ export default function DocumentsPage() {
                       <p className="text-sm text-sage-600">
                         Tier: {pets.find(p => p.id === doc.pet_id)?.name || 'Unbekannt'}
                       </p>
+                    )}
+                    {doc.description && (
+                      <p className="text-sm text-sage-600 mt-1">{doc.description}</p>
                     )}
                     <p className="text-xs text-sage-500 mt-2">
                       Hochgeladen: {new Date(doc.uploaded_at).toLocaleDateString('de-DE')}

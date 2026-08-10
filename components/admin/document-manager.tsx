@@ -3,6 +3,7 @@
 import { useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Download, FileText, Trash2, Upload } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
@@ -45,7 +46,7 @@ export function DocumentManager({
 }: DocumentManagerProps) {
   const { toast } = useToast()
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const [uploadForm, setUploadForm] = useState({ document_type: '', pet_id: '' })
+  const [uploadForm, setUploadForm] = useState({ document_type: '', pet_id: '', description: '' })
   const [selectedFileName, setSelectedFileName] = useState('')
   const [uploading, setUploading] = useState(false)
   const [deleteId, setDeleteId] = useState<string | null>(null)
@@ -60,12 +61,23 @@ export function DocumentManager({
       return
     }
 
+    if (showPetSelect && !uploadForm.pet_id) {
+      toast({ title: 'Fehler', description: 'Bitte wähle ein Tier aus', variant: 'destructive' })
+      return
+    }
+
+    if (!uploadForm.description.trim()) {
+      toast({ title: 'Fehler', description: 'Bitte gib eine Beschreibung ein', variant: 'destructive' })
+      return
+    }
+
     setUploading(true)
     try {
       const formData = new FormData()
       formData.append('file', file)
       formData.append('document_type', uploadForm.document_type)
       formData.append('customer_id', customerId)
+      formData.append('description', uploadForm.description.trim())
       if (uploadForm.pet_id) formData.append('pet_id', uploadForm.pet_id)
 
       const response = await authenticatedFetch('/api/admin/documents', {
@@ -77,7 +89,7 @@ export function DocumentManager({
       if (response.ok) {
         const data = await response.json()
         onDocumentsChange([data.document, ...documents])
-        setUploadForm({ document_type: '', pet_id: '' })
+        setUploadForm({ document_type: '', pet_id: '', description: '' })
         setSelectedFileName('')
         if (fileInputRef.current) fileInputRef.current.value = ''
         toast({ title: 'Erfolg', description: 'Dokument hochgeladen' })
@@ -147,7 +159,11 @@ export function DocumentManager({
                 <Select
                   value={uploadForm.document_type}
                   onValueChange={(v) =>
-                    setUploadForm({ document_type: v, pet_id: v === 'vertrag' ? '' : uploadForm.pet_id })
+                    setUploadForm({
+                      document_type: v,
+                      pet_id: v === 'vertrag' ? '' : uploadForm.pet_id,
+                      description: uploadForm.description,
+                    })
                   }
                 >
                   <SelectTrigger id="admin-doc-type" className="w-full bg-white">
@@ -163,16 +179,15 @@ export function DocumentManager({
 
               {showPetSelect && (
                 <div className="space-y-2">
-                  <Label htmlFor="admin-doc-pet">Tier (optional)</Label>
+                  <Label htmlFor="admin-doc-pet">Tier *</Label>
                   <Select
-                    value={uploadForm.pet_id || 'none'}
-                    onValueChange={(v) => setUploadForm({ ...uploadForm, pet_id: v === 'none' ? '' : v })}
+                    value={uploadForm.pet_id}
+                    onValueChange={(v) => setUploadForm({ ...uploadForm, pet_id: v })}
                   >
                     <SelectTrigger id="admin-doc-pet" className="w-full bg-white">
-                      <SelectValue placeholder="Kein Tier" />
+                      <SelectValue placeholder="Tier wählen" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="none">Kein Tier</SelectItem>
                       {pets.map((pet) => (
                         <SelectItem key={pet.id} value={pet.id}>{pet.name}</SelectItem>
                       ))}
@@ -180,6 +195,21 @@ export function DocumentManager({
                   </Select>
                 </div>
               )}
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="admin-doc-description">Beschreibung *</Label>
+              <Textarea
+                id="admin-doc-description"
+                value={uploadForm.description}
+                onChange={(event) =>
+                  setUploadForm({ ...uploadForm, description: event.target.value })
+                }
+                placeholder="z. B. aktuelle Tollwutimpfung, Wurmtest vom …"
+                rows={2}
+                maxLength={500}
+                className="bg-white"
+              />
             </div>
 
             <div className="space-y-2">

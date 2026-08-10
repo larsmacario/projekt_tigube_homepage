@@ -70,6 +70,8 @@ type PetImpfpassGalleryProps = {
   documents: Document[]
   onDocumentsChange?: (documents: Document[]) => void
   onImpfpassCountChange?: (count: number) => void
+  /** documents: Dokumente-Seite – Beispiele immer sichtbar, ohne Einführungsbox */
+  variant?: 'pet-form' | 'documents'
 }
 
 function isImageFile(file: File): boolean {
@@ -78,7 +80,7 @@ function isImageFile(file: File): boolean {
 
 export const PetImpfpassGallery = forwardRef<PetImpfpassGalleryHandle, PetImpfpassGalleryProps>(
   function PetImpfpassGallery(
-    { petId, documents, onDocumentsChange, onImpfpassCountChange },
+    { petId, documents, onDocumentsChange, onImpfpassCountChange, variant = 'pet-form' },
     ref
   ) {
     const { toast } = useToast()
@@ -116,7 +118,8 @@ export const PetImpfpassGallery = forwardRef<PetImpfpassGalleryHandle, PetImpfpa
 
     const totalCount =
       savedImpfpassDocs.length + pendingPhotos.length + sessionPendingItems.length
-    const [examplesOpen, setExamplesOpen] = useState(false)
+    const isDocumentsVariant = variant === 'documents'
+    const [examplesOpen, setExamplesOpen] = useState(isDocumentsVariant)
 
     useEffect(() => {
       onImpfpassCountChangeRef.current = onImpfpassCountChange
@@ -468,7 +471,20 @@ export const PetImpfpassGallery = forwardRef<PetImpfpassGalleryHandle, PetImpfpa
 
     return (
       <div className="space-y-5">
-        {/* Schritt-für-Schritt-Einführung */}
+        {canAdd && petId && (
+          <Input
+            ref={fileInputRef}
+            type="file"
+            accept="image/jpeg,image/png,image/webp,image/*,application/pdf"
+            className="hidden"
+            onChange={(event) => {
+              const file = event.target.files?.[0]
+              if (file) handleFileSelected(file)
+            }}
+          />
+        )}
+
+        {!isDocumentsVariant && (
         <div className="rounded-xl border-2 border-sage-300 bg-gradient-to-br from-sage-50 to-white p-4 sm:p-5 space-y-4">
           <div className="space-y-1">
             <p className="text-xs font-semibold uppercase tracking-wide text-sage-600">
@@ -505,18 +521,6 @@ export const PetImpfpassGallery = forwardRef<PetImpfpassGalleryHandle, PetImpfpa
           </ol>
 
           {canAdd && (
-            <>
-              <Input
-                ref={fileInputRef}
-                type="file"
-                accept="image/jpeg,image/png,image/webp,image/*,application/pdf"
-                className="hidden"
-                onChange={(event) => {
-                  const file = event.target.files?.[0]
-                  if (file) handleFileSelected(file)
-                }}
-              />
-
               <div className="grid gap-4 md:grid-cols-2 md:items-stretch">
                 {/* Option A: Direkt am Computer */}
                 <div className="flex h-full flex-col rounded-xl border-2 border-dashed border-sage-400 bg-white px-4 py-5 text-left">
@@ -591,12 +595,13 @@ export const PetImpfpassGallery = forwardRef<PetImpfpassGalleryHandle, PetImpfpa
                   </Button>
                 </div>
               </div>
-            </>
           )}
         </div>
+        )}
 
-        {/* Beispielbilder – standardmäßig offen, klarer Toggle */}
+        {/* Beispielbilder */}
         <div className="rounded-xl border border-sage-200 bg-white overflow-hidden">
+          {!isDocumentsVariant ? (
           <button
             type="button"
             onClick={() => setExamplesOpen((open) => !open)}
@@ -620,13 +625,24 @@ export const PetImpfpassGallery = forwardRef<PetImpfpassGalleryHandle, PetImpfpa
               />
             </span>
           </button>
+          ) : (
+            <div className="px-4 py-4 border-b border-sage-200">
+              <p className="font-semibold text-sage-900">Impfpass-Seiten hochladen</p>
+              <p className="text-sm text-sage-600 mt-1">
+                Fotografiere jede Seite einzeln – flach, gut beleuchtet, ohne Schatten oder
+                Spiegelungen.
+              </p>
+            </div>
+          )}
 
-          {examplesOpen && (
-            <div className="border-t border-sage-200 px-4 pb-4 pt-4 space-y-3">
+          {(isDocumentsVariant || examplesOpen) && (
+            <div className={`px-4 pb-4 space-y-3 ${isDocumentsVariant ? 'pt-4' : 'border-t border-sage-200 pt-4'}`}>
+              {!isDocumentsVariant && (
               <p className="text-sm text-sage-600">
                 Fotografiere jede Seite einzeln – flach, gut beleuchtet, ohne Schatten oder
                 Spiegelungen.
               </p>
+              )}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                 {IMPFPASS_EXAMPLE_IMAGES.map((example) => (
                   <div
@@ -641,6 +657,14 @@ export const PetImpfpassGallery = forwardRef<PetImpfpassGalleryHandle, PetImpfpa
                         className="object-cover"
                         sizes="(max-width: 768px) 100vw, 33vw"
                       />
+                      <div
+                        className="absolute inset-0 flex items-center justify-center bg-sage-900/20 pointer-events-none"
+                        aria-hidden
+                      >
+                        <span className="rounded-md bg-white/95 px-3 py-1.5 text-sm font-semibold tracking-wide text-sage-800 shadow-sm ring-1 ring-sage-200/80">
+                          Beispiel
+                        </span>
+                      </div>
                     </div>
                     <div className="p-3 space-y-2">
                       <p className="text-sm font-medium text-sage-900">{example.label}</p>
@@ -664,7 +688,7 @@ export const PetImpfpassGallery = forwardRef<PetImpfpassGalleryHandle, PetImpfpa
             </div>
           )}
 
-          {!examplesOpen && (
+          {!isDocumentsVariant && !examplesOpen && (
             <div className="border-t border-sage-200 px-4 py-3">
               <div className="flex gap-2 overflow-x-auto pb-1">
                 {IMPFPASS_EXAMPLE_IMAGES.map((example) => (
@@ -679,6 +703,14 @@ export const PetImpfpassGallery = forwardRef<PetImpfpassGalleryHandle, PetImpfpa
                       className="object-cover opacity-80"
                       sizes="96px"
                     />
+                    <div
+                      className="absolute inset-0 flex items-center justify-center bg-sage-900/25 pointer-events-none"
+                      aria-hidden
+                    >
+                      <span className="rounded bg-white/95 px-1.5 py-0.5 text-[10px] font-semibold text-sage-800 shadow-sm">
+                        Beispiel
+                      </span>
+                    </div>
                   </div>
                 ))}
                 <button
@@ -734,8 +766,9 @@ export const PetImpfpassGallery = forwardRef<PetImpfpassGalleryHandle, PetImpfpa
           <div className="rounded-lg border-2 border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
             <p className="font-medium">Noch kein Impfpass hinterlegt</p>
             <p className="mt-1 text-amber-800">
-              Wähle oben „Am Computer hochladen“ oder scanne den QR-Code, um Fotos direkt vom
-              Smartphone hochzuladen.
+              {isDocumentsVariant
+                ? 'Lade die wichtigsten Seiten über die Beispiel-Karten hoch.'
+                : 'Wähle oben „Am Computer hochladen“ oder scanne den QR-Code, um Fotos direkt vom Smartphone hochzuladen.'}
             </p>
           </div>
         )}

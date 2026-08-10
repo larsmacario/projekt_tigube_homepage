@@ -104,7 +104,8 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    if (!descriptionRaw?.trim()) {
+    const descriptionRequired = documentType !== 'impfpass'
+    if (descriptionRequired && !descriptionRaw?.trim()) {
       return NextResponse.json(
         { error: 'Beschreibung ist erforderlich' },
         { status: 400 }

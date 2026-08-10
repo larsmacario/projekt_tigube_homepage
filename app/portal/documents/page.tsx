@@ -10,6 +10,8 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { useToast } from '@/hooks/use-toast'
 import type { Document, Pet } from '@/lib/types'
 import { authenticatedFetch } from '@/lib/authenticated-fetch'
+import { PetImpfpassGallery } from '@/components/portal/pet-impfpass-gallery'
+import { getImpfpassCategoryLabel } from '@/lib/impfpass-photo-categories'
 
 export default function DocumentsPage() {
   const [documents, setDocuments] = useState<Document[]>([])
@@ -17,6 +19,7 @@ export default function DocumentsPage() {
   const [loading, setLoading] = useState(true)
   const [uploading, setUploading] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const [impfpassPetId, setImpfpassPetId] = useState('')
   const [uploadForm, setUploadForm] = useState({
     document_type: '',
     pet_id: '',
@@ -53,8 +56,7 @@ export default function DocumentsPage() {
     }
   }
 
-  const requiresPet =
-    uploadForm.document_type === 'impfpass' || uploadForm.document_type === 'wurmtest'
+  const requiresPet = uploadForm.document_type === 'wurmtest'
 
   async function handleUpload() {
     if (!fileInputRef.current?.files?.[0] || !uploadForm.document_type) {
@@ -219,10 +221,55 @@ export default function DocumentsPage() {
         <p className="mt-2 text-sage-600">Verwalte deine Dokumente</p>
       </div>
 
-      {/* Upload */}
+      {/* Impfpass – Schritt 1: Tier, Schritt 2: Seiten hochladen */}
       <Card>
         <CardHeader>
-          <CardTitle>Dokument hochladen</CardTitle>
+          <CardTitle>Impfpass hochladen</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <div>
+            <p className="text-sm font-medium text-sage-800 mb-2">1. Schritt: Tier wählen</p>
+            <Label htmlFor="impfpass_pet_id" className="sr-only">
+              Tier
+            </Label>
+            <Select value={impfpassPetId} onValueChange={setImpfpassPetId}>
+              <SelectTrigger id="impfpass_pet_id">
+                <SelectValue placeholder="Tier wählen" />
+              </SelectTrigger>
+              <SelectContent>
+                {pets.map((pet) => (
+                  <SelectItem key={pet.id} value={pet.id}>
+                    {pet.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {impfpassPetId ? (
+            <div>
+              <p className="text-sm font-medium text-sage-800 mb-3">
+                2. Schritt: Impfpass-Seiten hochladen
+              </p>
+              <PetImpfpassGallery
+                variant="documents"
+                petId={impfpassPetId}
+                documents={documents}
+                onDocumentsChange={setDocuments}
+              />
+            </div>
+          ) : (
+            <p className="text-sm text-sage-600 rounded-lg border border-dashed border-sage-300 bg-sage-50/50 px-4 py-3">
+              Wähle zuerst ein Tier, um die Impfpass-Seiten hochzuladen.
+            </p>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Vertrag & Wurmtest */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Weitere Dokumente hochladen</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div>
@@ -236,7 +283,6 @@ export default function DocumentsPage() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="vertrag">Vertrag</SelectItem>
-                <SelectItem value="impfpass">Impfpass</SelectItem>
                 <SelectItem value="wurmtest">Wurmtest</SelectItem>
               </SelectContent>
             </Select>
@@ -273,7 +319,7 @@ export default function DocumentsPage() {
               onChange={(event) =>
                 setUploadForm({ ...uploadForm, description: event.target.value })
               }
-              placeholder="z. B. aktuelle Tollwutimpfung, Wurmtest vom …"
+              placeholder="z. B. Wurmtest vom …"
               rows={2}
               maxLength={500}
               className="mt-2"
@@ -323,6 +369,9 @@ export default function DocumentsPage() {
                     </button>
                     <p className="text-sm text-sage-600 mt-1">
                       {getDocumentTypeLabel(doc.document_type)}
+                      {doc.document_type === 'impfpass' && doc.page_category && (
+                        <> · {getImpfpassCategoryLabel(doc.page_category)}</>
+                      )}
                     </p>
                     {doc.pet_id && (
                       <p className="text-sm text-sage-600">
@@ -374,5 +423,3 @@ export default function DocumentsPage() {
     </div>
   )
 }
-
-

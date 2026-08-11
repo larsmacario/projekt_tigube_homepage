@@ -933,7 +933,7 @@ function ProfileContent() {
         setCustomer(data.customer)
         toast({
           title: 'Onboarding abgeschlossen!',
-          description: 'Willkommen bei Tierisch Gut Betreut!',
+          description: 'Willkommen bei tierisch gut betreut!',
         })
         // Nach dem Onboarding zum Portal weiterleiten
         router.push('/portal')

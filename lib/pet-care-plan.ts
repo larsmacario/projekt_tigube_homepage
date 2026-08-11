@@ -14,6 +14,16 @@ export const CARE_PLAN_SLOT_LABELS = ['Morgens', 'Mittags', 'Abends'] as const
 
 export type CarePlanSlotLabel = (typeof CARE_PLAN_SLOT_LABELS)[number]
 
+export const DEFAULT_FEEDING_TIMES: readonly [string, string, string] = [
+  '6 Uhr',
+  '13 Uhr',
+  '19 Uhr',
+]
+
+export function defaultFeedingTimeForSlot(index: number): string {
+  return DEFAULT_FEEDING_TIMES[index] ?? DEFAULT_FEEDING_TIMES[0]
+}
+
 export interface CarePlanFeedingSlot {
   enabled: boolean
   time: string

@@ -19,7 +19,7 @@ export function Footer() {
               />
             </Link>
             <p className="text-sage-300 text-sm leading-relaxed">
-              Liebevolle und professionelle Tierbetreuung in Moos und Umgebung. Ihr Liebling ist bei uns in den
+              Liebevolle und professionelle Tierbetreuung in Moos und Umgebung. Dein Liebling ist bei uns in den
               besten Händen.
             </p>
           </div>

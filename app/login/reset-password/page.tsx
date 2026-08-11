@@ -85,7 +85,7 @@ function ResetPasswordForm() {
           </CardHeader>
           <CardContent>
             <p className="text-center text-sage-600">
-              Ihr Passwort wurde erfolgreich zurückgesetzt. Sie werden gleich zur Anmeldeseite weitergeleitet.
+              Dein Passwort wurde erfolgreich zurückgesetzt. Du wirst gleich zur Anmeldeseite weitergeleitet.
             </p>
           </CardContent>
         </Card>
@@ -99,7 +99,7 @@ function ResetPasswordForm() {
         <CardHeader>
           <CardTitle className="text-2xl font-bold text-center">Neues Passwort setzen</CardTitle>
           <CardDescription className="text-center">
-            Geben Sie Ihr neues Passwort ein
+            Gib dein neues Passwort ein
           </CardDescription>
         </CardHeader>
         <CardContent>

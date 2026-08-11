@@ -114,7 +114,7 @@ export default function LoginPage() {
           <CardHeader>
             <CardTitle className="text-2xl font-bold text-center">Anmelden</CardTitle>
             <CardDescription className="text-center">
-              Melden Sie sich mit Ihren Zugangsdaten an
+              Melde dich mit deinen Zugangsdaten an
             </CardDescription>
           </CardHeader>
         <CardContent>
@@ -134,7 +134,7 @@ export default function LoginPage() {
                 onChange={(e) => setEmail(e.target.value)}
                 required
                 disabled={loading}
-                placeholder="ihre@email.de"
+                placeholder="deine@email.de"
               />
             </div>
 

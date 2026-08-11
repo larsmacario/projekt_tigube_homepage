@@ -138,19 +138,19 @@ export function ContactForm({
 
   function validateStep1(): string | null {
     if (!formData.availability.trim()) {
-      return "Bitte wählen Sie mindestens ein Zeitfenster für die Erreichbarkeit aus oder geben Sie eigene Zeiten an."
+      return "Bitte wähle mindestens ein Zeitfenster für die Erreichbarkeit aus oder gib eigene Zeiten an."
     }
 
     if (formData.service === "hundepension" && formData.konkreterUrlaub === "ja") {
       if (!formData.urlaubVon || !formData.urlaubBis) {
-        return "Bitte wählen Sie einen Urlaubszeitraum aus."
+        return "Bitte wähle einen Urlaubszeitraum aus."
       }
 
       const vonDate = parseDateFromInput(formData.urlaubVon)
       const bisDate = parseDateFromInput(formData.urlaubBis)
 
       if (!vonDate || !bisDate) {
-        return "Bitte wählen Sie gültige Daten aus."
+        return "Bitte wähle gültige Daten aus."
       }
 
       if (bisDate < vonDate) {
@@ -187,7 +187,7 @@ export function ContactForm({
     if (ferienAntwort === "") {
       setSubmitStatus({
         type: "error",
-        message: "Bitte bestätigen Sie, ob Ihr Betreuungszeitraum in unsere Betriebsferien fällt.",
+        message: "Bitte bestätige, ob dein Betreuungszeitraum in unsere Betriebsferien fällt.",
       })
       return
     }
@@ -226,7 +226,7 @@ export function ContactForm({
         setSubmitStatus({
           type: "success",
           message:
-            "Vielen Dank für Ihre Angaben. In den genannten Betriebsferien können wir leider keine Betreuung anbieten. Über tigube finden Sie alternative Betreuungspersonen in Ihrer Nähe.",
+            "Vielen Dank für deine Angaben. In den genannten Betriebsferien können wir leider keine Betreuung anbieten. Über tigube findest du alternative Betreuungspersonen in deiner Nähe.",
         })
       } else if (waitlistEnabled) {
         setSubmitOutcome("waitlist")
@@ -239,7 +239,7 @@ export function ContactForm({
         setSubmitStatus({
           type: "success",
           message:
-            "Ihre Anfrage wurde erfolgreich gesendet! Wir melden uns schnellstmöglich bei Ihnen.",
+            "Deine Anfrage wurde erfolgreich gesendet! Wir melden uns schnellstmöglich bei dir.",
         })
       }
 
@@ -260,7 +260,7 @@ export function ContactForm({
         message:
           error instanceof Error
             ? error.message
-            : "Ein Fehler ist aufgetreten. Bitte versuchen Sie es erneut.",
+            : "Ein Fehler ist aufgetreten. Bitte versuche es erneut.",
       })
     } finally {
       setIsSubmitting(false)
@@ -669,7 +669,7 @@ export function ContactForm({
 
       {formData.service !== "hundepension" && (
         <div className="space-y-2">
-          <label className={labelCls}>Ihr Tier *</label>
+          <label className={labelCls}>Dein Tier *</label>
           <RadioGroup
             value={formData.pet}
             onValueChange={(value) =>
@@ -731,10 +731,10 @@ export function ContactForm({
       )}
 
       <div>
-        <label className={labelCls}>Ihre Nachricht *</label>
+        <label className={labelCls}>Deine Nachricht *</label>
         <Textarea
           rows={m ? 3 : 4}
-          placeholder="Erzählen Sie uns mehr über Ihr Tier und Ihre Wünsche..."
+          placeholder="Erzähl uns mehr über dein Tier und deine Wünsche..."
           required
           value={formData.message}
           onChange={(e) =>
@@ -914,8 +914,8 @@ export function ContactForm({
               Betriebsferien prüfen
             </h3>
             <p className={cn("text-gray-600 leading-relaxed", m ? "text-xs" : "text-sm")}>
-              In folgenden Zeiträumen findet bei uns keine Tierbetreuung statt. Bitte prüfen Sie,
-              ob Ihr gewünschter Betreuungszeitraum in diese Ferien fällt.
+              In folgenden Zeiträumen findet bei uns keine Tierbetreuung statt. Bitte prüfe,
+              ob dein gewünschter Betreuungszeitraum in diese Ferien fällt.
             </p>
           </div>
 
@@ -943,7 +943,7 @@ export function ContactForm({
 
           <div className="space-y-3">
             <label className={labelCls}>
-              Liegt Ihr gewünschter Betreuungszeitraum in einem dieser Zeiträume? *
+              Liegt dein gewünschter Betreuungszeitraum in einem dieser Zeiträume? *
             </label>
             <RadioGroup
               value={ferienAntwort}

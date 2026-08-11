@@ -104,7 +104,7 @@ export function AuthGuard({ children, requiredRole, redirectTo = '/login' }: Aut
       <div className="flex flex-col items-center justify-center gap-4 min-h-screen bg-sage-50 px-4">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-sage-600" />
         <p className="text-sm text-sage-700 text-center max-w-md">
-          Sie sind nicht angemeldet oder die Sitzung ist abgelaufen. Sie werden weitergeleitet …
+          Du bist nicht angemeldet oder die Sitzung ist abgelaufen. Du wirst weitergeleitet …
         </p>
       </div>
     )

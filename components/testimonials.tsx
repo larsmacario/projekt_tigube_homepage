@@ -285,10 +285,10 @@ export function Testimonials() {
         <div className="text-center mt-16">
           <div className="bg-white p-8 rounded-2xl shadow-lg max-w-md mx-auto">
             <h3 className="font-raleway text-xl font-bold text-sage-900 mb-4">
-              Ihre Erfahrung ist uns wichtig!
+              Deine Erfahrung ist uns wichtig!
             </h3>
             <p className="text-gray-600 mb-6">
-              Teilen Sie Ihre Erfahrungen und helfen Sie anderen Tierbesitzern bei der Entscheidung.
+              Teile deine Erfahrungen und hilf anderen Tierbesitzern bei der Entscheidung.
             </p>
             <div className="flex flex-col sm:flex-row gap-3 justify-center">
               <Button

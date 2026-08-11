@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   carePlanToLegacyFields,
+  defaultFeedingTimeForSlot,
   emptyPetCarePlan,
   getActiveFeedingSlotCount,
   getActiveMedicationSlotCount,
@@ -140,6 +141,12 @@ describe('pet-care-plan', () => {
     ]
 
     expect(validateCarePlan(plan)).toContain('Morgens (Apoquel)')
+  })
+
+  it('provides default feeding times per slot', () => {
+    expect(defaultFeedingTimeForSlot(0)).toBe('6 Uhr')
+    expect(defaultFeedingTimeForSlot(1)).toBe('13 Uhr')
+    expect(defaultFeedingTimeForSlot(2)).toBe('19 Uhr')
   })
 
   it('cycles time slots for duplicate medication rows', () => {

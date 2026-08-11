@@ -161,7 +161,7 @@ export default function OnboardingPage() {
           <CardContent>
             <p className="text-center text-sage-600">{error}</p>
             <p className="text-center text-sm text-sage-500 mt-4">
-              Bitte kontaktieren Sie uns, wenn das Problem weiterhin besteht.
+              Bitte kontaktiere uns, wenn das Problem weiterhin besteht.
             </p>
           </CardContent>
         </Card>
@@ -174,17 +174,19 @@ export default function OnboardingPage() {
       <Card className="w-full max-w-md">
         <CardHeader>
           <CardTitle className="text-xl sm:text-2xl font-bold text-center">
-            Willkommen bei Tierisch Gut Betreut!
+            {lead?.vorname
+              ? `Willkommen, ${lead.vorname}!`
+              : 'Willkommen bei tierisch gut betreut!'}
           </CardTitle>
           <CardDescription className="text-center">
-            Erstellen Sie Ihr Kundenkonto
+            Erstelle dein Kundenkonto
           </CardDescription>
         </CardHeader>
         <CardContent>
           {lead && (
             <div className="mb-6 p-4 bg-sage-50 rounded-lg">
               <p className="text-sm text-sage-700">
-                <strong>Ihre Daten:</strong>
+                <strong>Deine Daten:</strong>
               </p>
               <p className="text-sm text-sage-600 mt-1">
                 {lead.vorname} {lead.nachname}
@@ -196,7 +198,7 @@ export default function OnboardingPage() {
           {lead?.user_id ? (
             <div className="space-y-4">
               <div className="bg-sage-50 border border-sage-200 text-sage-800 px-4 py-3 rounded text-center text-sm">
-                Ihr Kundenkonto wurde bereits erfolgreich erstellt. Sie können sich direkt anmelden, um Ihr Onboarding fortzusetzen.
+                Dein Kundenkonto wurde bereits erfolgreich erstellt. Du kannst dich direkt anmelden, um dein Onboarding fortzusetzen.
               </div>
               <Button
                 onClick={() => router.push('/login?redirectTo=/portal/profile?onboarding=true')}

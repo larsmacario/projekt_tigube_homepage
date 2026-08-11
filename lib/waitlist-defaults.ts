@@ -16,11 +16,11 @@ export interface SiteSettingsRow {
 export const DEFAULT_WAITLIST_CMS: WaitlistCmsContent = {
   formTitle: 'Warteliste für Kennenlernen',
   formHint:
-    'Aktuell ist ein Kennenlernen nur über unsere Warteliste möglich. Tragen Sie sich ein – wir melden uns, sobald ein Platz frei wird.',
+    'Aktuell ist ein Kennenlernen nur über unsere Warteliste möglich. Trag dich ein – wir melden uns, sobald ein Platz frei wird.',
   formDescription:
-    'Ihre Angaben helfen uns, Sie passend einzuplanen, sobald wieder Kapazität für ein Kennenlernen frei ist.',
+    'Deine Angaben helfen uns, dich passend einzuplanen, sobald wieder Kapazität für ein Kennenlernen frei ist.',
   successMessage:
-    'Vielen Dank! Sie stehen auf unserer Warteliste. Wir melden uns bei Ihnen, sobald ein Kennenlerntermin möglich ist.',
+    'Vielen Dank! Du stehst auf unserer Warteliste. Wir melden uns bei dir, sobald ein Kennenlerntermin möglich ist.',
   emailSubject: 'Deine Wartelisten-Anmeldung bei tierisch gut betreut GmbH',
   emailIntro:
     'vielen Dank für deine Anmeldung auf unsere Warteliste. Aktuell ist ein Kennenlernen nur über die Warteliste möglich. Wir haben deine Angaben erhalten und melden uns bei dir, sobald ein Platz frei wird.',

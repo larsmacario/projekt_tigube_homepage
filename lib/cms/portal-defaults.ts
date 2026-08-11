@@ -86,7 +86,7 @@ export const defaultKundenportalData: KundenportalData = {
     {
       title: 'Entwurmung/Kot-Test',
       description:
-        'Wurmkur mit Nachweis vom Tierarzt (den Nachweis bitte im Impfpass vermerken lassen) bzw. Kot-Test beim Check-In. Am Besten ganz frisch, jedoch nicht älter als 3 Monate.',
+        'Wurmkur mit Nachweis vom Tierarzt (den Nachweis bitte im Impfpass vermerken lassen) bzw. Kot-Test beim Check-In. Am besten ganz frisch, jedoch nicht älter als 3 Monate.',
     },
     {
       title: '',

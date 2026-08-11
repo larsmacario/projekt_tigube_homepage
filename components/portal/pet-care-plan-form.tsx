@@ -17,6 +17,7 @@ import {
 import {
   CARE_PLAN_FOOD_TYPES,
   CARE_PLAN_SLOT_LABELS,
+  defaultFeedingTimeForSlot,
   emptyMedicationEntry,
   emptyPetCarePlan,
   nextTimeSlot,
@@ -42,6 +43,19 @@ function updateFeedingSlot(
   const feeding = [...plan.feeding]
   feeding[index] = { ...feeding[index], ...patch }
   return { ...plan, feeding }
+}
+
+function setFeedingSlotEnabled(
+  plan: PetCarePlan,
+  index: number,
+  enabled: boolean
+): PetCarePlan {
+  const slot = plan.feeding[index]
+  const patch: Partial<CarePlanFeedingSlot> = { enabled }
+  if (enabled && !slot.time.trim()) {
+    patch.time = defaultFeedingTimeForSlot(index)
+  }
+  return updateFeedingSlot(plan, index, patch)
 }
 
 function updateMedicationEntry(
@@ -134,7 +148,13 @@ export function PetCarePlanForm({
       </div>
 
       <div className="space-y-3">
-        <h4 className="font-semibold text-sage-900">Fütterung</h4>
+        <div>
+          <h4 className="font-semibold text-sage-900">Fütterung</h4>
+          <p className="mt-1 text-xs text-sage-600">
+            Aktiviere die gewünschten Mahlzeiten und trage Futter sowie Menge ein. Graue
+            Beispieltexte sind keine gespeicherten Werte.
+          </p>
+        </div>
         <div className="overflow-x-auto rounded-lg border border-sage-200">
           <table className="min-w-full text-sm">
             <thead className="bg-sage-50">
@@ -147,11 +167,11 @@ export function PetCarePlanForm({
             </thead>
             <tbody>
               {[
-                { key: 'time', label: 'Uhrzeit', placeholder: '6 Uhr' },
-                { key: 'food', label: 'Was wird gefüttert', placeholder: 'Dose / Trockenfutter' },
-                { key: 'amount', label: 'Menge', placeholder: '200g' },
-                { key: 'additive', label: 'Zusätze', placeholder: 'Öl' },
-                { key: 'additiveAmount', label: 'Menge Zusatz', placeholder: '1 TL' },
+                { key: 'time', label: 'Uhrzeit', placeholder: 'z.B. 6 Uhr' },
+                { key: 'food', label: 'Was wird gefüttert', placeholder: 'z.B. Trockenfutter' },
+                { key: 'amount', label: 'Menge', placeholder: 'z.B. 200g' },
+                { key: 'additive', label: 'Zusätze', placeholder: 'z.B. Öl' },
+                { key: 'additiveAmount', label: 'Menge Zusatz', placeholder: 'z.B. 1 TL' },
               ].map((row) => (
                 <tr key={row.key} className="border-t border-sage-100">
                   <td className="px-3 py-2 align-top font-medium text-sage-600">{row.label}</td>
@@ -168,9 +188,7 @@ export function PetCarePlanForm({
                               <Checkbox
                                 checked={slot.enabled}
                                 onCheckedChange={(checked) =>
-                                  onChange(
-                                    updateFeedingSlot(plan, index, { enabled: checked === true })
-                                  )
+                                  onChange(setFeedingSlotEnabled(plan, index, checked === true))
                                 }
                                 disabled={readOnly}
                               />
@@ -181,7 +199,7 @@ export function PetCarePlanForm({
                               onChange={(e) =>
                                 onChange(updateFeedingSlot(plan, index, { time: e.target.value }))
                               }
-                              placeholder={row.placeholder}
+                              placeholder={slot.enabled ? row.placeholder : ''}
                               disabled={disabled}
                             />
                           </div>
@@ -197,9 +215,7 @@ export function PetCarePlanForm({
                               <Checkbox
                                 checked={slot.enabled}
                                 onCheckedChange={(checked) =>
-                                  onChange(
-                                    updateFeedingSlot(plan, index, { enabled: checked === true })
-                                  )
+                                  onChange(setFeedingSlotEnabled(plan, index, checked === true))
                                 }
                                 disabled={readOnly}
                               />
@@ -210,7 +226,11 @@ export function PetCarePlanForm({
                               onChange={(e) =>
                                 onChange(updateFeedingSlot(plan, index, { time: e.target.value }))
                               }
-                              placeholder={index === 1 ? '13 Uhr' : '19 Uhr'}
+                              placeholder={
+                                slot.enabled
+                                  ? `z.B. ${defaultFeedingTimeForSlot(index)}`
+                                  : ''
+                              }
                               disabled={disabled}
                             />
                           </div>
@@ -225,7 +245,7 @@ export function PetCarePlanForm({
                           onChange={(e) =>
                             onChange(updateFeedingSlot(plan, index, { [field]: e.target.value }))
                           }
-                          placeholder={row.placeholder}
+                          placeholder={slot.enabled ? row.placeholder : ''}
                           disabled={disabled}
                         />
                       </td>
@@ -300,7 +320,7 @@ export function PetCarePlanForm({
                       onChange={(e) =>
                         onChange(updateMedicationEntry(plan, index, { timing: e.target.value }))
                       }
-                      placeholder="½ h vor Futter"
+                      placeholder="z.B. ½ h vor Futter"
                       readOnly={readOnly}
                     />
                   </div>
@@ -314,7 +334,7 @@ export function PetCarePlanForm({
                       onChange={(e) =>
                         onChange(updateMedicationEntry(plan, index, { medication: e.target.value }))
                       }
-                      placeholder="Apoquel"
+                      placeholder="z.B. Apoquel"
                       readOnly={readOnly}
                     />
                   </div>
@@ -328,7 +348,7 @@ export function PetCarePlanForm({
                       onChange={(e) =>
                         onChange(updateMedicationEntry(plan, index, { amount: e.target.value }))
                       }
-                      placeholder="½ Tablette"
+                      placeholder="z.B. ½ Tablette"
                       readOnly={readOnly}
                     />
                   </div>

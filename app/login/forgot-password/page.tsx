@@ -49,10 +49,10 @@ export default function ForgotPasswordPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             <p className="text-center text-sage-600">
-              Wir haben Ihnen eine E-Mail zum Zurücksetzen Ihres Passworts gesendet.
+              Wir haben dir eine E-Mail zum Zurücksetzen deines Passworts gesendet.
             </p>
             <p className="text-center text-sm text-sage-500">
-              Bitte überprüfen Sie Ihr Postfach und folgen Sie den Anweisungen in der E-Mail.
+              Bitte überprüfe dein Postfach und folge den Anweisungen in der E-Mail.
             </p>
             <Link href="/login">
               <Button className="w-full bg-sage-600 hover:bg-sage-700">
@@ -71,7 +71,7 @@ export default function ForgotPasswordPage() {
         <CardHeader>
           <CardTitle className="text-2xl font-bold text-center">Passwort zurücksetzen</CardTitle>
           <CardDescription className="text-center">
-            Geben Sie Ihre E-Mail-Adresse ein, um ein Passwort-Reset-Link zu erhalten
+            Gib deine E-Mail-Adresse ein, um einen Passwort-Reset-Link zu erhalten
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -91,7 +91,7 @@ export default function ForgotPasswordPage() {
                 onChange={(e) => setEmail(e.target.value)}
                 required
                 disabled={loading}
-                placeholder="ihre@email.de"
+                placeholder="deine@email.de"
               />
             </div>
 

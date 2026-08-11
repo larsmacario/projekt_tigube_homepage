@@ -274,7 +274,7 @@ export function customerConfirmationPlainText(content: BookingRequestEmailConten
     ...(content.dropOffTime && content.pickUpTime
       ? ['', `Bringen: ${content.dropOffTime} Uhr · Abholen: ${content.pickUpTime} Uhr`]
       : []),
-    ...(content.message?.trim() ? ['', `Deine Nachricht: ${content.message.trim()}`] : []),
+    ...(content.message?.trim() ? ['', `deine Nachricht: ${content.message.trim()}`] : []),
     '',
     'Herzliche Grüße',
     'Tamara und Gabriel',

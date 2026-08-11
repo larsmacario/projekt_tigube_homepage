@@ -82,7 +82,7 @@ export function buildOnboardingInvitePlainText(name: string, onboardingUrl: stri
   return [
     `Hallo ${name},`,
     '',
-    'willkommen bei tierisch gut betreut.',
+    'Willkommen bei tierisch gut betreut.',
     '',
     'Über diesen Link richtest du dein Kundenkonto ein und gehst danach direkt ins Onboarding im Portal:',
     onboardingUrl,
@@ -102,7 +102,7 @@ export function buildOnboardingInviteHtml(name: string, onboardingUrl: string): 
 
   return [
     `<p>Hallo ${safeName},</p>`,
-    '<p>willkommen bei tierisch gut betreut.</p>',
+    '<p>Willkommen bei tierisch gut betreut.</p>',
     '<p>Über diesen Link richtest du dein Kundenkonto ein und gehst danach direkt ins Onboarding im Portal:</p>',
     `<p><a href="${safeUrl}">Kundenkonto einrichten</a></p>`,
     '<p>Der Link ist sieben Tage gültig.</p>',

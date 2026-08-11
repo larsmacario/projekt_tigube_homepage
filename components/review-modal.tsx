@@ -52,7 +52,7 @@ export function ReviewModal({ isOpen, onClose }: ReviewModalProps) {
       console.error('Error submitting review:', error)
       toast({
         title: 'Fehler',
-        description: 'Fehler beim Senden der Bewertung. Bitte versuchen Sie es später erneut.',
+        description: 'Fehler beim Senden der Bewertung. Bitte versuche es später erneut.',
         variant: 'destructive',
       })
     } finally {
@@ -84,10 +84,10 @@ export function ReviewModal({ isOpen, onClose }: ReviewModalProps) {
           <div className="text-center py-8">
             <Heart className="h-16 w-16 text-sage-600 mx-auto mb-4" />
             <h3 className="text-xl font-bold text-sage-900 mb-2">
-              Vielen Dank für Ihre Bewertung!
+              Vielen Dank für deine Bewertung!
             </h3>
             <p className="text-gray-600 mb-4">
-              Ihre Bewertung wurde erfolgreich übermittelt und wird nach einer kurzen Prüfung auf unserer Website veröffentlicht.
+              Deine Bewertung wurde erfolgreich übermittelt und wird nach einer kurzen Prüfung auf unserer Website veröffentlicht.
             </p>
             <p className="text-sm text-sage-600">
               Dieses Fenster schließt sich automatisch...
@@ -106,7 +106,7 @@ export function ReviewModal({ isOpen, onClose }: ReviewModalProps) {
             Bewertung abgeben
           </DialogTitle>
           <p className="text-gray-600">
-            Teilen Sie Ihre Erfahrungen mit anderen Tierbesitzern
+            Teile deine Erfahrungen mit anderen Tierbesitzern
           </p>
         </DialogHeader>
 
@@ -114,7 +114,7 @@ export function ReviewModal({ isOpen, onClose }: ReviewModalProps) {
           <div className="grid md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-sage-900 mb-2">
-                Ihr Name *
+                Dein Name *
               </label>
               <Input
                 value={formData.name}
@@ -129,7 +129,7 @@ export function ReviewModal({ isOpen, onClose }: ReviewModalProps) {
             </div>
             <div>
               <label className="block text-sm font-medium text-sage-900 mb-2">
-                Ihr Tier
+                Dein Tier
               </label>
               <Input
                 value={formData.pet}
@@ -148,7 +148,7 @@ export function ReviewModal({ isOpen, onClose }: ReviewModalProps) {
               type="email"
               value={formData.email}
               onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-              placeholder="ihre@email.de"
+              placeholder="deine@email.de"
               className="border-sage-300 focus:border-sage-500"
             />
             <p className="text-xs text-gray-500 mt-1">
@@ -185,12 +185,12 @@ export function ReviewModal({ isOpen, onClose }: ReviewModalProps) {
 
           <div>
             <label className="block text-sm font-medium text-sage-900 mb-2">
-              Ihre Erfahrung *
+              Deine Erfahrung *
             </label>
             <Textarea
               value={formData.text}
               onChange={(e) => setFormData({ ...formData, text: e.target.value })}
-              placeholder="Erzählen Sie uns von Ihren Erfahrungen mit unserem Service..."
+              placeholder="Erzähl uns von deinen Erfahrungen mit unserem Service..."
               rows={4}
               required
               className="border-sage-300 focus:border-sage-500"
@@ -202,7 +202,7 @@ export function ReviewModal({ isOpen, onClose }: ReviewModalProps) {
 
           <div className="bg-sage-50 p-4 rounded-lg">
             <p className="text-sm text-sage-700">
-              <strong>Hinweis:</strong> Ihre Bewertung wird vor der Veröffentlichung geprüft. 
+              <strong>Hinweis:</strong> Deine Bewertung wird vor der Veröffentlichung geprüft.
               Wir behalten uns vor, Bewertungen zu moderieren oder abzulehnen, die nicht unseren 
               Richtlinien entsprechen.
             </p>

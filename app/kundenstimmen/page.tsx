@@ -82,7 +82,7 @@ export default function KundenstimmenPage() {
           </h1>
           <p className="text-lg sm:text-xl text-sage-700 max-w-3xl mx-auto mb-8">
             Über 400 zufriedene Tierbesitzer vertrauen bereits auf unsere Betreuung.
-            Lesen Sie, was unsere Kunden über uns sagen.
+            Lies, was unsere Kunden über uns sagen.
           </p>
           <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-sage-600">
             <div className="flex">
@@ -139,11 +139,11 @@ export default function KundenstimmenPage() {
       <section className="py-16 lg:py-24 bg-sage-50">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <h2 className="font-raleway text-3xl lg:text-4xl font-bold text-sage-900 mb-6">
-            Möchten Sie auch eine Bewertung hinterlassen?
+            Möchtest du auch eine Bewertung hinterlassen?
           </h2>
           <p className="text-lg text-sage-700 mb-8">
-            Ihre Erfahrungen sind uns wichtig! Teilen Sie anderen Tierbesitzern mit,
-            wie wir Ihnen und Ihrem Liebling geholfen haben.
+            Deine Erfahrungen sind uns wichtig! Teile anderen Tierbesitzern mit,
+            wie wir dir und deinem Liebling geholfen haben.
           </p>
           <div className="flex justify-center">
             <Button

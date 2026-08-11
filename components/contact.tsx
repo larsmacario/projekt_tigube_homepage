@@ -16,7 +16,7 @@ interface ContactProps {
 export function Contact({ data }: ContactProps) {
   // Fallbacks
   const title = data?.contactTitle || "Kontakt aufnehmen"
-  const subtitle = data?.contactSubtitle || "Haben Sie Fragen oder möchten Sie einen Termin vereinbaren? Wir freuen uns auf Ihre Nachricht!"
+  const subtitle = data?.contactSubtitle || "Hast du Fragen oder möchtest du einen Termin vereinbaren? Wir freuen uns auf deine Nachricht!"
   const phone = data?.contactPhone || "07732-988 50 91"
   const email = data?.contactEmail || "info@tierischgutbetreut.de"
   const location = data?.contactLocation || "78345 Moos"

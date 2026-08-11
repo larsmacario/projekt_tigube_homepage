@@ -464,7 +464,7 @@ export async function sendLeadEmails(data: LeadEmailData): Promise<LeadEmailDeli
           '',
           waitlistTexts.emailIntro,
           '',
-          'Zusammenfassung Deiner Anmeldung:',
+          'Zusammenfassung deiner Anmeldung:',
           `Leistung: ${service}`,
           `Nachricht: ${data.message}`,
           `Beste Erreichbarkeit: ${data.availability}`,
@@ -475,7 +475,7 @@ export async function sendLeadEmails(data: LeadEmailData): Promise<LeadEmailDeli
         html: `
           <p>Hallo${fullName ? ` ${escapeHtml(fullName)}` : ''},</p>
           <p>${toHtml(waitlistTexts.emailIntro)}</p>
-          <h3>Zusammenfassung Deiner Anmeldung</h3>
+          <h3>Zusammenfassung deiner Anmeldung</h3>
           <ul>
             <li><strong>Leistung:</strong> ${escapeHtml(service)}</li>
             <li><strong>Nachricht:</strong> ${toHtml(data.message)}</li>
@@ -503,9 +503,9 @@ export async function sendLeadEmails(data: LeadEmailData): Promise<LeadEmailDeli
       text: [
         `Hallo${fullName ? ` ${fullName}` : ''},`,
         '',
-        'vielen Dank für Deine Anfrage. Wir haben sie erhalten und melden uns so schnell wie möglich bei Dir.',
+        'vielen Dank für deine Anfrage. Wir haben sie erhalten und melden uns so schnell wie möglich bei dir.',
         '',
-        'Zusammenfassung Deiner Anfrage:',
+        'Zusammenfassung deiner Anfrage:',
         `Leistung: ${service}`,
         `Nachricht: ${data.message}`,
         `Beste Erreichbarkeit: ${data.availability}`,
@@ -515,8 +515,8 @@ export async function sendLeadEmails(data: LeadEmailData): Promise<LeadEmailDeli
       ].join('\n'),
       html: `
         <p>Hallo${fullName ? ` ${escapeHtml(fullName)}` : ''},</p>
-        <p>vielen Dank für Deine Anfrage. Wir haben sie erhalten und melden uns so schnell wie möglich bei Dir.</p>
-        <h3>Zusammenfassung Deiner Anfrage</h3>
+        <p>vielen Dank für deine Anfrage. Wir haben sie erhalten und melden uns so schnell wie möglich bei dir.</p>
+        <h3>Zusammenfassung deiner Anfrage</h3>
         <ul>
           <li><strong>Leistung:</strong> ${escapeHtml(service)}</li>
           <li><strong>Nachricht:</strong> ${toHtml(data.message)}</li>

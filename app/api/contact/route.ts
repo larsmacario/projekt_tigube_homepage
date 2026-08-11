@@ -56,7 +56,7 @@ export async function POST(request: NextRequest) {
       if (formData.konkreterUrlaub === 'ja') {
         if (!formData.urlaubVon || !formData.urlaubBis) {
           return NextResponse.json(
-            { error: 'Bitte geben Sie einen Urlaubszeitraum an' },
+            { error: 'Bitte gib einen Urlaubszeitraum an' },
             { status: 400 }
           )
         }
@@ -178,7 +178,7 @@ export async function POST(request: NextRequest) {
       })
 
       return NextResponse.json(
-        { error: 'Ihre Anfrage wurde gespeichert, aber die E-Mail-Benachrichtigung konnte nicht versendet werden. Bitte kontaktieren Sie uns direkt.' },
+        { error: 'Deine Anfrage wurde gespeichert, aber die E-Mail-Benachrichtigung konnte nicht versendet werden. Bitte kontaktiere uns direkt.' },
         { status: 502 }
       )
     }

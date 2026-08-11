@@ -16,7 +16,7 @@ interface HeroProps {
 export function Hero({ data }: HeroProps) {
   // Fallbacks
   const title = data?.heroTitle || "Tierbetreuung mit Herz und Verstand"
-  const subtitle = data?.heroSubtitle || "Wir betreuen Ihre Lieblinge mit der Hingabe und Sorgfalt, die sie verdienen. Professionell, liebevoll und mit jahrelanger Erfahrung - damit Sie beruhigt sein können."
+  const subtitle = data?.heroSubtitle || "Wir betreuen deine Lieblinge mit der Hingabe und Sorgfalt, die sie verdienen. Professionell, liebevoll und mit jahrelanger Erfahrung – damit du beruhigt sein kannst."
   const mainImageSrc = typeof data?.heroMainImage === 'string' ? data.heroMainImage : "/images/pexels-helenalopes-2253275.jpg"
   const secImageSrc = typeof data?.heroSecondaryImage === 'string' ? data.heroSecondaryImage : "/images/pexels-kirsten-buhne-682055-1521304.jpg"
   const trustIndicators = data?.heroTrustIndicators || [

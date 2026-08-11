@@ -271,9 +271,9 @@ export default function PricesPage() {
         </div>
       ) : (
         <Tabs defaultValue="hundepension" className="w-full">
-          <TabsList className="bg-sage-100/60 p-1 rounded-lg border border-sage-200">
-            <TabsTrigger value="hundepension">Hundepension</TabsTrigger>
-            <TabsTrigger value="katzenbetreuung">Katzenbetreuung</TabsTrigger>
+          <TabsList className="bg-sage-100/60 p-1 rounded-lg border border-sage-200 flex flex-wrap h-auto gap-1 w-full">
+            <TabsTrigger value="hundepension" className="flex-1 min-w-[8rem]">Hundepension</TabsTrigger>
+            <TabsTrigger value="katzenbetreuung" className="flex-1 min-w-[8rem]">Katzenbetreuung</TabsTrigger>
           </TabsList>
 
           <TabsContent value="hundepension" className="space-y-6 mt-6">

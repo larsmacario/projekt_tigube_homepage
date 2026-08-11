@@ -433,7 +433,7 @@ export default function CustomerDetailPage() {
             <CardContent className="space-y-4">
             {formData && isEditing ? (
               <>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <Label>Kundennummer</Label>
                     <Input value={formData.kundennummer} onChange={(e) => setFormData({ ...formData, kundennummer: e.target.value })} />
@@ -475,7 +475,7 @@ export default function CustomerDetailPage() {
                 </div>
                 <div className="border-t pt-4">
                   <h3 className="font-semibold mb-3">Anschrift</h3>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <Label>Straße</Label>
                       <Input value={formData.strasse} onChange={(e) => setFormData({ ...formData, strasse: e.target.value })} />
@@ -496,7 +496,7 @@ export default function CustomerDetailPage() {
                 </div>
                 <div className="border-t pt-4">
                   <h3 className="font-semibold mb-3">Notfallkontakt</h3>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <Label>Name</Label>
                       <Input value={formData.notfall_kontakt_name} onChange={(e) => setFormData({ ...formData, notfall_kontakt_name: e.target.value })} />
@@ -522,7 +522,7 @@ export default function CustomerDetailPage() {
                       <Label>Besonderheiten</Label>
                       <Textarea value={formData.besonderheiten} onChange={(e) => setFormData({ ...formData, besonderheiten: e.target.value })} rows={2} />
                     </div>
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div>
                         <Label>Intervall Impfung</Label>
                         <Select value={formData.intervall_impfung} onValueChange={(v) => setFormData({ ...formData, intervall_impfung: v })}>
@@ -551,7 +551,7 @@ export default function CustomerDetailPage() {
               </>
             ) : formData ? (
               <>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <p className="text-sm text-sage-500">Kundennummer</p>
                     <p className="font-medium">{formData.kundennummer || '-'}</p>
@@ -593,7 +593,7 @@ export default function CustomerDetailPage() {
                 </div>
                 <div className="border-t pt-4">
                   <h3 className="font-semibold mb-3">Anschrift</h3>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <p className="text-sm text-sage-500">Straße</p>
                       <p className="font-medium">{formData.strasse || '-'}</p>
@@ -614,7 +614,7 @@ export default function CustomerDetailPage() {
                 </div>
                 <div className="border-t pt-4">
                   <h3 className="font-semibold mb-3">Notfallkontakt</h3>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
                       <p className="text-sm text-sage-500">Name</p>
                       <p className="font-medium">{formData.notfall_kontakt_name || '-'}</p>
@@ -631,7 +631,7 @@ export default function CustomerDetailPage() {
                     {formData.futtermenge && <div className="mb-2"><p className="text-sm text-sage-500">Futtermenge</p><p className="font-medium">{formData.futtermenge}</p></div>}
                     {formData.medikamente && <div className="mb-2"><p className="text-sm text-sage-500">Medikamente</p><p className="font-medium">{formData.medikamente}</p></div>}
                     {formData.besonderheiten && <div><p className="text-sm text-sage-500">Besonderheiten</p><p className="font-medium">{formData.besonderheiten}</p></div>}
-                    <div className="grid grid-cols-2 gap-4 mt-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-3">
                       <div><p className="text-sm text-sage-500">Intervall Impfung</p><p className="font-medium">{formData.intervall_impfung || '-'}</p></div>
                       <div><p className="text-sm text-sage-500">Intervall Entwurmung</p><p className="font-medium">{formData.intervall_entwurmung || '-'}</p></div>
                     </div>

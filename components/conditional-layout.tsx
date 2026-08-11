@@ -14,6 +14,7 @@ export function ConditionalLayout({ children }: { children: React.ReactNode }) {
                            pathname?.startsWith('/portal') ||
                            pathname?.startsWith('/admin') ||
                            pathname?.startsWith('/signature') ||
+                           pathname?.startsWith('/impfpass-upload') ||
                            pathname?.startsWith('/rechtliches')
 
   if (hideNavAndFooter) {

@@ -524,7 +524,7 @@ export default function CMSPage() {
               {/* Statistiken */}
               <div className="space-y-4 pt-4 border-t">
                 <h3 className="text-lg font-bold border-b pb-2 text-sage-800">3. Statistiken</h3>
-                <div className="grid grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   <div className="space-y-2">
                     <Label>Statistik 1 (Wert)</Label>
                     <Input value={hData.statExperience || ''} onChange={(e) => updateData('homepage', 'statExperience', e.target.value)} />

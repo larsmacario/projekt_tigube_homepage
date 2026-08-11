@@ -208,7 +208,7 @@ export default async function HundepensionPage() {
                   alt="Glückliche Hunde in der Hundepension"
                   width={675}
                   height={450}
-                  className="rounded-2xl shadow-lg border-8 border-white"
+                  className="w-full max-w-full h-auto rounded-2xl shadow-lg border-4 sm:border-8 border-white"
                   priority
                 />
                 <div className="absolute top-4 right-4 bg-sage-600 text-white px-4 py-2 rounded-full font-semibold text-sm shadow-lg">
@@ -306,7 +306,7 @@ export default async function HundepensionPage() {
             {pList.map((item: any, index: number) => (
               <Card key={index} className="border-sage-200">
                 <CardHeader>
-                  <div className="flex justify-between items-start">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:justify-between sm:items-start">
                     <div>
                       <CardTitle className="text-sage-900">{item.service}</CardTitle>
                       <p className="text-sm text-gray-600">{item.duration}</p>
@@ -333,9 +333,9 @@ export default async function HundepensionPage() {
             </h3>
             <div className="grid md:grid-cols-2 gap-4">
               {addList.map((service: any, index: number) => (
-                <div key={index} className="flex justify-between items-center p-4 bg-sage-50 rounded-lg">
-                  <span className="text-gray-700">{service.service}</span>
-                  <span className="font-semibold text-sage-900">
+                <div key={index} className="flex flex-col gap-1 sm:flex-row sm:justify-between sm:items-center p-4 bg-sage-50 rounded-lg">
+                  <span className="text-gray-700 text-sm sm:text-base">{service.service}</span>
+                  <span className="font-semibold text-sage-900 shrink-0 text-right">
                     {service.price} {service.unit ? `${service.unit}` : ""}
                   </span>
                 </div>

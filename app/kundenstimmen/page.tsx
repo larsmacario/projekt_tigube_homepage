@@ -75,16 +75,16 @@ export default function KundenstimmenPage() {
   return (
     <div className="min-h-screen bg-white">
       {/* Hero Section */}
-      <section className="py-16 lg:py-24 bg-gradient-to-br from-sage-50 to-sage-100">
+      <section className="pt-20 py-12 lg:py-24 bg-gradient-to-br from-sage-50 to-sage-100">
         <div className="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <h1 className="font-raleway text-4xl lg:text-5xl font-bold text-sage-900 mb-6">
+          <h1 className="font-raleway text-3xl sm:text-4xl lg:text-5xl font-bold text-sage-900 mb-6">
             Wir sagen DANKE für Euer Vertrauen
           </h1>
-          <p className="text-xl text-sage-700 max-w-3xl mx-auto mb-8">
+          <p className="text-lg sm:text-xl text-sage-700 max-w-3xl mx-auto mb-8">
             Über 400 zufriedene Tierbesitzer vertrauen bereits auf unsere Betreuung.
             Lesen Sie, was unsere Kunden über uns sagen.
           </p>
-          <div className="flex items-center justify-center gap-2 text-sage-600">
+          <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-sage-600">
             <div className="flex">
               {[...Array(5)].map((_, i) => (
                 <Star key={i} className="h-6 w-6 text-yellow-400 fill-current" />

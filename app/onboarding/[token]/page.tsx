@@ -173,7 +173,7 @@ export default function OnboardingPage() {
     <div className="min-h-screen flex items-center justify-center bg-sage-50 px-4 py-12">
       <Card className="w-full max-w-md">
         <CardHeader>
-          <CardTitle className="text-2xl font-bold text-center">
+          <CardTitle className="text-xl sm:text-2xl font-bold text-center">
             Willkommen bei Tierisch Gut Betreut!
           </CardTitle>
           <CardDescription className="text-center">

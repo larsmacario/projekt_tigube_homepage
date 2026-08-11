@@ -7,7 +7,12 @@
     "dev": "NODE_OPTIONS='--max-http-header-size=65536' next dev --turbopack",
     "lint": "next lint",
     "start": "next start",
-    "test": "vitest run"
+    "test": "vitest run",
+    "screenshots": "node scripts/responsive-screenshots.mjs",
+    "screenshots:phase0": "node scripts/responsive-screenshots.mjs phase0",
+    "screenshots:phase1": "node scripts/responsive-screenshots.mjs phase1",
+    "screenshots:phase2": "node scripts/responsive-screenshots.mjs phase2",
+    "screenshots:phase3": "node scripts/responsive-screenshots.mjs phase3"
   },
   "dependencies": {
     "@radix-ui/react-alert-dialog": "latest",
@@ -53,6 +58,7 @@
     "@types/nodemailer": "^8.0.1",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "playwright": "^1.62.1",
     "postcss": "^8.5",
     "supabase": "^2.109.1",
     "tailwindcss": "^3.4.17",

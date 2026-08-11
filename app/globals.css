@@ -57,7 +57,7 @@
   }
 
   .legal-content {
-    @apply text-gray-700;
+    @apply text-gray-700 break-words;
   }
 
   .legal-content > * + * {
@@ -108,6 +108,10 @@
 
   .legal-content blockquote {
     @apply bg-sage-50 p-6 rounded-lg border-l-4 border-sage-600 text-gray-700 my-6;
+  }
+
+  .legal-content table {
+    @apply block max-w-full overflow-x-auto;
   }
 
   .legal-content hr {

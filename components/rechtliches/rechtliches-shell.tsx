@@ -13,7 +13,7 @@ export function RechtlichesShell({ children, variant = 'hub' }: RechtlichesShell
         variant === 'hub' ? 'flex flex-col items-center justify-center' : ''
       }`}
     >
-      <div className={`w-full max-w-md ${variant === 'document' ? 'mx-auto' : ''}`}>{children}</div>
+      <div className={`w-full max-w-md md:max-w-2xl lg:max-w-3xl ${variant === 'document' ? 'mx-auto' : ''}`}>{children}</div>
     </div>
   )
 }

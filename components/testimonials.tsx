@@ -150,7 +150,7 @@ export function Testimonials() {
           <p className="text-lg text-gray-600 max-w-2xl mx-auto">
             Was unsere Kunden über unseren Service sagen - über 400 zufriedene Tierbesitzer vertrauen uns bereits!
           </p>
-          <div className="flex items-center justify-center gap-2 mt-4 text-sage-600">
+          <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1 mt-4 text-sage-600">
             <div className="flex">
               {[...Array(5)].map((_, i) => (
                 <Star key={i} className="h-6 w-6 text-yellow-400 fill-current" />
@@ -166,7 +166,7 @@ export function Testimonials() {
               href={googleData.url}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 mt-4 px-4 py-2 bg-white rounded-full shadow-sm hover:shadow-md transition-shadow"
+              className="inline-flex flex-wrap items-center justify-center gap-2 mt-4 px-4 py-2 bg-white rounded-full shadow-sm hover:shadow-md transition-shadow max-w-full"
             >
               <GoogleIcon className="h-5 w-5" />
               <span className="text-sm font-medium text-gray-700">
@@ -177,6 +177,7 @@ export function Testimonials() {
           )}
         </div>
 
+        <div className="relative px-10 sm:px-14">
         <Carousel
           opts={{
             align: "start",
@@ -255,6 +256,7 @@ export function Testimonials() {
           <CarouselPrevious className="hidden sm:flex" />
           <CarouselNext className="hidden sm:flex" />
         </Carousel>
+        </div>
 
         <div className="text-center mt-12 flex flex-wrap items-center justify-center gap-4">
           <Link href="/kundenstimmen" passHref>

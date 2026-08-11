@@ -165,7 +165,7 @@ export default function AdminDashboard() {
       {/* Neue Anfragen */}
       <Card>
         <CardHeader>
-          <div className="flex justify-between items-center">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <CardTitle>Neue Anfragen</CardTitle>
               <CardDescription>Alle Anfragen mit Status "Neu"</CardDescription>
@@ -185,7 +185,7 @@ export default function AdminDashboard() {
               {recentLeads.map((lead) => (
                 <div
                   key={lead.id}
-                  className="flex justify-between items-start p-4 border border-sage-200 rounded-lg hover:bg-sage-50"
+                  className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between p-4 border border-sage-200 rounded-lg hover:bg-sage-50"
                 >
                   <div>
                     <h3 className="font-semibold text-sage-900">
@@ -217,7 +217,7 @@ export default function AdminDashboard() {
 
       <Card>
         <CardHeader>
-          <div className="flex justify-between items-center gap-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
               <CardTitle>Anstehende Impfungen</CardTitle>
               <CardDescription>

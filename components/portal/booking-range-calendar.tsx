@@ -17,7 +17,7 @@ export type BookingVacationPeriod = {
 }
 
 export const bookingRangeCalendarClassName =
-  'rounded-xl bg-white [--cell-size:3.35rem] !border border-sage-200/80 p-3 transition-all !ring-0 !ring-offset-0 focus:!ring-0 focus:!ring-offset-0 focus-visible:!ring-0 focus-visible:!ring-offset-0 [&_*]:!ring-0 [&_*]:!ring-offset-0 [&_*]:focus:!ring-0 [&_*]:focus-visible:!ring-0 [&_.rdp-day_today]:!bg-transparent'
+  'rounded-xl bg-white [--cell-size:2.35rem] sm:[--cell-size:2.75rem] md:[--cell-size:3.15rem] lg:[--cell-size:3.35rem] !border border-sage-200/80 p-2 sm:p-3 transition-all !ring-0 !ring-offset-0 focus:!ring-0 focus:!ring-offset-0 focus-visible:!ring-0 focus-visible:!ring-offset-0 [&_*]:!ring-0 [&_*]:!ring-offset-0 [&_*]:focus:!ring-0 [&_*]:focus-visible:!ring-0 [&_.rdp-day_today]:!bg-transparent'
 
 export const bookingRangeCalendarClassNames = {
   today: '!bg-transparent',

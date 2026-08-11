@@ -1546,7 +1546,7 @@ function ProfileContent() {
                 <div className="space-y-4">
                   {pets.map((pet) => (
                     <div key={pet.id} className="p-4 border border-sage-200 rounded-lg">
-                      <div className="flex items-start justify-between mb-3 gap-3">
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between mb-3">
                         <div className="flex items-start gap-3 min-w-0">
                           <PetAvatar name={pet.name} photoUrl={pet.primary_photo_url} />
                           <div className="min-w-0">
@@ -1631,28 +1631,28 @@ function ProfileContent() {
           {isOnboarding && (
             <Card>
               <CardContent className="pt-6">
-                <div className="flex gap-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-stretch">
                   <Button
                     variant="outline"
                     onClick={() => {
                       setStep(1)
                       router.push('/portal/profile?onboarding=true&step=1')
                     }}
-                    className="border-sage-300 text-sage-700 hover:bg-sage-50"
+                    className="w-full sm:w-auto border-sage-300 text-sage-700 hover:bg-sage-50"
                   >
                     ← Zurück zu Schritt 1
                   </Button>
                   <Button
                     onClick={handleSaveStep2Next}
                     disabled={pets.length === 0}
-                    className="flex-1 bg-sage-600 hover:bg-sage-700 text-lg py-6"
+                    className="w-full sm:flex-1 bg-sage-600 hover:bg-sage-700 text-lg py-6"
                   >
                     Weiter zu Schritt 3 →
                   </Button>
                   <Button
                     variant="outline"
                     onClick={() => router.push('/portal')}
-                    className="border-sage-300 text-sage-700 hover:bg-sage-50"
+                    className="w-full sm:w-auto border-sage-300 text-sage-700 hover:bg-sage-50"
                   >
                     Später fortfahren
                   </Button>
@@ -1834,14 +1834,14 @@ function ProfileContent() {
           {/* Steuerungsknöpfe */}
           <Card>
             <CardContent className="pt-6">
-              <div className="flex gap-4">
+              <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-stretch">
                 <Button
                   variant="outline"
                   onClick={() => {
                     setStep(2)
                     router.push('/portal/profile?onboarding=true&step=2')
                   }}
-                  className="border-sage-300 text-sage-700 hover:bg-sage-50"
+                  className="w-full sm:w-auto border-sage-300 text-sage-700 hover:bg-sage-50"
                 >
                   ← Zurück zu Schritt 2
                 </Button>
@@ -1850,14 +1850,14 @@ function ProfileContent() {
                   disabled={
                     saving || !dataConsent || !signatureImage || !contractLegal || contractLegalLoading
                   }
-                  className="flex-1 bg-sage-600 hover:bg-sage-700 text-lg py-6 text-white"
+                  className="w-full sm:flex-1 bg-sage-600 hover:bg-sage-700 text-lg py-6 text-white"
                 >
                   {saving ? 'Vertrag wird übermittelt...' : '✓ Vertrag unterzeichnen & Onboarding abschließen'}
                 </Button>
                 <Button
                   variant="outline"
                   onClick={() => router.push('/portal')}
-                  className="border-sage-300 text-sage-700 hover:bg-sage-50"
+                  className="w-full sm:w-auto border-sage-300 text-sage-700 hover:bg-sage-50"
                 >
                   Später fortfahren
                 </Button>

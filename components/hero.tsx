@@ -44,13 +44,13 @@ export function Hero({ data }: HeroProps) {
 
             {/* CTA Buttons */}
             <div className="flex flex-col sm:flex-row gap-4">
-              <Link href="#kontakt">
-                <Button size="lg" className="bg-sage-600 hover:bg-sage-700 text-white px-8">
+              <Link href="#kontakt" className="w-full sm:w-auto">
+                <Button size="lg" className="w-full sm:w-auto bg-sage-600 hover:bg-sage-700 text-white px-8">
                   Unverbindlich Anfragen
                 </Button>
               </Link>
-              <Link href="#leistungen">
-                <Button size="lg" variant="outline" className="border-sage-300 text-sage-700 hover:bg-sage-50">
+              <Link href="#leistungen" className="w-full sm:w-auto">
+                <Button size="lg" variant="outline" className="w-full sm:w-auto border-sage-300 text-sage-700 hover:bg-sage-50">
                   Mehr erfahren
                 </Button>
               </Link>
@@ -58,7 +58,7 @@ export function Hero({ data }: HeroProps) {
           </div>
 
           {/* Images */}
-          <div className="relative">
+          <div className="relative pb-20 sm:pb-12 overflow-x-clip">
             {/* Main Image */}
             <div className="relative rounded-2xl overflow-hidden shadow-2xl max-w-md mx-auto border-4 border-white">
               <Image
@@ -79,7 +79,7 @@ export function Hero({ data }: HeroProps) {
             </div>
             
             {/* Overlapping Second Image */}
-            <div className="absolute -bottom-4 -right-4 w-64 h-48 rounded-xl overflow-hidden shadow-xl border-4 border-white">
+            <div className="absolute bottom-0 right-0 sm:-bottom-4 sm:-right-4 w-40 h-32 sm:w-64 sm:h-48 rounded-xl overflow-hidden shadow-xl border-4 border-white">
               <Image
                 src={secImageSrc}
                 alt="Glückliche Katze - professionelle Katzenbetreuung"

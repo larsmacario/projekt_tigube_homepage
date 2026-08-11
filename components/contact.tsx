@@ -25,7 +25,7 @@ export function Contact({ data }: ContactProps) {
   return (
     <section id="kontakt" className="py-16 lg:py-24 bg-sage-50">
       <div className="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="text-center mb-16">
+        <div className="text-center mb-10 lg:mb-16">
           <h2 className="font-raleway text-3xl lg:text-4xl font-bold text-sage-900 mb-4">
             {title}
           </h2>
@@ -34,7 +34,7 @@ export function Contact({ data }: ContactProps) {
           </p>
         </div>
 
-        <div className="grid lg:grid-cols-3 gap-12">
+        <div className="grid lg:grid-cols-3 gap-8 lg:gap-12">
           <div className="space-y-6">
             <Card className="border-sage-200">
               <CardHeader>

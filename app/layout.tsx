@@ -1,5 +1,5 @@
 import type React from "react"
-import type { Metadata } from "next"
+import type { Metadata, Viewport } from "next"
 import { Raleway } from "next/font/google"
 import "./globals.css"
 import { Toaster } from "@/components/ui/toaster"
@@ -15,6 +15,12 @@ const raleway = Raleway({
 
 const rawUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://tierischgutbetreut.de"
 const siteUrl = rawUrl.replace("https:/t", "https://t")
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+}
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),

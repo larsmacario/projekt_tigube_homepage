@@ -889,11 +889,11 @@ export function PortalBookingWizard({
 
   return (
     <div className="flex flex-col">
-      <nav aria-label="Fortschritt" className="mb-6 flex shrink-0 gap-2">
+      <nav aria-label="Fortschritt" className="mb-6 flex shrink-0 gap-2 overflow-x-auto pb-1">
         {progressSteps.map((s, index) => (
           <div
             key={s.step}
-            className={`flex-1 rounded-md border px-2 py-2 text-center text-xs font-medium sm:text-sm ${
+            className={`min-w-[4.5rem] shrink-0 flex-1 rounded-md border px-2 py-2 text-center text-xs font-medium sm:text-sm ${
               step === s.step
                 ? 'border-sage-600 bg-sage-100 text-sage-900'
                 : step > s.step
@@ -901,12 +901,12 @@ export function PortalBookingWizard({
                   : 'border-sage-200 text-sage-500'
             }`}
           >
-            {index + 1}. {s.label}
+            {index + 1}. <span className="hidden sm:inline">{s.label}</span><span className="sm:hidden">{s.label.split(' ')[0]}</span>
           </div>
         ))}
       </nav>
 
-      <div className="space-y-6 pb-28">
+      <div className="space-y-6 pb-32 sm:pb-28">
       {step === 1 && (
         <div className="space-y-4">
           <p className="text-sm text-sage-600">
@@ -918,7 +918,7 @@ export function PortalBookingWizard({
             return (
               <div
                 key={index}
-                className="grid gap-3 rounded-lg border border-sage-200 bg-sage-50/50 p-3 sm:grid-cols-[1fr_1fr_auto]"
+                className="grid gap-3 rounded-lg border border-sage-200 bg-sage-50/50 p-3 md:grid-cols-[1fr_1fr_auto]"
               >
                 <div>
                   <Label>Tier</Label>
@@ -1284,7 +1284,7 @@ export function PortalBookingWizard({
 
       <div
         className={cn(
-          'fixed bottom-0 right-0 z-40 border-t border-sage-200 bg-sage-50/95 py-4 shadow-[0_-8px_24px_-12px_rgba(0,0,0,0.12)] backdrop-blur-sm',
+          'fixed bottom-0 right-0 z-40 border-t border-sage-200 bg-sage-50/95 py-4 pb-[max(1rem,env(safe-area-inset-bottom))] shadow-[0_-8px_24px_-12px_rgba(0,0,0,0.12)] backdrop-blur-sm',
           isMobile
             ? 'left-0'
             : sidebarState === 'expanded'
@@ -1292,8 +1292,8 @@ export function PortalBookingWizard({
               : 'left-[var(--sidebar-width-icon)]'
         )}
       >
-        <div className="mx-auto flex max-w-5xl justify-between gap-2 px-4 sm:px-6 lg:px-8">
-          <Button type="button" variant="outline" onClick={step === 1 ? onCancel : goToPreviousStep}>
+        <div className="mx-auto flex max-w-5xl flex-col-reverse gap-2 px-4 sm:flex-row sm:justify-between sm:px-6 lg:px-8">
+          <Button type="button" variant="outline" onClick={step === 1 ? onCancel : goToPreviousStep} className="w-full sm:w-auto">
             {step === 1 ? 'Abbrechen' : 'Zurück'}
           </Button>
           {step < OVERVIEW_STEP ? (
@@ -1301,11 +1301,12 @@ export function PortalBookingWizard({
               type="button"
               onClick={() => void goToNextStep()}
               disabled={pets.length === 0 || advancingStep}
+              className="w-full sm:w-auto"
             >
               {advancingStep ? 'Wird geprüft…' : 'Weiter'}
             </Button>
           ) : (
-            <Button type="button" onClick={handleSubmit} disabled={submitting || pets.length === 0}>
+            <Button type="button" onClick={handleSubmit} disabled={submitting || pets.length === 0} className="w-full sm:w-auto">
               {submitting ? 'Wird gesendet…' : 'Anfrage stellen'}
             </Button>
           )}

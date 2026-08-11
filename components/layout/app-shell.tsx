@@ -36,7 +36,7 @@ export function AppShell({
   if (!ready) {
     return (
       <div className="min-h-screen bg-sage-50">
-        <div className="mx-auto max-w-[1440px] px-4 py-8 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-[1440px] min-w-0 px-4 py-6 sm:py-8 sm:px-6 lg:px-8">
           {children}
         </div>
       </div>
@@ -60,8 +60,8 @@ export function AppShell({
           <Separator orientation="vertical" className="mr-2 h-4" />
           <span className="text-sm font-medium text-sage-800">{title}</span>
         </header>
-        <div className="flex-1 overflow-x-auto">
-          <div className="mx-auto max-w-[1440px] px-4 py-8 sm:px-6 lg:px-8">
+        <div className="flex-1 min-w-0 overflow-x-hidden">
+          <div className="mx-auto max-w-[1440px] min-w-0 px-4 py-6 sm:py-8 sm:px-6 lg:px-8">
             {children}
           </div>
         </div>

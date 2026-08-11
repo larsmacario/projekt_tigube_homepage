@@ -20,6 +20,7 @@
 # Misc
 .DS_Store
 *.pem
+.screenshots/
 
 # Typescript
 *.tsbuildinfo

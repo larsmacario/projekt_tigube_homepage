@@ -61,14 +61,14 @@ export function NewsBar() {
   return (
     <div className="bg-sage-600 text-white py-3 px-4 relative">
       <div className="max-w-[1440px] mx-auto">
-        <div className="flex items-center justify-center text-center">
-          <div className="flex items-center space-x-2">
+        <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-center">
+          <div className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1">
             <Calendar className="h-4 w-4 flex-shrink-0" />
             <span className="text-sm font-medium">
               {settings.title}
             </span>
             <span className="hidden sm:inline">•</span>
-            <span className="text-sm">{settings.subtitle}</span>
+            <span className="text-sm max-w-[14rem] sm:max-w-none truncate sm:whitespace-normal">{settings.subtitle}</span>
             <Dialog>
               <DialogTrigger asChild>
                 <button className="text-sm underline hover:no-underline transition-all duration-200">

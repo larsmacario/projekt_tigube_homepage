@@ -605,7 +605,7 @@ export const PetImpfpassGallery = forwardRef<PetImpfpassGalleryHandle, PetImpfpa
           <button
             type="button"
             onClick={() => setExamplesOpen((open) => !open)}
-            className="flex w-full items-center justify-between gap-3 px-4 py-4 text-left transition-colors hover:bg-sage-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-sage-600"
+            className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between gap-3 px-4 py-4 text-left transition-colors hover:bg-sage-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-sage-600"
             aria-expanded={examplesOpen}
           >
             <div className="min-w-0">
@@ -727,7 +727,7 @@ export const PetImpfpassGallery = forwardRef<PetImpfpassGalleryHandle, PetImpfpa
 
         {/* Hochgeladene Seiten */}
         <div className="space-y-3">
-          <div className="flex items-center justify-between gap-3">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between gap-3">
             <div>
               <Label className="text-base">Deine Impfpass-Fotos</Label>
               <p className="text-sm text-sage-600 mt-0.5">

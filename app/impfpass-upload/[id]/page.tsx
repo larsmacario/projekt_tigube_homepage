@@ -149,7 +149,7 @@ export default function ImpfpassUploadMobilePage() {
   }
 
   return (
-    <div className="min-h-screen bg-sage-50 px-4 py-6 pb-10">
+    <div className="min-h-[100dvh] bg-sage-50 px-4 py-6 pb-[max(2.5rem,env(safe-area-inset-bottom))]">
       <div className="mx-auto max-w-lg space-y-5">
         <div className="text-center space-y-2">
           <p className="text-xs font-semibold uppercase tracking-wide text-sage-600">

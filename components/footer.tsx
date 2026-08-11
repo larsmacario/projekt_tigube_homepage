@@ -68,7 +68,7 @@ export function Footer() {
               </div>
               <div className="flex items-center gap-2">
                 <Mail className="h-4 w-4 text-sage-400" />
-                <span className="text-sage-300">info@tierischgutbetreut.de</span>
+                <span className="text-sage-300 break-words">info@tierischgutbetreut.de</span>
               </div>
               <div className="flex items-center gap-2">
                 <MapPin className="h-4 w-4 text-sage-400" />
@@ -103,7 +103,7 @@ export function Footer() {
         {/* Bottom Bar */}
         <div className="border-t border-sage-800 mt-12 pt-8 flex flex-col md:flex-row justify-between items-center text-sm text-sage-400">
           <div>© 2025 tierisch gut betreut GmbH. Alle Rechte vorbehalten.</div>
-          <div className="flex gap-6 mt-4 md:mt-0">
+          <div className="flex flex-wrap justify-center gap-x-6 gap-y-2 mt-4 md:mt-0">
             <Link href="/login" className="hover:text-white transition-colors">
               Login
             </Link>

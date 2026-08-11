@@ -434,7 +434,7 @@ export default function AdminBookingsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-3xl font-bold text-sage-900">Buchungsanfragen</h1>
           <p className="mt-2 text-sage-600">Verwalte alle Buchungsanfragen und Kapazitäten</p>
@@ -458,7 +458,7 @@ export default function AdminBookingsPage() {
       {/* Filter */}
       <Card>
         <CardContent className="pt-6">
-          <div className="flex gap-4">
+          <div className="flex flex-col sm:flex-row gap-4">
             <div className="flex-1">
               <Label>Status</Label>
               <Select value={filterStatus} onValueChange={setFilterStatus}>
@@ -746,7 +746,7 @@ export default function AdminBookingsPage() {
           {/* Tages-Overrides */}
           <Card>
             <CardHeader>
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <CardTitle>Tages-Overrides</CardTitle>
                   <CardDescription>

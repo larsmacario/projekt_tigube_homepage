@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Card, CardContent } from '@/components/ui/card'
 import {
   Table,
   TableBody,
@@ -56,6 +57,45 @@ export function UpcomingVaccinationsTable({
   }
 
   return (
+    <>
+      <div className="space-y-3 md:hidden">
+        {rows.map((row) => (
+          <Card key={`${row.petId}-${row.vaccinationType}`} className="border-sage-200">
+            <CardContent className="p-4 space-y-3">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="font-semibold text-sage-900">{row.petName}</p>
+                  <p className="text-sm text-sage-600 truncate">{row.customerName || '—'}</p>
+                </div>
+                <Badge variant="outline" className={getStatusBadgeClass(row.status)}>
+                  {getUpcomingVaccinationStatusLabel(row.status)}
+                </Badge>
+              </div>
+              <dl className="grid grid-cols-1 gap-2 text-sm">
+                <div className="flex justify-between gap-3 border-t border-sage-100 pt-2">
+                  <dt className="text-sage-500">Impfart</dt>
+                  <dd className="text-sage-900 text-right">{getVaccinationTypeLabel(row.vaccinationType)}</dd>
+                </div>
+                <div className="flex justify-between gap-3 border-t border-sage-100 pt-2">
+                  <dt className="text-sage-500">Fällig am</dt>
+                  <dd className="text-sage-900 text-right">{row.dueDate ? formatDateDE(row.dueDate) : '—'}</dd>
+                </div>
+                <div className="flex justify-between gap-3 border-t border-sage-100 pt-2">
+                  <dt className="text-sage-500">Tage</dt>
+                  <dd className="text-sage-900 text-right">{formatDaysUntilDue(row.daysUntilDue)}</dd>
+                </div>
+              </dl>
+              <Link href={`/admin/customers/${row.customerId}`} className="block">
+                <Button variant="outline" size="sm" className="w-full">
+                  Kunde öffnen
+                </Button>
+              </Link>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      <div className="hidden md:block overflow-x-auto">
     <Table>
       <TableHeader>
         <TableRow>
@@ -100,6 +140,8 @@ export function UpcomingVaccinationsTable({
         ))}
       </TableBody>
     </Table>
+      </div>
+    </>
   )
 }
 

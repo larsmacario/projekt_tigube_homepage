@@ -190,7 +190,7 @@ export default async function KatzenbetreuungPage() {
                 alt="Katze in gewohnter Umgebung"
                 width={600}
                 height={400}
-                className="rounded-2xl shadow-lg border-8 border-white"
+                  className="w-full max-w-full h-auto rounded-2xl shadow-lg border-4 sm:border-8 border-white"
                 priority
               />
               <div className="absolute top-4 right-4 bg-sage-600 text-white px-4 py-2 rounded-full font-semibold">
@@ -282,12 +282,12 @@ export default async function KatzenbetreuungPage() {
                 return (
                   <Card key={index} className="border-sage-200">
                     <CardContent className="pt-6">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                          <Icon className="h-5 w-5 text-sage-600" />
+                      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <Icon className="h-5 w-5 text-sage-600 shrink-0" />
                           <span className="text-gray-700">{service.service}</span>
                         </div>
-                        <div className="text-right">
+                        <div className="text-left sm:text-right shrink-0 pl-8 sm:pl-0">
                           <div className="font-semibold text-sage-900">{service.price}</div>
                           <div className="text-sm text-gray-600">{service.unit}</div>
                         </div>

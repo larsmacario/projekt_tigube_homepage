@@ -14,6 +14,14 @@ export function Navigation() {
     setMounted(true)
   }, [])
 
+  useEffect(() => {
+    if (!mounted) return
+    document.body.classList.toggle("overflow-hidden", isOpen)
+    return () => {
+      document.body.classList.remove("overflow-hidden")
+    }
+  }, [isOpen, mounted])
+
   return (
     <nav className="bg-white shadow-sm border-b border-sage-100 sticky top-0 z-50">
       <div className="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8">
@@ -54,7 +62,11 @@ export function Navigation() {
 
           {/* Mobile menu button */}
           <div className="md:hidden">
-            <button onClick={() => setIsOpen(!isOpen)} className="text-sage-700 hover:text-sage-900">
+            <button
+              onClick={() => setIsOpen(!isOpen)}
+              className="text-sage-700 hover:text-sage-900 p-2 -mr-2 min-h-11 min-w-11 flex items-center justify-center"
+              aria-label={isOpen ? "Menü schließen" : "Menü öffnen"}
+            >
               {mounted && isOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
             </button>
           </div>
@@ -62,24 +74,24 @@ export function Navigation() {
 
         {/* Mobile Navigation */}
         {mounted && isOpen && (
-          <div className="md:hidden py-4 border-t border-sage-100">
+          <div className="md:hidden py-4 border-t border-sage-100 max-h-[calc(100dvh-4rem)] overflow-y-auto overscroll-contain">
             <div className="flex flex-col space-y-4">
-              <Link href="/" className="text-sage-700 hover:text-sage-900 font-medium">
+              <Link href="/" className="text-sage-700 hover:text-sage-900 font-medium py-1" onClick={() => setIsOpen(false)}>
                 Startseite
               </Link>
-              <Link href="/hundepension" className="text-sage-700 hover:text-sage-900 font-medium">
+              <Link href="/hundepension" className="text-sage-700 hover:text-sage-900 font-medium py-1" onClick={() => setIsOpen(false)}>
                 Hundepension
               </Link>
-              <Link href="/katzenbetreuung" className="text-sage-700 hover:text-sage-900 font-medium">
+              <Link href="/katzenbetreuung" className="text-sage-700 hover:text-sage-900 font-medium py-1" onClick={() => setIsOpen(false)}>
                 Katzenbetreuung
               </Link>
-              <Link href="/kundenstimmen" className="text-sage-700 hover:text-sage-900 font-medium">
+              <Link href="/kundenstimmen" className="text-sage-700 hover:text-sage-900 font-medium py-1" onClick={() => setIsOpen(false)}>
                 Kundenstimmen
               </Link>
-              <Link href="/portal" className="text-sage-700 hover:text-sage-900 font-medium">
+              <Link href="/portal" className="text-sage-700 hover:text-sage-900 font-medium py-1" onClick={() => setIsOpen(false)}>
                 Kundenportal
               </Link>
-              <Link href="/#kontakt">
+              <Link href="/#kontakt" onClick={() => setIsOpen(false)}>
                 <Button className="bg-sage-600 hover:bg-sage-700 text-white w-full">Unverbindlich Anfragen</Button>
               </Link>
             </div>

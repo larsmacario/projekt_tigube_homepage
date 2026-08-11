@@ -359,11 +359,11 @@ export default function DocumentsPage() {
           {documents.map((doc) => (
             <Card key={doc.id}>
               <CardContent className="pt-6">
-                <div className="flex justify-between items-start">
-                  <div>
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="min-w-0 flex-1">
                     <button
                       onClick={() => handleOpenDocument(doc.id)}
-                      className="font-semibold text-left text-sage-800 hover:text-sage-600 hover:underline focus:outline-none block"
+                      className="font-semibold text-left text-sage-800 hover:text-sage-600 hover:underline focus:outline-none block truncate max-w-full"
                     >
                       {doc.file_name}
                     </button>
@@ -389,7 +389,7 @@ export default function DocumentsPage() {
                     variant="outline"
                     size="sm"
                     onClick={() => openDeleteDialog(doc)}
-                    className="text-red-600 hover:text-red-700"
+                    className="shrink-0 self-end sm:self-auto text-red-600 hover:text-red-700"
                   >
                     Löschen
                   </Button>

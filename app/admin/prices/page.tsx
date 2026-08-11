@@ -630,7 +630,7 @@ export default function PricesPage() {
         </Card>
       ) : (
       <Tabs defaultValue="default" className="w-full">
-        <TabsList className="bg-sage-100/60 p-1 rounded-lg border border-sage-200">
+        <TabsList className="bg-sage-100/60 p-1 rounded-lg border border-sage-200 flex flex-wrap h-auto gap-1 w-full">
           <TabsTrigger value="default" className="rounded-md px-4 py-2 text-sm font-medium transition-all data-[state=active]:bg-white data-[state=active]:text-sage-900 data-[state=active]:shadow-sm">
             Standard-Preise
           </TabsTrigger>
@@ -1113,7 +1113,7 @@ export default function PricesPage() {
           <div className="lg:col-span-2">
             {selectedGroupId ? (
               <Card>
-                <CardHeader className="flex flex-row items-center justify-between">
+                <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div>
                     <CardTitle>
                       Preise für Gruppe: {groups.find(g => g.id === selectedGroupId)?.name}
@@ -1235,7 +1235,7 @@ export default function PricesPage() {
           {/* Rechte Spalte: Kategorienliste */}
           <div className="lg:col-span-2">
             <Card>
-              <CardHeader className="flex flex-row items-center justify-between">
+              <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <CardTitle>Bestehende Preiskategorien</CardTitle>
                 </div>

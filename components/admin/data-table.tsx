@@ -10,6 +10,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Button } from '@/components/ui/button'
+import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -20,8 +21,6 @@ import { de } from 'date-fns/locale'
 import { CalendarIcon, Plus } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useToast } from '@/hooks/use-toast'
-import Link from 'next/link'
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import type { TableColumn } from '@/lib/table-columns'
 import { AddColumnModal } from './add-column-modal'
 
@@ -32,6 +31,23 @@ interface DataTableProps {
   loading?: boolean
   onCellUpdate?: (rowId: string | number, columnId: string, value: any) => Promise<void>
   onAddColumn?: () => void
+}
+
+const MOBILE_CARD_PRIORITY: Record<'lead' | 'customer', string[]> = {
+  lead: ['vorname', 'nachname', 'email', 'telefonnummer', 'status', 'lead_type'],
+  customer: ['vorname', 'nachname', 'email', 'kundennummer', 'status', 'telefonnummer'],
+}
+
+function getMobileCardColumns(columns: TableColumn[], entityType: 'lead' | 'customer') {
+  const priority = MOBILE_CARD_PRIORITY[entityType]
+  const dataColumns = columns.filter((column) => column.fieldType !== 'id')
+  const prioritized = priority
+    .map((fieldName) => dataColumns.find((column) => column.fieldName === fieldName))
+    .filter((column): column is TableColumn => Boolean(column))
+  const remaining = dataColumns.filter(
+    (column) => !prioritized.some((picked) => picked.id === column.id)
+  )
+  return [...prioritized, ...remaining].slice(0, 4)
 }
 
 export function DataTable({
@@ -311,9 +327,78 @@ export function DataTable({
     )
   }
 
+  const mobileColumns = getMobileCardColumns(columns, entityType)
+  const detailPath = entityType === 'lead' ? 'leads' : 'customers'
+
   return (
     <div className="space-y-4">
-      <div className="border rounded-lg overflow-hidden">
+      {/* Mobile card list */}
+      <div className="space-y-3 md:hidden">
+        {data.length === 0 ? (
+          <div className="rounded-lg border border-sage-200 bg-white px-4 py-8 text-center text-sage-600">
+            Keine Daten gefunden
+          </div>
+        ) : (
+          data.map((row, index) => {
+            const title =
+              [row.vorname, row.nachname].filter(Boolean).join(' ') ||
+              row.email ||
+              row.kundennummer ||
+              `Eintrag ${index + 1}`
+
+            return (
+              <Card key={row.id} className="border-sage-200">
+                <CardContent className="p-4 space-y-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="font-semibold text-sage-900 truncate">{title}</p>
+                      {row.email && (
+                        <p className="text-sm text-sage-600 truncate">{row.email}</p>
+                      )}
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="shrink-0 border-sage-300"
+                      onClick={() => {
+                        window.location.href = `/admin/${detailPath}/${row.id}`
+                      }}
+                    >
+                      Öffnen
+                    </Button>
+                  </div>
+                  <dl className="grid grid-cols-1 gap-2 text-sm">
+                    {mobileColumns.map((column) => {
+                      const value = getCellValue(row, column)
+                      if (column.fieldName === 'vorname' || column.fieldName === 'nachname') {
+                        return null
+                      }
+                      if (column.fieldName === 'email' && row.email) {
+                        return null
+                      }
+                      return (
+                        <div
+                          key={column.id}
+                          className="flex items-start justify-between gap-3 border-t border-sage-100 pt-2 first:border-t-0 first:pt-0"
+                        >
+                          <dt className="text-sage-500 shrink-0">{column.label}</dt>
+                          <dd className="text-right text-sage-900 min-w-0 break-words">
+                            {renderDisplayCell(value, column)}
+                          </dd>
+                        </div>
+                      )
+                    })}
+                  </dl>
+                </CardContent>
+              </Card>
+            )
+          })
+        )}
+      </div>
+
+      {/* Desktop table */}
+      <div className="hidden md:block border rounded-lg overflow-hidden">
         <div className="overflow-x-auto">
           <Table>
             <TableHeader className="bg-sage-50">

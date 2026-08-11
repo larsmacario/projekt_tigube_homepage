@@ -447,7 +447,7 @@ export default function PetsPage() {
                   </Select>
                 </div>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 <div>
                   <Label htmlFor="pet-geschlecht">Geschlecht</Label>
                   <Select
@@ -659,7 +659,7 @@ export default function PetsPage() {
             <div className="space-y-4">
               {pets.map((pet) => (
                 <div key={pet.id} className="p-4 border border-sage-200 rounded-lg">
-                  <div className="flex items-start justify-between mb-3 gap-3">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between mb-3">
                     <div className="flex items-start gap-3 min-w-0">
                       <PetAvatar name={pet.name} photoUrl={pet.primary_photo_url} />
                       <div className="min-w-0">

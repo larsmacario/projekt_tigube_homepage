@@ -256,21 +256,22 @@ export default function CustomersPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-sage-900">Kunden</h1>
+          <h1 className="text-2xl sm:text-3xl font-bold text-sage-900">Kunden</h1>
           <p className="mt-2 text-sage-600">Übersicht aller registrierten Kunden</p>
         </div>
-        <div className="flex items-center gap-4 max-w-xl w-full justify-end">
+        <div className="flex flex-col items-stretch gap-3 sm:items-end w-full lg:max-w-xl">
           <Input
             placeholder="Suche nach Name, E-Mail oder Kundennummer..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="max-w-md"
+            className="w-full"
           />
+          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:justify-end">
           <Button
             variant="outline"
-            className="whitespace-nowrap"
+            className="w-full sm:w-auto whitespace-normal sm:whitespace-nowrap"
             disabled={pendingOnboardingCustomers.length === 0}
             onClick={openBulkInviteDialog}
           >
@@ -342,7 +343,7 @@ export default function CustomersPage() {
           </Dialog>
           <Dialog open={isInviteOpen} onOpenChange={setIsInviteOpen}>
             <DialogTrigger asChild>
-              <Button className="bg-sage-600 hover:bg-sage-700 text-white whitespace-nowrap">
+              <Button className="w-full sm:w-auto bg-sage-600 hover:bg-sage-700 text-white whitespace-normal sm:whitespace-nowrap">
                 <UserPlus className="mr-2 h-4 w-4" />
                 Kunde einladen
               </Button>
@@ -417,6 +418,7 @@ export default function CustomersPage() {
               </form>
             </DialogContent>
           </Dialog>
+          </div>
         </div>
       </div>
 

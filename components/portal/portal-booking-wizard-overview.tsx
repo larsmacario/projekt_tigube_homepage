@@ -255,7 +255,7 @@ export function PortalBookingWizardOverview({
             ))}
           </ul>
         )}
-        <div className="mt-3 flex items-baseline justify-between border-t border-sage-200 pt-3">
+        <div className="mt-3 flex flex-col gap-1 sm:flex-row sm:items-baseline sm:justify-between border-t border-sage-200 pt-3">
           <span className="font-medium text-sage-900">
             {selectedAddons.length > 0 ? 'Geschätzte Summe inkl. Zusatzleistungen' : 'Geschätzte Summe'}
           </span>

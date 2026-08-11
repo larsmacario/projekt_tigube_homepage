@@ -3,8 +3,8 @@ export const PET_TIERART_OPTIONS = ['Hund', 'Katze', 'Andere'] as const
 export const PET_GESCHLECHT_OPTIONS = [
   { value: 'hündin', label: 'Hündin' },
   { value: 'rüde', label: 'Rüde' },
-  { value: 'rüde_kastriert', label: 'Rüde - kastiert' },
-  { value: 'rüde_kastriert_gechipt', label: 'Rüde - kastiert - gechipt' },
+  { value: 'rüde_kastriert', label: 'Rüde - kastriert' },
+  { value: 'rüde_kastriert_gechipt', label: 'Rüde - kastriert - gechipt' },
   { value: 'hündin_kastriert', label: 'Hündin - kastriert' },
 ] as const
 

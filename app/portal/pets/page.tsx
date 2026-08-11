@@ -28,7 +28,7 @@ import { PetPhotoGallery, type PetPhotoGalleryHandle } from '@/components/portal
 import type { PetImpfpassGalleryHandle } from '@/components/portal/pet-impfpass-gallery'
 import { PetRecognitionField } from '@/components/portal/pet-recognition-field'
 import { PetDewormingDateField } from '@/components/portal/pet-deworming-date-field'
-import { PetDeceasedSection } from '@/components/portal/pet-deceased-section'
+import { PetDeceasedField } from '@/components/portal/pet-deceased-field'
 import { PetMissingFieldsHint } from '@/components/portal/pet-missing-fields-hint'
 import { PetCarePlanForm } from '@/components/portal/pet-care-plan-form'
 import { PetCarePlanLegacyBanner } from '@/components/portal/pet-care-plan-legacy-banner'
@@ -38,7 +38,6 @@ import type { PetCarePlan } from '@/lib/pet-care-plan'
 import { readApiResponse } from '@/lib/read-api-response'
 import { uploadPortalDocument } from '@/lib/portal-document-upload'
 import { formatDeceasedLabel, isPetDeceased } from '@/lib/pet-lifecycle'
-import { Badge } from '@/components/ui/badge'
 
 export default function PetsPage() {
   const [pets, setPets] = useState<Pet[]>([])
@@ -66,7 +65,6 @@ export default function PetsPage() {
     naechste_stuhlprobe: '',
     deceased_at: '',
   })
-  const [deceasedPersisting, setDeceasedPersisting] = useState(false)
   const [carePlan, setCarePlan] = useState<PetCarePlan>(() => carePlanFromPet())
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [petToDelete, setPetToDelete] = useState<Pet | null>(null)
@@ -322,37 +320,6 @@ export default function PetsPage() {
     setDeleteDialogOpen(true)
   }
 
-  async function persistDeceasedAt(deceasedAt: string | null) {
-    setPetFormData((prev) => ({ ...prev, deceased_at: deceasedAt || '' }))
-    if (!editingPetId) return
-
-    setDeceasedPersisting(true)
-    try {
-      const response = await authenticatedFetch(`/api/portal/pets/${editingPetId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ deceased_at: deceasedAt }),
-      })
-      const { error } = await readApiResponse(response)
-      if (error) {
-        toast({ title: 'Fehler', description: error, variant: 'destructive' })
-        return
-      }
-      await loadPets()
-      toast({
-        title: deceasedAt ? 'Verstorben-Status gespeichert' : 'Tier wieder als aktiv markiert',
-      })
-    } catch {
-      toast({
-        title: 'Fehler',
-        description: 'Fehler beim Speichern des Verstorben-Status',
-        variant: 'destructive',
-      })
-    } finally {
-      setDeceasedPersisting(false)
-    }
-  }
-
   async function handleDelete() {
     if (!petToDelete) return
 
@@ -493,8 +460,8 @@ export default function PetsPage() {
                     <SelectContent>
                       <SelectItem value="hündin">Hündin</SelectItem>
                       <SelectItem value="rüde">Rüde</SelectItem>
-                      <SelectItem value="rüde_kastriert">Rüde - kastiert</SelectItem>
-                      <SelectItem value="rüde_kastriert_gechipt">Rüde - kastiert - gechipt</SelectItem>
+                      <SelectItem value="rüde_kastriert">Rüde - kastriert</SelectItem>
+                      <SelectItem value="rüde_kastriert_gechipt">Rüde - kastriert - gechipt</SelectItem>
                       <SelectItem value="hündin_kastriert">Hündin - kastriert</SelectItem>
                     </SelectContent>
                   </Select>
@@ -629,14 +596,12 @@ export default function PetsPage() {
               </div>
 
               {editingPetId && (
-                <PetDeceasedSection
+                <PetDeceasedField
                   idPrefix="pets-page"
                   deceasedAt={petFormData.deceased_at || null}
                   onChange={(deceasedAt) =>
                     setPetFormData({ ...petFormData, deceased_at: deceasedAt || '' })
                   }
-                  onPersist={persistDeceasedAt}
-                  persisting={deceasedPersisting}
                 />
               )}
 
@@ -698,12 +663,12 @@ export default function PetsPage() {
                     <div className="flex items-start gap-3 min-w-0">
                       <PetAvatar name={pet.name} photoUrl={pet.primary_photo_url} />
                       <div className="min-w-0">
-                        <div className="flex flex-wrap items-center gap-2">
+                        <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
                           <p className="font-semibold text-lg">{pet.name}</p>
                           {isPetDeceased(pet) && pet.deceased_at && (
-                            <Badge variant="secondary" className="font-normal">
+                            <span className="text-xs text-muted-foreground">
                               {formatDeceasedLabel(pet.deceased_at)}
-                            </Badge>
+                            </span>
                           )}
                         </div>
                         <p className="text-sm text-sage-600">

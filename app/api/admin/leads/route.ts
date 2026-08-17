@@ -197,7 +197,7 @@ export async function DELETE(request: NextRequest) {
       .from('contacts')
       .select('id')
       .eq('id', id)
-      .eq('contact_type', 'lead')
+      .in('contact_type', ['lead', 'lost', 'waitlist'])
       .maybeSingle()
 
     if (leadError) throw leadError
@@ -222,7 +222,7 @@ export async function DELETE(request: NextRequest) {
       .from('contacts')
       .delete()
       .eq('id', id)
-      .eq('contact_type', 'lead')
+      .in('contact_type', ['lead', 'lost', 'waitlist'])
       .select('id')
       .maybeSingle()
     if (deleteError) throw deleteError

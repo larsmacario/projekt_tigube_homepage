@@ -126,59 +126,10 @@ function applyCustomRule(
   }
 }
 
-function resolveInheritedChain(
-  catalog: CatalogPriceRow,
-  context: PriceResolutionContext
-): Omit<ResolvedPriceItem, 'price_id' | 'applicable' | 'rule_mode'> {
-  if (context.customerRule?.rule_mode === 'custom') {
-    return applyCustomRule(catalog, context.customerRule, 'customer')
-  }
-  if (context.groupRule?.rule_mode === 'custom') {
-    return applyCustomRule(catalog, context.groupRule, 'group')
-  }
-
-  const catalogBase = catalogNumericBase(catalog)
-  return {
-    catalog_price: catalog.price,
-    base_price: catalogBase,
-    base_source: 'catalog',
-    special_price: null,
-    special_price_source: null,
-    discount_type: null,
-    discount_value: null,
-    discount_source: null,
-    discount_amount: null,
-    final_price: catalogBase,
-    is_override: false,
-    override_type: null,
-  }
-}
-
 export function resolveCatalogPrice(
   catalog: CatalogPriceRow,
   context: PriceResolutionContext = {}
 ): ResolvedPriceItem {
-  if (isFixedPercentageCatalogPrice(catalog)) {
-    const rate = resolveCatalogPercentageRate(catalog)
-    return {
-      price_id: catalog.id,
-      applicable: catalog.usage !== 'info',
-      rule_mode: null,
-      catalog_price: catalog.price,
-      base_price: catalog.price,
-      base_source: 'catalog',
-      special_price: null,
-      special_price_source: null,
-      discount_type: null,
-      discount_value: null,
-      discount_source: null,
-      discount_amount: null,
-      final_price: rate,
-      is_override: false,
-      override_type: null,
-    }
-  }
-
   const petRule = context.petRule
 
   if (petRule?.rule_mode === 'not_applicable') {
@@ -211,12 +162,108 @@ export function resolveCatalogPrice(
     }
   }
 
-  const inherited = resolveInheritedChain(catalog, context)
+  const customerRule = context.customerRule
+
+  if (customerRule?.rule_mode === 'not_applicable') {
+    return {
+      price_id: catalog.id,
+      applicable: false,
+      rule_mode: petRule?.rule_mode ?? 'not_applicable',
+      catalog_price: catalog.price,
+      base_price: null,
+      base_source: 'catalog',
+      special_price: null,
+      special_price_source: null,
+      discount_type: null,
+      discount_value: null,
+      discount_source: null,
+      discount_amount: null,
+      final_price: null,
+      is_override: true,
+      override_type: 'customer',
+    }
+  }
+
+  if (customerRule?.rule_mode === 'custom') {
+    const resolved = applyCustomRule(catalog, customerRule, 'customer')
+    return {
+      price_id: catalog.id,
+      applicable: resolved.final_price != null,
+      rule_mode: petRule?.rule_mode ?? 'custom',
+      ...resolved,
+    }
+  }
+
+  const groupRule = context.groupRule
+
+  if (groupRule?.rule_mode === 'not_applicable') {
+    return {
+      price_id: catalog.id,
+      applicable: false,
+      rule_mode: petRule?.rule_mode ?? customerRule?.rule_mode ?? 'not_applicable',
+      catalog_price: catalog.price,
+      base_price: null,
+      base_source: 'catalog',
+      special_price: null,
+      special_price_source: null,
+      discount_type: null,
+      discount_value: null,
+      discount_source: null,
+      discount_amount: null,
+      final_price: null,
+      is_override: true,
+      override_type: 'group',
+    }
+  }
+
+  if (groupRule?.rule_mode === 'custom') {
+    const resolved = applyCustomRule(catalog, groupRule, 'group')
+    return {
+      price_id: catalog.id,
+      applicable: resolved.final_price != null,
+      rule_mode: petRule?.rule_mode ?? customerRule?.rule_mode ?? 'custom',
+      ...resolved,
+    }
+  }
+
+  if (isFixedPercentageCatalogPrice(catalog)) {
+    const rate = resolveCatalogPercentageRate(catalog)
+    return {
+      price_id: catalog.id,
+      applicable: catalog.usage !== 'info',
+      rule_mode: null,
+      catalog_price: catalog.price,
+      base_price: catalog.price,
+      base_source: 'catalog',
+      special_price: null,
+      special_price_source: null,
+      discount_type: null,
+      discount_value: null,
+      discount_source: null,
+      discount_amount: null,
+      final_price: rate,
+      is_override: false,
+      override_type: null,
+    }
+  }
+
+  const catalogBase = catalogNumericBase(catalog)
   return {
     price_id: catalog.id,
-    applicable: inherited.final_price != null || catalog.price_type === 'text',
-    rule_mode: petRule?.rule_mode ?? 'inherit',
-    ...inherited,
+    applicable: catalogBase != null || catalog.price_type === 'text',
+    rule_mode: petRule?.rule_mode ?? customerRule?.rule_mode ?? groupRule?.rule_mode ?? 'inherit',
+    catalog_price: catalog.price,
+    base_price: catalogBase,
+    base_source: 'catalog',
+    special_price: null,
+    special_price_source: null,
+    discount_type: null,
+    discount_value: null,
+    discount_source: null,
+    discount_amount: null,
+    final_price: catalogBase,
+    is_override: false,
+    override_type: null,
   }
 }
 

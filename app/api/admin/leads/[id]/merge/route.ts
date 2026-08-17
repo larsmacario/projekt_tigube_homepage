@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAdmin, getAdminDbClient } from '@/lib/admin-auth'
 
+import { isLeadContactType, computeMergedLeadFields, buildMergeSystemNote } from '@/lib/lead-merge'
+
 export const runtime = 'nodejs'
 
 export async function POST(
@@ -45,7 +47,7 @@ export async function POST(
       return NextResponse.json({ error: 'Haupt-Lead nicht gefunden' }, { status: 404 })
     }
 
-    if (targetLead.contact_type !== 'lead') {
+    if (!isLeadContactType(targetLead.contact_type)) {
       return NextResponse.json({ error: 'Der Haupt-Kontakt ist kein Lead' }, { status: 400 })
     }
 
@@ -59,108 +61,12 @@ export async function POST(
       return NextResponse.json({ error: 'Quell-Lead nicht gefunden' }, { status: 404 })
     }
 
-    if (sourceLead.contact_type !== 'lead') {
+    if (!isLeadContactType(sourceLead.contact_type)) {
       return NextResponse.json({ error: 'Der Quell-Kontakt ist kein Lead' }, { status: 400 })
     }
 
     // 3. Zusammenführen der Datenfelder
-    const updates: Record<string, any> = {}
-
-    // Felder, die im Haupt-Lead leer sind, aber im Quell-Lead existieren, übernehmen
-    const fieldsToMerge = [
-      'vorname',
-      'nachname',
-      'telefonnummer',
-      'telefon_2',
-      'service',
-      'pet',
-      'kundennummer',
-      'notfall_kontakt_name',
-      'notfallnummer',
-      'futtermenge',
-      'medikamente',
-      'besonderheiten',
-      'intervall_impfung',
-      'intervall_entwurmung',
-      'anzahl_tiere',
-      'tiernamen',
-      'alter_tier',
-      'intakt_kastriert',
-      'urlaub_von',
-      'urlaub_bis',
-      'konkreter_urlaub',
-      'ip_address',
-      'user_agent',
-      'timestamp',
-      'assigned_to',
-      'user_id'
-    ]
-
-    for (const field of fieldsToMerge) {
-      const targetVal = targetLead[field]
-      const sourceVal = sourceLead[field]
-
-      if ((targetVal === null || targetVal === '' || targetVal === undefined) && 
-          (sourceVal !== null && sourceVal !== '' && sourceVal !== undefined)) {
-        updates[field] = sourceVal
-      }
-    }
-
-    // Besonderheit: Telefonnummern verschieben
-    // Wenn Target eine Telefonnummer hat, Source eine Telefonnummer hat, diese aber unterschiedlich sind,
-    // und Target keine telefon_2 hat -> speichere Source-Nummer als telefon_2 im Target.
-    if (
-      targetLead.telefonnummer && 
-      sourceLead.telefonnummer && 
-      targetLead.telefonnummer.trim() !== sourceLead.telefonnummer.trim() &&
-      (!targetLead.telefon_2 || targetLead.telefon_2.trim() === '')
-    ) {
-      updates.telefon_2 = sourceLead.telefonnummer
-    }
-
-    // Freitexte message und availability verketten
-    if (sourceLead.message && sourceLead.message.trim() !== '') {
-      if (targetLead.message && targetLead.message.trim() !== '') {
-        if (targetLead.message.trim() !== sourceLead.message.trim()) {
-          const dateStr = new Date(sourceLead.created_at).toLocaleDateString('de-DE')
-          updates.message = `${targetLead.message}\n\n--- Zusammengeführt aus Lead vom ${dateStr}: ---\n${sourceLead.message}`
-        }
-      } else {
-        updates.message = sourceLead.message
-      }
-    }
-
-    if (sourceLead.availability && sourceLead.availability.trim() !== '') {
-      if (targetLead.availability && targetLead.availability.trim() !== '') {
-        if (targetLead.availability.trim() !== sourceLead.availability.trim()) {
-          updates.availability = `${targetLead.availability}\n\n--- Zusammengeführt: ---\n${sourceLead.availability}`
-        }
-      } else {
-        updates.availability = sourceLead.availability
-      }
-    }
-
-    // Booleans zusammenführen (OR)
-    updates.datenschutz = targetLead.datenschutz || sourceLead.datenschutz
-    if (sourceLead.schulferien_bw !== null && targetLead.schulferien_bw === null) {
-      updates.schulferien_bw = sourceLead.schulferien_bw
-    } else if (sourceLead.schulferien_bw !== null && targetLead.schulferien_bw !== null) {
-      updates.schulferien_bw = targetLead.schulferien_bw || sourceLead.schulferien_bw
-    }
-    updates.onboarding_completed = targetLead.onboarding_completed || sourceLead.onboarding_completed
-
-    // Newsletter unsubscribed (das frühere Datum übernehmen, falls vorhanden)
-    if (sourceLead.newsletter_unsubscribed_at) {
-      if (!targetLead.newsletter_unsubscribed_at) {
-        updates.newsletter_unsubscribed_at = sourceLead.newsletter_unsubscribed_at
-      } else {
-        const targetDate = new Date(targetLead.newsletter_unsubscribed_at)
-        const sourceDate = new Date(sourceLead.newsletter_unsubscribed_at)
-        if (sourceDate < targetDate) {
-          updates.newsletter_unsubscribed_at = sourceLead.newsletter_unsubscribed_at
-        }
-      }
-    }
+    const updates = computeMergedLeadFields(targetLead, sourceLead)
 
     // 4. Verknüpfte Daten umschreiben
 
@@ -227,6 +133,12 @@ export async function POST(
 
     if (newsletterLogsError) throw newsletterLogsError
 
+    // e) Onboarding-Tokens umschreiben
+    await adminClient
+      .from('onboarding_tokens')
+      .update({ customer_id: targetLeadId })
+      .eq('customer_id', sourceLeadId)
+
     // 5. Haupt-Lead in contacts aktualisieren
     if (Object.keys(updates).length > 0) {
       const { error: updateTargetError } = await adminClient
@@ -239,12 +151,7 @@ export async function POST(
 
     // 6. System-Notiz erstellen
     const adminEmail = auth.user.email || 'Admin'
-    const sourceName = [sourceLead.vorname, sourceLead.nachname].filter(Boolean).join(' ') || 'Unbekannt'
-    const sourceEmail = sourceLead.email || 'Keine E-Mail'
-    
-    const mergeNote = `System-Notiz: Lead "${sourceName}" (${sourceEmail}) wurde in diesen Lead zusammengeführt.
-Original-Erstellungsdatum: ${new Date(sourceLead.created_at).toLocaleString('de-DE')}
-Ausgeführt von: ${adminEmail}`
+    const mergeNote = buildMergeSystemNote(sourceLead, adminEmail)
 
     const { error: createNoteError } = await adminClient
       .from('notes')

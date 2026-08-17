@@ -139,10 +139,15 @@ export default function LeadDetailPage() {
 
   async function updateLeadStatus(status: string) {
     try {
+      const payload: Record<string, any> = { id: leadId, status }
+      if (lead?.contact_type === 'lost') {
+        payload.contact_type = 'lead'
+      }
+
       const response = await authenticatedFetch('/api/admin/leads', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: leadId, status }),
+        body: JSON.stringify(payload),
         credentials: 'include',
       })
 

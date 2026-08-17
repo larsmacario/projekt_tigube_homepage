@@ -254,9 +254,13 @@ export async function savePriceRulesForScope(
     throw deleteError
   }
 
-  if (rules.length === 0) return
+  const savableRules = rules.filter(
+    (rule) => rule.rule_mode === 'custom' || rule.rule_mode === 'not_applicable'
+  )
 
-  const records = rules.map((rule) => ({
+  if (savableRules.length === 0) return
+
+  const records = savableRules.map((rule) => ({
     scope_type: scopeType,
     scope_id: scopeId,
     price_id: rule.price_id,

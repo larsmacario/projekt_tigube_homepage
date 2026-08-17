@@ -75,7 +75,7 @@ export async function POST(request: NextRequest) {
       .from('contacts')
       .select('*')
       .eq('email', cleanEmail)
-      .eq('contact_type', 'lead')
+      .in('contact_type', ['lead', 'lost', 'waitlist'])
       .maybeSingle()
 
     if (existingLead) {

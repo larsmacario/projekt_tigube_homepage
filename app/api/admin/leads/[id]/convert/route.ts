@@ -47,7 +47,7 @@ export async function POST(
       .from('contacts')
       .select('*')
       .eq('id', leadId)
-      .eq('contact_type', 'lead')
+      .in('contact_type', ['lead', 'lost', 'waitlist'])
       .single()
 
     if (leadError || !lead) {

@@ -17,16 +17,15 @@ export async function GET(request: NextRequest) {
     }
 
     const rules = await loadPriceRulesForScope(auth.client, 'group', groupId)
-    const overrides = rules
-      .filter((rule) => rule.rule_mode === 'custom')
-      .map((rule) => ({
-        price_id: rule.price_id,
-        price: rule.price,
-        discount_type: rule.discount_type,
-        discount_value: rule.discount_value,
-      }))
+    const overrides = rules.map((rule) => ({
+      price_id: rule.price_id,
+      rule_mode: rule.rule_mode,
+      price: rule.price,
+      discount_type: rule.discount_type,
+      discount_value: rule.discount_value,
+    }))
 
-    return NextResponse.json({ overrides })
+    return NextResponse.json({ overrides, rules })
   } catch (error: unknown) {
     console.error('Error fetching group prices:', error)
     const message = error instanceof Error ? error.message : 'Fehler beim Laden der Gruppenpreise'
@@ -46,7 +45,7 @@ export async function PUT(request: NextRequest) {
       scope_id: body.group_id,
       rules: (body.overrides ?? []).map((override: Record<string, unknown>) => ({
         price_id: override.price_id,
-        rule_mode: 'custom',
+        rule_mode: override.rule_mode ?? 'custom',
         price: override.price,
         discount_type: override.discount_type,
         discount_value: override.discount_value,

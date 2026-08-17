@@ -22,13 +22,13 @@ import {
   type CancellationPolicyConfig,
 } from '@/lib/cancellation-policy-config'
 import {
-  emptyPriceOverrideForm,
-  formToOverrideRow,
+  emptyPriceRuleForm,
+  formToRuleRow,
   GroupPriceOverrideEditorRow,
-  overrideRowToForm,
-  type PriceOverrideFormState,
+  ruleRowToForm,
+  type PriceRuleFormState,
 } from '@/components/admin/price-override-editor'
-import type { PriceOverrideRow } from '@/lib/price-override'
+import type { PriceRuleRow } from '@/lib/price-resolver'
 
 interface Price {
   id: string
@@ -68,7 +68,7 @@ export default function PricesPage() {
   const [categories, setCategories] = useState<PriceCategory[]>([])
   const [groups, setGroups] = useState<CustomerGroup[]>([])
   const [selectedGroupId, setSelectedGroupId] = useState<string>('')
-  const [groupPriceForms, setGroupPriceForms] = useState<Record<string, PriceOverrideFormState>>({})
+  const [groupPriceForms, setGroupPriceForms] = useState<Record<string, PriceRuleFormState>>({})
   
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
@@ -172,13 +172,13 @@ export default function PricesPage() {
 
   async function loadGroupPrices(groupId: string) {
     try {
-      const response = await authenticatedFetch(`/api/admin/group-prices?group_id=${groupId}`)
+      const response = await authenticatedFetch(`/api/admin/price-rules?scope_type=group&scope_id=${groupId}`)
       const data = await response.json()
       
-      const formsMap: Record<string, PriceOverrideFormState> = {}
-      if (data.overrides) {
-        data.overrides.forEach((o: PriceOverrideRow) => {
-          formsMap[o.price_id] = overrideRowToForm(o)
+      const formsMap: Record<string, PriceRuleFormState> = {}
+      if (data.rules) {
+        data.rules.forEach((r: PriceRuleRow) => {
+          formsMap[r.price_id] = ruleRowToForm(r)
         })
       }
       setGroupPriceForms(formsMap)
@@ -321,15 +321,8 @@ export default function PricesPage() {
     setSavingGroupPrices(true)
     try {
       const rules = Object.entries(groupPriceForms)
-        .map(([price_id, form]) => formToOverrideRow(price_id, form))
+        .map(([price_id, form]) => formToRuleRow(price_id, form))
         .filter(Boolean)
-        .map((rule) => ({
-          price_id: rule!.price_id,
-          rule_mode: 'custom',
-          price: rule!.price,
-          discount_type: rule!.discount_type,
-          discount_value: rule!.discount_value,
-        }))
 
       const response = await authenticatedFetch('/api/admin/price-rules', {
         method: 'PUT',
@@ -560,11 +553,15 @@ export default function PricesPage() {
     ))
   }
 
-  function updateGroupPriceForm(priceId: string, next: PriceOverrideFormState) {
+  function updateGroupPriceForm(priceId: string, next: PriceRuleFormState) {
     setGroupPriceForms(prev => {
-      const isEmpty =
-        next.price === '' && next.discount_type === '' && next.discount_value === ''
-      if (isEmpty) {
+      const isInheritedOrEmpty =
+        (!next.rule_mode || next.rule_mode === 'inherit') &&
+        next.price === '' &&
+        next.discount_type === '' &&
+        next.discount_value === ''
+
+      if (isInheritedOrEmpty) {
         const updated = { ...prev }
         delete updated[priceId]
         return updated
@@ -573,8 +570,8 @@ export default function PricesPage() {
     })
   }
 
-  function getGroupPriceForm(priceId: string): PriceOverrideFormState {
-    return groupPriceForms[priceId] ?? emptyPriceOverrideForm()
+  function getGroupPriceForm(priceId: string): PriceRuleFormState {
+    return groupPriceForms[priceId] ?? { ...emptyPriceRuleForm(), rule_mode: 'inherit' }
   }
 
   function formatPrice(price: Price): string {
@@ -1118,6 +1115,9 @@ export default function PricesPage() {
                     <CardTitle>
                       Preise für Gruppe: {groups.find(g => g.id === selectedGroupId)?.name}
                     </CardTitle>
+                    <p className="text-xs text-sage-500 mt-1">
+                      Passe Sonderpreise oder Rabatte für diese Gruppe an oder entferne einzelne Preise für diese Gruppe. Im Standard-Katalog bleiben alle Preise unverändert erhalten.
+                    </p>
                   </div>
                   <Button
                     onClick={handleSaveGroupPrices}
@@ -1128,24 +1128,32 @@ export default function PricesPage() {
                   </Button>
                 </CardHeader>
                 <CardContent className="space-y-6">
-                  <p className="text-sm text-sage-600">
-                    Optional Sonderpreis und/oder Rabatt pro Posten für diese Gruppe. Leere Felder = Standardpreis.
-                  </p>
-                  
                   {categories.map((category) => {
                     const categoryPrices = prices.filter(p => p.category_id === category.id && p.price_type !== 'text')
                     if (categoryPrices.length === 0) return null
 
+                    const removedCount = categoryPrices.filter(
+                      p => getGroupPriceForm(p.id).rule_mode === 'not_applicable'
+                    ).length
+
                     return (
                       <div key={category.id} className="space-y-3">
-                        <h3 className="font-semibold text-sage-900 border-b pb-1">
-                          {category.name}
-                        </h3>
+                        <div className="flex items-center justify-between border-b pb-1">
+                          <h3 className="font-semibold text-sage-900">
+                            {category.name}
+                          </h3>
+                          {removedCount > 0 && (
+                            <span className="text-xs font-medium text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded">
+                              {removedCount} {removedCount === 1 ? 'Preis' : 'Preise'} für diese Gruppe entfernt
+                            </span>
+                          )}
+                        </div>
                         <div className="grid grid-cols-1 gap-3">
                           {categoryPrices.map((price) => (
                             <GroupPriceOverrideEditorRow
                               key={price.id}
                               catalogPrice={price}
+                              categoryName={category.name}
                               form={getGroupPriceForm(price.id)}
                               onChange={(next) => updateGroupPriceForm(price.id, next)}
                             />

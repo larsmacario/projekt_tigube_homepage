@@ -71,6 +71,86 @@ describe('resolveCatalogPrice', () => {
     expect(result.applicable).toBe(false)
     expect(result.final_price).toBeNull()
     expect(result.rule_mode).toBe('not_applicable')
+    expect(result.override_type).toBe('pet')
+  })
+
+  it('marks group not_applicable as non-applicable when customer/pet have no override', () => {
+    const result = resolveCatalogPrice(catalog, {
+      groupRule: {
+        price_id: 'price-1',
+        rule_mode: 'not_applicable',
+        price: null,
+        discount_type: null,
+        discount_value: null,
+      },
+    })
+    expect(result.applicable).toBe(false)
+    expect(result.final_price).toBeNull()
+    expect(result.rule_mode).toBe('not_applicable')
+    expect(result.override_type).toBe('group')
+  })
+
+  it('leaves standard catalog price unchanged when group price is removed', () => {
+    const groupRemovedResult = resolveCatalogPrice(catalog, {
+      groupRule: {
+        price_id: 'price-1',
+        rule_mode: 'not_applicable',
+        price: null,
+        discount_type: null,
+        discount_value: null,
+      },
+    })
+    const standardResult = resolveCatalogPrice(catalog, {})
+
+    expect(groupRemovedResult.applicable).toBe(false)
+    expect(standardResult.applicable).toBe(true)
+    expect(standardResult.final_price).toBe(35)
+    expect(standardResult.base_source).toBe('catalog')
+  })
+
+  it('allows customer custom rule to override group not_applicable', () => {
+    const result = resolveCatalogPrice(catalog, {
+      groupRule: {
+        price_id: 'price-1',
+        rule_mode: 'not_applicable',
+        price: null,
+        discount_type: null,
+        discount_value: null,
+      },
+      customerRule: {
+        price_id: 'price-1',
+        rule_mode: 'custom',
+        price: 26,
+        discount_type: null,
+        discount_value: null,
+      },
+    })
+    expect(result.applicable).toBe(true)
+    expect(result.final_price).toBe(26)
+    expect(result.base_source).toBe('customer')
+  })
+
+  it('marks customer not_applicable as non-applicable even if group has custom price', () => {
+    const result = resolveCatalogPrice(catalog, {
+      groupRule: {
+        price_id: 'price-1',
+        rule_mode: 'custom',
+        price: 20,
+        discount_type: null,
+        discount_value: null,
+      },
+      customerRule: {
+        price_id: 'price-1',
+        rule_mode: 'not_applicable',
+        price: null,
+        discount_type: null,
+        discount_value: null,
+      },
+    })
+    expect(result.applicable).toBe(false)
+    expect(result.final_price).toBeNull()
+    expect(result.rule_mode).toBe('not_applicable')
+    expect(result.override_type).toBe('customer')
   })
 
   it('inherits from customer when pet rule is inherit', () => {

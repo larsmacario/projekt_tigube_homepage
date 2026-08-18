@@ -419,7 +419,7 @@ export default function CustomerDetailPage() {
                 </Button>
               ) : (
                 <div className="flex gap-2">
-                  <Button size="sm" onClick={saveContactDetails} disabled={savingContact}>
+                  <Button size="sm" onClick={saveContactDetails} loading={savingContact}>
                     <Check className="h-4 w-4 mr-1" />
                     {savingContact ? 'Speichern…' : 'Speichern'}
                   </Button>
@@ -712,7 +712,7 @@ export default function CustomerDetailPage() {
                     size="sm"
                     className="h-7 text-xs ml-auto"
                     onClick={() => void handleSendOnboardingInvite()}
-                    disabled={sendingOnboardingInvite}
+                    loading={sendingOnboardingInvite}
                   >
                     {sendingOnboardingInvite ? 'Sende…' : 'Einladung senden'}
                   </Button>
@@ -723,7 +723,7 @@ export default function CustomerDetailPage() {
                     variant="outline"
                     className="h-7 text-xs"
                     onClick={handleResendContractEmail}
-                    disabled={resendingContractEmail}
+                    loading={resendingContractEmail}
                   >
                     {resendingContractEmail ? 'Sende…' : 'Vertrag erneut senden'}
                   </Button>
@@ -758,24 +758,33 @@ export default function CustomerDetailPage() {
                 customer.contract_email_error ||
                 customer.contract_signed_at ||
                 customer.contract_email_sent_at) && (
-                <p className="mt-1.5 text-[10px] text-sage-500">
-                  {customer.onboarding_email_sent_at &&
-                    `Onboarding-Mail: ${new Date(customer.onboarding_email_sent_at).toLocaleString('de-DE')}`}
-                  {customer.onboarding_email_sent_at &&
-                    (customer.contract_signed_at || customer.contract_email_sent_at) &&
-                    ' · '}
-                  {customer.contract_signed_at &&
-                    `Vertrag: ${new Date(customer.contract_signed_at).toLocaleDateString('de-DE')}`}
-                  {customer.contract_signed_at && customer.contract_email_sent_at && ' · '}
-                  {customer.contract_email_sent_at &&
-                    `Vertrags-Mail: ${new Date(customer.contract_email_sent_at).toLocaleString('de-DE')}`}
+                <div className="mt-2 text-xs space-y-1">
+                  {customer.onboarding_email_sent_at && (
+                    <p className="text-sage-600">
+                      Onboarding-E-Mail gesendet: {new Date(customer.onboarding_email_sent_at).toLocaleString('de-DE')}
+                    </p>
+                  )}
                   {customer.onboarding_email_error && (
-                    <span className="text-red-600"> · Onboarding: {customer.onboarding_email_error}</span>
+                    <p className="text-red-600">
+                      Fehler beim Senden der Onboarding-E-Mail: {customer.onboarding_email_error}
+                    </p>
+                  )}
+                  {customer.contract_signed_at && (
+                    <p className="text-sage-600">
+                      Vertrag unterzeichnet: {new Date(customer.contract_signed_at).toLocaleString('de-DE')}
+                    </p>
+                  )}
+                  {customer.contract_email_sent_at && (
+                    <p className="text-sage-600">
+                      Vertrag per E-Mail gesendet: {new Date(customer.contract_email_sent_at).toLocaleString('de-DE')}
+                    </p>
                   )}
                   {customer.contract_email_error && (
-                    <span className="text-red-600"> · Vertrag: {customer.contract_email_error}</span>
+                    <p className="text-red-600">
+                      Fehler beim Senden des Vertrags: {customer.contract_email_error}
+                    </p>
                   )}
-                </p>
+                </div>
               )}
             </div>
 
@@ -810,9 +819,9 @@ export default function CustomerDetailPage() {
           <CardContent>
           <AlertDialog>
               <AlertDialogTrigger asChild>
-                <Button variant="destructive" disabled={isDeleting}>
+                <Button variant="destructive" loading={isDeleting}>
                   <Trash2 className="mr-2 h-4 w-4" />
-                  Kunde löschen
+                  {isDeleting ? 'Wird gelöscht…' : 'Kunde löschen'}
                 </Button>
               </AlertDialogTrigger>
               <AlertDialogContent>
@@ -823,7 +832,7 @@ export default function CustomerDetailPage() {
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
-                  <AlertDialogCancel>Abbrechen</AlertDialogCancel>
+                  <AlertDialogCancel disabled={isDeleting}>Abbrechen</AlertDialogCancel>
                   <AlertDialogAction onClick={deleteCustomer} disabled={isDeleting}>
                     {isDeleting ? 'Wird gelöscht…' : 'Endgültig löschen'}
                   </AlertDialogAction>

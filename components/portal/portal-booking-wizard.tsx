@@ -1300,13 +1300,20 @@ export function PortalBookingWizard({
             <Button
               type="button"
               onClick={() => void goToNextStep()}
-              disabled={pets.length === 0 || advancingStep}
+              disabled={pets.length === 0}
+              loading={advancingStep}
               className="w-full sm:w-auto"
             >
               {advancingStep ? 'Wird geprüft…' : 'Weiter'}
             </Button>
           ) : (
-            <Button type="button" onClick={handleSubmit} disabled={submitting || pets.length === 0} className="w-full sm:w-auto">
+            <Button
+              type="button"
+              onClick={handleSubmit}
+              disabled={pets.length === 0}
+              loading={submitting}
+              className="w-full sm:w-auto"
+            >
               {submitting ? 'Wird gesendet…' : 'Anfrage stellen'}
             </Button>
           )}

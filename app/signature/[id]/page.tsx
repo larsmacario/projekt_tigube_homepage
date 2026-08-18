@@ -283,15 +283,17 @@ export default function SignatureMobilePage() {
           <Button
             variant="outline"
             onClick={clearCanvas}
+            disabled={loading}
             className="flex-1 border-sage-300 text-sage-700 hover:bg-sage-50 py-2 text-sm"
           >
             Löschen
           </Button>
           <Button
             onClick={submitSignature}
+            loading={loading}
             className="flex-1 bg-sage-600 hover:bg-sage-700 text-white py-2 text-sm"
           >
-            Senden
+            {loading ? 'Wird gesendet...' : 'Senden'}
           </Button>
         </div>
       </div>

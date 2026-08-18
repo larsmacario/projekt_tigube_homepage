@@ -27,6 +27,7 @@ export default function DocumentsPage() {
   })
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [documentToDelete, setDocumentToDelete] = useState<Document | null>(null)
+  const [isDeleting, setIsDeleting] = useState(false)
   const { toast } = useToast()
 
   useEffect(() => {
@@ -59,19 +60,10 @@ export default function DocumentsPage() {
   const requiresPet = uploadForm.document_type === 'wurmtest'
 
   async function handleUpload() {
-    if (!fileInputRef.current?.files?.[0] || !uploadForm.document_type) {
+    if (!uploadForm.document_type) {
       toast({
         title: 'Fehler',
-        description: 'Bitte wähle eine Datei und einen Dokumenttyp aus',
-        variant: 'destructive',
-      })
-      return
-    }
-
-    if (requiresPet && !uploadForm.pet_id) {
-      toast({
-        title: 'Fehler',
-        description: 'Bitte wähle ein Tier aus',
+        description: 'Bitte wähle einen Dokumententyp',
         variant: 'destructive',
       })
       return
@@ -86,16 +78,36 @@ export default function DocumentsPage() {
       return
     }
 
+    if (requiresPet && !uploadForm.pet_id) {
+      toast({
+        title: 'Fehler',
+        description: 'Bitte wähle ein Tier für diesen Dokumententyp aus',
+        variant: 'destructive',
+      })
+      return
+    }
+
+    const fileInput = fileInputRef.current
+    if (!fileInput?.files?.[0]) {
+      toast({
+        title: 'Fehler',
+        description: 'Bitte wähle eine Datei aus',
+        variant: 'destructive',
+      })
+      return
+    }
+
+    const file = fileInput.files[0]
+    const formData = new FormData()
+    formData.append('file', file)
+    formData.append('document_type', uploadForm.document_type)
+    formData.append('description', uploadForm.description.trim())
+    if (uploadForm.pet_id) {
+      formData.append('pet_id', uploadForm.pet_id)
+    }
+
     setUploading(true)
     try {
-      const formData = new FormData()
-      formData.append('file', fileInputRef.current.files[0])
-      formData.append('document_type', uploadForm.document_type)
-      formData.append('description', uploadForm.description.trim())
-      if (uploadForm.pet_id) {
-        formData.append('pet_id', uploadForm.pet_id)
-      }
-
       const response = await authenticatedFetch('/api/portal/documents', {
         method: 'POST',
         body: formData,
@@ -139,6 +151,7 @@ export default function DocumentsPage() {
   async function handleDelete() {
     if (!documentToDelete) return
 
+    setIsDeleting(true)
     try {
       const response = await authenticatedFetch(`/api/portal/documents/${documentToDelete.id}`, {
         method: 'DELETE',
@@ -167,6 +180,8 @@ export default function DocumentsPage() {
         description: 'Fehler beim Löschen',
         variant: 'destructive',
       })
+    } finally {
+      setIsDeleting(false)
     }
   }
 
@@ -339,7 +354,7 @@ export default function DocumentsPage() {
 
           <Button
             onClick={handleUpload}
-            disabled={uploading}
+            loading={uploading}
             className="bg-sage-600 hover:bg-sage-700"
           >
             {uploading ? 'Wird hochgeladen...' : 'Hochladen'}
@@ -410,12 +425,13 @@ export default function DocumentsPage() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Abbrechen</AlertDialogCancel>
+            <AlertDialogCancel disabled={isDeleting}>Abbrechen</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDelete}
+              disabled={isDeleting}
               className="bg-red-600 hover:bg-red-700"
             >
-              Löschen
+              {isDeleting ? 'Wird gelöscht...' : 'Löschen'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

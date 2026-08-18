@@ -42,6 +42,11 @@ import {
 import { LegalContent } from '@/components/legal-content'
 import { resolveBetreuungsvertragLegal } from '@/lib/betreuungsvertrag'
 import { buildBetreuungsvertragPdf } from '@/lib/betreuungsvertrag-pdf'
+import {
+  PET_GESCHLECHT_OPTIONS,
+  formatPetGeschlecht,
+  normalizePetGeschlecht,
+} from '@/lib/pet-form-options'
 
 function ProfileContent() {
   const searchParams = useSearchParams()
@@ -144,14 +149,20 @@ function ProfileContent() {
     async function loadContractLegal() {
       setContractLegalLoading(true)
       try {
-        const response = await fetch('/api/cms?key=agb')
-        const json = await response.json().catch(() => ({}))
-        const resolved = resolveBetreuungsvertragLegal(json.data ?? null)
+        const [agbRes, portalRes] = await Promise.all([
+          fetch('/api/cms?key=agb'),
+          fetch('/api/cms?key=kundenportal'),
+        ])
+        const [agbJson, portalJson] = await Promise.all([
+          agbRes.json().catch(() => ({})),
+          portalRes.json().catch(() => ({})),
+        ])
+        const resolved = resolveBetreuungsvertragLegal(agbJson.data ?? null, portalJson.data ?? null)
         if (!cancelled) setContractLegal(resolved)
       } catch (error) {
         console.error('Error loading contract legal content:', error)
         if (!cancelled) {
-          setContractLegal(resolveBetreuungsvertragLegal(null))
+          setContractLegal(resolveBetreuungsvertragLegal(null, null))
         }
       } finally {
         if (!cancelled) setContractLegalLoading(false)
@@ -1258,7 +1269,8 @@ function ProfileContent() {
                 <>
                   <Button
                     onClick={handleSaveStep1}
-                    disabled={saving || !step1FormComplete}
+                    disabled={!step1FormComplete}
+                    loading={saving}
                     className="flex-1 bg-sage-600 hover:bg-sage-700 text-lg py-6"
                   >
                     {saving ? 'Wird gespeichert...' : 'Weiter zu Schritt 2 →'}
@@ -1275,7 +1287,7 @@ function ProfileContent() {
               ) : (
                 <Button
                   onClick={handleSave}
-                  disabled={saving}
+                  loading={saving}
                   className="bg-sage-600 hover:bg-sage-700"
                 >
                   {saving ? 'Wird gespeichert...' : 'Speichern'}
@@ -1347,18 +1359,18 @@ function ProfileContent() {
                     <div>
                       <Label htmlFor="pet-geschlecht">Geschlecht</Label>
                       <Select
-                        value={petFormData.geschlecht}
+                        value={normalizePetGeschlecht(petFormData.geschlecht)}
                         onValueChange={(value) => setPetFormData({ ...petFormData, geschlecht: value })}
                       >
-                        <SelectTrigger>
+                        <SelectTrigger id="pet-geschlecht">
                           <SelectValue placeholder="Geschlecht wählen" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="hündin">Hündin</SelectItem>
-                          <SelectItem value="rüde">Rüde</SelectItem>
-                          <SelectItem value="rüde_kastriert">Rüde - kastriert</SelectItem>
-                          <SelectItem value="rüde_kastriert_gechipt">Rüde - kastriert - gechipt</SelectItem>
-                          <SelectItem value="hündin_kastriert">Hündin - kastriert</SelectItem>
+                          {PET_GESCHLECHT_OPTIONS.map((opt) => (
+                            <SelectItem key={opt.value} value={opt.value}>
+                              {opt.label}
+                            </SelectItem>
+                          ))}
                         </SelectContent>
                       </Select>
                     </div>
@@ -1495,7 +1507,8 @@ function ProfileContent() {
                   <div className="flex gap-2">
                     <Button
                       onClick={handleSavePet}
-                      disabled={!petFormData.name || !petFormData.tierart || uploadingDocuments}
+                      disabled={!petFormData.name || !petFormData.tierart}
+                      loading={uploadingDocuments}
                       className="bg-sage-600 hover:bg-sage-700"
                     >
                       {uploadingDocuments 
@@ -1552,7 +1565,7 @@ function ProfileContent() {
                           <div className="min-w-0">
                             <p className="font-semibold text-lg">{pet.name}</p>
                             <p className="text-sm text-sage-600">
-                              {[pet.tierart, pet.rasse, pet.farbe, pet.geschlecht].filter(Boolean).join(' • ')}
+                              {[pet.tierart, pet.rasse, pet.farbe, formatPetGeschlecht(pet.geschlecht)].filter(Boolean).join(' • ')}
                             </p>
                             <PetMissingFieldsHint
                               pet={pet}
@@ -1848,8 +1861,9 @@ function ProfileContent() {
                 <Button
                   onClick={handleFinishOnboarding}
                   disabled={
-                    saving || !dataConsent || !signatureImage || !contractLegal || contractLegalLoading
+                    !dataConsent || !signatureImage || !contractLegal || contractLegalLoading
                   }
+                  loading={saving}
                   className="w-full sm:flex-1 bg-sage-600 hover:bg-sage-700 text-lg py-6 text-white"
                 >
                   {saving ? 'Vertrag wird übermittelt...' : '✓ Vertrag unterzeichnen & Onboarding abschließen'}

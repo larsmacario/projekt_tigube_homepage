@@ -272,5 +272,12 @@ export async function savePriceRulesForScope(
   }))
 
   const { error: insertError } = await supabase.from('price_rules').insert(records)
-  if (insertError) throw insertError
+  if (insertError) {
+    if (insertError.message?.includes('price_rules_pet_only_inherit_modes')) {
+      throw new Error(
+        'SQL-Migration erforderlich: Bitte führe im Supabase SQL-Editor folgenden Befehl aus: ALTER TABLE price_rules DROP CONSTRAINT IF EXISTS price_rules_pet_only_inherit_modes;'
+      )
+    }
+    throw insertError
+  }
 }

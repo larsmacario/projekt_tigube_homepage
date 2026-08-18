@@ -1,6 +1,8 @@
 # Aktueller Stand
 
 ## Letzte Änderungen
+- Button Klick-Feedback & Loading-States: Zentrale Button-Komponente um taktiles Feedback (`active:scale-[0.98]`) und `loading`-Prop mit rotierendem Spinner erweitert.
+- Admin- & Kundenportal: Alle asynchronen Aktionen (Lead zum Kunden konvertieren, Leads/Kunden löschen, Notizen speichern, Onboarding-Einladungen senden, Preise/CMS speichern, Tier anlegen/löschen, Dokumentenupload, Buchungen absenden, Signatur übermitteln) mit Lade-Zuständen und Spinnern ausgestattet.
 - CMS Stornierungsbedingungen: Button „Abschnitt hinzufügen“ funktioniert wieder in Hundepension, Katzenbetreuung und Kundenportal.
 - Ursache: `normalizeCancellationSections` hat leere Editor-Platzhalter beim Re-Render entfernt; Fix via `getCancellationSectionsForEditor` in `lib/cms/cancellation-policy.ts`.
 - `mergeKundenportalData` re-normalisiert vorhandene `cancellationSections` nicht mehr; Regressionstests in `lib/cms/cancellation-policy.test.ts`.

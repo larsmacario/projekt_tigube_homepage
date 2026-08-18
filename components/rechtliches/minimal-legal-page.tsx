@@ -3,6 +3,7 @@ import Link from 'next/link'
 import { ArrowLeft } from 'lucide-react'
 import { getCMSContent } from '@/lib/cms'
 import { getLegalContent, type LegalPageKey } from '@/lib/cms/legal-defaults'
+import { getBetreuungsvertragLegal } from '@/lib/betreuungsvertrag'
 import { LegalContent } from '@/components/legal-content'
 import { RechtlichesShell } from '@/components/rechtliches/rechtliches-shell'
 
@@ -10,9 +11,16 @@ type MinimalLegalPageProps = {
   legalKey: LegalPageKey
 }
 
-export async function MinimalLegalPage({ legalKey }: MinimalLegalPageProps) {
+async function loadPageLegal(legalKey: LegalPageKey) {
+  if (legalKey === 'agb') {
+    return getBetreuungsvertragLegal()
+  }
   const data = await getCMSContent(legalKey)
-  const legal = getLegalContent(data, legalKey)
+  return getLegalContent(data, legalKey)
+}
+
+export async function MinimalLegalPage({ legalKey }: MinimalLegalPageProps) {
+  const legal = await loadPageLegal(legalKey)
 
   return (
     <RechtlichesShell variant="document">
@@ -37,8 +45,7 @@ export async function MinimalLegalPage({ legalKey }: MinimalLegalPageProps) {
 }
 
 export async function getMinimalLegalMetadata(legalKey: LegalPageKey) {
-  const data = await getCMSContent(legalKey)
-  const legal = getLegalContent(data, legalKey)
+  const legal = await loadPageLegal(legalKey)
 
   return {
     title: `${legal.title} - tierisch gut betreut`,

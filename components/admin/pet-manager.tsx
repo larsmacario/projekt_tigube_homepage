@@ -18,6 +18,8 @@ import {
   PET_GESCHLECHT_OPTIONS,
   INTERVALL_OPTIONS,
   KOMBI_INTERVALL_OPTIONS,
+  formatPetGeschlecht,
+  normalizePetGeschlecht,
 } from '@/lib/pet-form-options'
 import { PetVaccinationSummary } from '@/components/portal/pet-vaccination-section'
 import { PetPhotoGallery } from '@/components/portal/pet-photo-gallery'
@@ -258,7 +260,7 @@ export function PetManager({
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div>
                 <Label>Geschlecht</Label>
-                <Select value={formData.geschlecht} onValueChange={(v) => setFormData({ ...formData, geschlecht: v })}>
+                <Select value={normalizePetGeschlecht(formData.geschlecht)} onValueChange={(v) => setFormData({ ...formData, geschlecht: v })}>
                   <SelectTrigger><SelectValue placeholder="Geschlecht wählen" /></SelectTrigger>
                   <SelectContent>
                     {PET_GESCHLECHT_OPTIONS.map((opt) => (
@@ -445,7 +447,7 @@ export function PetManager({
                 </div>
                 <div className="grid grid-cols-2 gap-2 text-sm">
                   {pet.tierart && <div><span className="text-sage-500">Tierart:</span> {pet.tierart}</div>}
-                  {pet.geschlecht && <div><span className="text-sage-500">Geschlecht:</span> {pet.geschlecht}</div>}
+                  {pet.geschlecht && <div><span className="text-sage-500">Geschlecht:</span> {formatPetGeschlecht(pet.geschlecht)}</div>}
                   {pet.rasse && <div><span className="text-sage-500">Rasse:</span> {pet.rasse}</div>}
                   {pet.farbe && <div><span className="text-sage-500">Farbe:</span> {pet.farbe}</div>}
                 </div>

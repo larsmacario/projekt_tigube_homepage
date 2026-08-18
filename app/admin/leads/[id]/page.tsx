@@ -80,6 +80,9 @@ export default function LeadDetailPage() {
   const [selectedSourceLeadId, setSelectedSourceLeadId] = useState<string | null>(null)
   const [isMergeDialogOpen, setIsMergeDialogOpen] = useState(false)
   const [isMerging, setIsMerging] = useState(false)
+  const [isConverting, setIsConverting] = useState(false)
+  const [isMarkingLost, setIsMarkingLost] = useState(false)
+  const [updatingStatus, setUpdatingStatus] = useState<string | null>(null)
   const [isEditing, setIsEditing] = useState(false)
   const [formData, setFormData] = useState<LeadFormData | null>(null)
   const [savingContact, setSavingContact] = useState(false)
@@ -138,6 +141,7 @@ export default function LeadDetailPage() {
   }
 
   async function updateLeadStatus(status: string) {
+    setUpdatingStatus(status)
     try {
       const payload: Record<string, any> = { id: leadId, status }
       if (lead?.contact_type === 'lost') {
@@ -166,6 +170,8 @@ export default function LeadDetailPage() {
         description: 'Fehler beim Aktualisieren',
         variant: 'destructive',
       })
+    } finally {
+      setUpdatingStatus(null)
     }
   }
 
@@ -213,6 +219,7 @@ export default function LeadDetailPage() {
   async function convertToCustomer() {
     if (!lead) return
 
+    setIsConverting(true)
     try {
       const response = await authenticatedFetch(`/api/admin/leads/${lead.id}/convert`, {
         method: 'POST',
@@ -239,6 +246,7 @@ export default function LeadDetailPage() {
           description: error.error || 'Fehler bei der Konvertierung',
           variant: 'destructive',
         })
+        setIsConverting(false)
       }
     } catch (error) {
       console.error('Error converting lead:', error)
@@ -247,11 +255,13 @@ export default function LeadDetailPage() {
         description: 'Fehler bei der Konvertierung',
         variant: 'destructive',
       })
+      setIsConverting(false)
     }
   }
 
   async function markAsLost() {
     if (!lead) return
+    setIsMarkingLost(true)
     try {
       const response = await authenticatedFetch('/api/admin/leads', {
         method: 'PUT',
@@ -265,9 +275,11 @@ export default function LeadDetailPage() {
       } else {
         const err = await response.json()
         toast({ title: 'Fehler', description: err.error || '', variant: 'destructive' })
+        setIsMarkingLost(false)
       }
     } catch {
       toast({ title: 'Fehler', variant: 'destructive' })
+      setIsMarkingLost(false)
     }
   }
 
@@ -397,7 +409,7 @@ export default function LeadDetailPage() {
               </Button>
             ) : (
               <div className="flex gap-2">
-                <Button size="sm" onClick={saveContactDetails} disabled={savingContact}>
+                <Button size="sm" onClick={saveContactDetails} loading={savingContact}>
                   <Check className="h-4 w-4 mr-1" />
                   {savingContact ? 'Speichern…' : 'Speichern'}
                 </Button>
@@ -609,6 +621,7 @@ export default function LeadDetailPage() {
                   size="sm"
                   variant={lead.status === 'new' ? 'default' : 'outline'}
                   onClick={() => updateLeadStatus('new')}
+                  loading={updatingStatus === 'new'}
                 >
                   Neu
                 </Button>
@@ -616,6 +629,7 @@ export default function LeadDetailPage() {
                   size="sm"
                   variant={lead.status === 'contacted' ? 'default' : 'outline'}
                   onClick={() => updateLeadStatus('contacted')}
+                  loading={updatingStatus === 'contacted'}
                 >
                   Kontaktiert
                 </Button>
@@ -637,9 +651,10 @@ export default function LeadDetailPage() {
             {/* Konvertieren */}
             <Button
               onClick={convertToCustomer}
+              loading={isConverting}
               className="w-full bg-sage-600 hover:bg-sage-700"
             >
-              Zum Kunden konvertieren
+              {isConverting ? 'Wird konvertiert...' : 'Zum Kunden konvertieren'}
             </Button>
             
             <Dialog open={isMergeDialogOpen} onOpenChange={setIsMergeDialogOpen}>
@@ -701,7 +716,8 @@ export default function LeadDetailPage() {
                   </Button>
                   <Button
                     onClick={handleMerge}
-                    disabled={!selectedSourceLeadId || isMerging}
+                    disabled={!selectedSourceLeadId}
+                    loading={isMerging}
                     className="bg-sage-600 hover:bg-sage-700"
                   >
                     {isMerging ? 'Wird zusammengeführt...' : 'Zusammenführen & Löschen'}
@@ -710,14 +726,14 @@ export default function LeadDetailPage() {
               </DialogContent>
             </Dialog>
 
-            <Button variant="outline" className="w-full" onClick={markAsLost}>
-              Als verloren markieren
+            <Button variant="outline" className="w-full" onClick={markAsLost} loading={isMarkingLost}>
+              {isMarkingLost ? 'Wird aktualisiert...' : 'Als verloren markieren'}
             </Button>
             <AlertDialog>
               <AlertDialogTrigger asChild>
-                <Button variant="destructive" className="w-full" disabled={isDeleting}>
+                <Button variant="destructive" className="w-full" loading={isDeleting}>
                   <Trash2 className="mr-2 h-4 w-4" />
-                  Lead löschen
+                  {isDeleting ? 'Wird gelöscht…' : 'Lead löschen'}
                 </Button>
               </AlertDialogTrigger>
               <AlertDialogContent>
@@ -728,7 +744,7 @@ export default function LeadDetailPage() {
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
-                  <AlertDialogCancel>Abbrechen</AlertDialogCancel>
+                  <AlertDialogCancel disabled={isDeleting}>Abbrechen</AlertDialogCancel>
                   <AlertDialogAction onClick={deleteLead} disabled={isDeleting}>
                     {isDeleting ? 'Wird gelöscht…' : 'Endgültig löschen'}
                   </AlertDialogAction>

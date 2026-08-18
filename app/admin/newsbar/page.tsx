@@ -151,7 +151,7 @@ export default function NewsBarPage() {
         </div>
         <Button
           onClick={handleSave}
-          disabled={saving}
+          loading={saving}
           className="bg-sage-600 hover:bg-sage-700"
         >
           {saving ? 'Wird gespeichert...' : 'Speichern'}

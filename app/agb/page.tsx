@@ -1,15 +1,14 @@
 import { FileText } from "lucide-react"
 import Link from "next/link"
-import { getCMSContent } from "@/lib/cms"
-import { getLegalContent } from "@/lib/cms/legal-defaults"
+import { getBetreuungsvertragLegal } from "@/lib/betreuungsvertrag"
 import { LegalContent } from "@/components/legal-content"
 import type { Metadata } from "next"
 
 export const dynamic = 'force-dynamic'
 
 export async function generateMetadata(): Promise<Metadata> {
-  const data = await getCMSContent('agb')
-  const title = data?.title || 'AGB'
+  const legal = await getBetreuungsvertragLegal()
+  const title = legal.title || 'AGB'
 
   const description =
     'Allgemeine Geschäftsbedingungen für die Tier- und Hundebetreuung bei der tierisch gut betreut GmbH.'
@@ -29,8 +28,7 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function AgbPage() {
-  const data = await getCMSContent('agb')
-  const legal = getLegalContent(data, 'agb')
+  const legal = await getBetreuungsvertragLegal()
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-sage-50 to-sage-100">

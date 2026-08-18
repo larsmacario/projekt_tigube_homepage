@@ -46,57 +46,76 @@ export default function NewsletterPage() {
   const [warnLargeList, setWarnLargeList] = useState(false)
   const [aiPrompt, setAiPrompt] = useState('')
   const [loading, setLoading] = useState(false)
+  const [actionLoading, setActionLoading] = useState<'draft' | 'test' | 'send' | 'ai' | null>(null)
+
+  const loadSettings = async () => {
+    try {
+      const res = await authenticatedFetch('/api/admin/newsletter/settings')
+      const data = await res.json()
+      if (data.fromAddress) setFromAddress(data.fromAddress)
+      if (data.testEmail) setTestEmail(data.testEmail)
+      setAiEnabled(Boolean(data.aiConfigured))
+    } catch {
+      // ignore
+    }
+  }
+
+  const loadTopics = async () => {
+    try {
+      const res = await authenticatedFetch('/api/admin/newsletter/topics')
+      const data = await res.json()
+      setTopics(data.topics || [])
+    } catch {
+      // ignore
+    }
+  }
 
   useEffect(() => {
-    authenticatedFetch('/api/admin/newsletter/config').then((r) => r.json()).then((d) => {
-      setFromAddress(d.from || '')
-      setTestEmail(d.testEmail || '')
-      setAiEnabled(Boolean(d.aiEnabled))
-    })
-    authenticatedFetch('/api/admin/newsletter/topics').then((r) => r.json()).then((d) => setTopics(d.topics || []))
+    loadSettings()
+    loadTopics()
   }, [])
 
-  const previewRecipients = useCallback(async () => {
-    if (groups.length === 0 && contactIds.length === 0) {
-      setRecipientCount(null)
-      setWarnLargeList(false)
-      return
-    }
-    const res = await authenticatedFetch('/api/admin/newsletter/recipients/preview', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ groups, contactIds }),
-    })
-    const data = await res.json()
-    if (res.ok) {
-      setRecipientCount(data.count)
-      setWarnLargeList(Boolean(data.warnLargeList))
-    }
-  }, [groups, contactIds])
-
   useEffect(() => {
-    previewRecipients()
-  }, [previewRecipients])
+    const fetchRecipients = async () => {
+      if (groups.length === 0 && contactIds.length === 0) {
+        setRecipientCount(0)
+        setWarnLargeList(false)
+        return
+      }
+      try {
+        const res = await authenticatedFetch('/api/admin/newsletter/recipients', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ groups, contactIds, topicId: topicId || null }),
+        })
+        const data = await res.json()
+        setRecipientCount(data.total || 0)
+        setWarnLargeList(Boolean(data.warnLargeList))
+      } catch {
+        // ignore
+      }
+    }
+    const t = setTimeout(fetchRecipients, 300)
+    return () => clearTimeout(t)
+  }, [groups, contactIds, topicId])
 
   const buildPayload = () => ({
     subject,
-    preview_text: previewText || null,
+    preview_text: previewText,
     html_body: htmlBody,
     reply_to: replyTo || null,
     topic_id: topicId || null,
-    recipient_config: { groups, contactIds },
     scheduled_at: scheduledAt || null,
-    status: scheduledAt ? 'scheduled' : 'draft',
+    target_groups: groups,
+    target_contact_ids: contactIds,
   })
 
   const saveDraft = async () => {
     setLoading(true)
+    setActionLoading('draft')
     try {
       const payload = buildPayload()
-      const url = campaignId
-        ? `/api/admin/newsletter/campaigns/${campaignId}`
-        : '/api/admin/newsletter/campaigns'
-      const res = await authenticatedFetch(url, {
+      const res = await authenticatedFetch('/api/admin/newsletter/campaigns', {
         method: campaignId ? 'PUT' : 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
@@ -113,11 +132,13 @@ export default function NewsletterPage() {
       })
     } finally {
       setLoading(false)
+      setActionLoading(null)
     }
   }
 
   const sendTest = async () => {
     setLoading(true)
+    setActionLoading('test')
     try {
       const res = await authenticatedFetch('/api/admin/newsletter/test', {
         method: 'POST',
@@ -135,6 +156,7 @@ export default function NewsletterPage() {
       })
     } finally {
       setLoading(false)
+      setActionLoading(null)
     }
   }
 
@@ -149,6 +171,7 @@ export default function NewsletterPage() {
     }
 
     setLoading(true)
+    setActionLoading('send')
     try {
       let id = campaignId
       const payload = buildPayload()
@@ -193,6 +216,7 @@ export default function NewsletterPage() {
       })
     } finally {
       setLoading(false)
+      setActionLoading(null)
     }
   }
 
@@ -202,6 +226,7 @@ export default function NewsletterPage() {
       return
     }
     setLoading(true)
+    setActionLoading('ai')
     try {
       const topicName = topics.find((t) => t.id === topicId)?.name || 'Allgemein'
       const res = await authenticatedFetch('/api/admin/newsletter/ai/draft', {
@@ -223,6 +248,7 @@ export default function NewsletterPage() {
       })
     } finally {
       setLoading(false)
+      setActionLoading(null)
     }
   }
 
@@ -378,7 +404,7 @@ export default function NewsletterPage() {
             <Button type="button" variant="outline" size="sm" onClick={saveAsTemplate}>
               Als Template speichern
             </Button>
-            <Button type="button" variant="outline" size="sm" className="gap-2" onClick={generateAiDraft} disabled={!aiEnabled || loading}>
+            <Button type="button" variant="outline" size="sm" className="gap-2" onClick={generateAiDraft} disabled={!aiEnabled || loading} loading={actionLoading === 'ai'}>
               <Sparkles className="h-4 w-4" />
               Mit AI schreiben
             </Button>
@@ -396,15 +422,15 @@ export default function NewsletterPage() {
       </Card>
 
       <div className="flex flex-wrap gap-3">
-        <Button onClick={saveDraft} disabled={loading} variant="outline" className="gap-2">
+        <Button onClick={saveDraft} disabled={loading} loading={actionLoading === 'draft'} variant="outline" className="gap-2">
           <Save className="h-4 w-4" />
           Entwurf speichern
         </Button>
-        <Button onClick={sendTest} disabled={loading} variant="outline" className="gap-2">
+        <Button onClick={sendTest} disabled={loading} loading={actionLoading === 'test'} variant="outline" className="gap-2">
           <Mail className="h-4 w-4" />
           Test an {testEmail}
         </Button>
-        <Button onClick={handleSend} disabled={loading} className="gap-2">
+        <Button onClick={handleSend} disabled={loading} loading={actionLoading === 'send'} className="gap-2">
           {scheduledAt ? <Clock className="h-4 w-4" /> : <Send className="h-4 w-4" />}
           {scheduledAt ? 'Planen' : 'Jetzt senden'}
         </Button>

@@ -2,6 +2,7 @@ import type { jsPDF } from 'jspdf'
 import type { Pet } from '@/lib/types'
 import { parseLegalHtmlToBlocks, type LegalPdfBlock } from '@/lib/betreuungsvertrag-html'
 import { formatCarePlanSummary, normalizeCarePlan } from '@/lib/pet-care-plan'
+import { formatPetGeschlecht } from '@/lib/pet-form-options'
 
 export type BetreuungsvertragParty = {
   vorname: string
@@ -114,7 +115,7 @@ function renderPartySection(doc: jsPDF, y: number, options: BetreuungsvertragPdf
       : [pet.futtermenge, pet.medikamente, pet.besonderheiten].filter(Boolean).join(' | ') || 'Keine'
     const lines = [
       `Tierart: ${pet.tierart || '-'} | Rasse: ${pet.rasse || '-'} | Farbe: ${pet.farbe || '-'}`,
-      `Geschlecht: ${pet.geschlecht || '-'}`,
+      `Geschlecht: ${formatPetGeschlecht(pet.geschlecht) || '-'}`,
       `Futter / Medikamente / Besonderheiten: ${careSummary}`,
     ]
     y = writeLines(doc, lines, MARGIN_LEFT, y, 5, pageNumber)
@@ -239,7 +240,7 @@ export async function buildBetreuungsvertragPdf(options: BetreuungsvertragPdfOpt
   y = ensureSpace(doc, y, 45, pageNumber)
   doc.setFont('Helvetica', 'bold')
   doc.setFontSize(11)
-  doc.text('Unterschrift des Tierbesitzers (digital geleistet):', MARGIN_LEFT, y)
+  doc.text('Unterschrift des Tierhalters (digital geleistet):', MARGIN_LEFT, y)
   y += 6
 
   const { compressSignatureForPdf } = await import('@/lib/signature-image')

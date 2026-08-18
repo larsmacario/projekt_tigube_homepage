@@ -136,7 +136,7 @@ export function NotesEditor({ notesApiPath, notes, onNotesChange }: NotesEditorP
               <div className="space-y-2">
                 <Textarea value={editText} onChange={(e) => setEditText(e.target.value)} rows={3} />
                 <div className="flex gap-2">
-                  <Button size="sm" onClick={() => saveEdit(note.id)} disabled={saving}>
+                  <Button size="sm" onClick={() => saveEdit(note.id)} loading={saving}>
                     <Check className="h-3 w-3 mr-1" />
                     Speichern
                   </Button>
@@ -157,10 +157,10 @@ export function NotesEditor({ notesApiPath, notes, onNotesChange }: NotesEditorP
                     )}
                   </p>
                   <div className="flex gap-1">
-                    <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => startEdit(note)}>
+                    <Button size="sm" variant="ghost" className="h-7 px-2" onClick={() => startEdit(note)} disabled={saving}>
                       <Pencil className="h-3 w-3" />
                     </Button>
-                    <Button size="sm" variant="ghost" className="h-7 px-2 text-destructive" onClick={() => setDeleteId(note.id)}>
+                    <Button size="sm" variant="ghost" className="h-7 px-2 text-destructive" onClick={() => setDeleteId(note.id)} disabled={saving}>
                       <Trash2 className="h-3 w-3" />
                     </Button>
                   </div>
@@ -177,9 +177,10 @@ export function NotesEditor({ notesApiPath, notes, onNotesChange }: NotesEditorP
           value={newNote}
           onChange={(e) => setNewNote(e.target.value)}
           rows={3}
+          disabled={saving}
         />
-        <Button onClick={addNote} size="sm" className="w-full" disabled={saving}>
-          Notiz hinzufügen
+        <Button onClick={addNote} size="sm" className="w-full" loading={saving}>
+          {saving ? 'Wird hinzugefügt...' : 'Notiz hinzufügen'}
         </Button>
       </div>
 
@@ -192,9 +193,9 @@ export function NotesEditor({ notesApiPath, notes, onNotesChange }: NotesEditorP
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Abbrechen</AlertDialogCancel>
+            <AlertDialogCancel disabled={saving}>Abbrechen</AlertDialogCancel>
             <AlertDialogAction onClick={confirmDelete} disabled={saving}>
-              Löschen
+              {saving ? 'Wird gelöscht...' : 'Löschen'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

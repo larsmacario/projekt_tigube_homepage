@@ -37,6 +37,35 @@ describe('betreuungsvertrag-html', () => {
   it('enthält Schulferien-Stornofristen im Standard-AGB-Text', () => {
     expect(agbHtml).toContain('Schulferien des Landes BW')
     expect(agbHtml).toContain('ACHTUNG')
-    expect(agbHtml).toContain('Mail oder WhatsApp')
+    expect(agbHtml).toContain('Kundenportal bzw. per Mail')
+  })
+
+  it('verwendet einheitlich die Bezeichnung Tierhalter statt Tierbesitzer', () => {
+    expect(agbHtml).not.toContain('Tierbesitzer')
+    expect(agbHtml).toContain('Der Tierhalter')
+  })
+
+  it('injiziert CMS-Stornierungsbedingungen dynamisch in den Vertrag', async () => {
+    const { resolveBetreuungsvertragLegal } = await import('@/lib/betreuungsvertrag')
+    const customResolved = resolveBetreuungsvertragLegal(null, {
+      cancellationSections: [
+        {
+          title: 'Sonder-Stornofristen',
+          policy: [{ period: '30 Tage vor Beginn', refund: 'kostenlos' }],
+          notes: ['Individuelle Notiz'],
+        },
+      ],
+      cancellationNotes: ['Allgemeiner Zusatzhinweis'],
+    })
+
+    expect(customResolved.content).toContain('Sonder-Stornofristen')
+    expect(customResolved.content).toContain('30 Tage vor Beginn')
+    expect(customResolved.content).toContain('Individuelle Notiz')
+    expect(customResolved.content).toContain('Allgemeiner Zusatzhinweis')
+    expect(customResolved.content).toContain('<h2>Zusicherungen und Pflichten beider Parteien</h2>')
+    expect(customResolved.content).toContain('<h2>Datenschutz</h2>')
   })
 })
+
+
+

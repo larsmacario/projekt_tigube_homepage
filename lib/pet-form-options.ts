@@ -4,9 +4,23 @@ export const PET_GESCHLECHT_OPTIONS = [
   { value: 'hündin', label: 'Hündin' },
   { value: 'rüde', label: 'Rüde' },
   { value: 'rüde_kastriert', label: 'Rüde - kastriert' },
-  { value: 'rüde_kastriert_gechipt', label: 'Rüde - kastriert - gechipt' },
+  { value: 'rüde_kastriert_chemisch', label: 'Rüde - kastriert - chemisch' },
   { value: 'hündin_kastriert', label: 'Hündin - kastriert' },
 ] as const
+
+export function formatPetGeschlecht(value?: string | null): string {
+  if (!value) return ''
+  const option = PET_GESCHLECHT_OPTIONS.find((opt) => opt.value === value)
+  if (option) return option.label
+  if (value === 'rüde_kastriert_gechipt') return 'Rüde - kastriert - chemisch'
+  return value
+}
+
+export function normalizePetGeschlecht(value?: string | null): string {
+  if (!value) return ''
+  if (value === 'rüde_kastriert_gechipt') return 'rüde_kastriert_chemisch'
+  return value
+}
 
 export const INTERVALL_OPTIONS = [
   { value: 'monatlich', label: 'Monatlich' },

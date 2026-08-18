@@ -647,7 +647,7 @@ export default function PricesPage() {
           <div className="flex justify-end">
             <Button
               onClick={handleSaveDefaultPrices}
-              disabled={saving}
+              loading={saving}
               className="bg-sage-600 hover:bg-sage-700"
             >
               {saving ? 'Wird gespeichert...' : 'Alle Preise speichern'}
@@ -1121,7 +1121,7 @@ export default function PricesPage() {
                   </div>
                   <Button
                     onClick={handleSaveGroupPrices}
-                    disabled={savingGroupPrices}
+                    loading={savingGroupPrices}
                     className="bg-sage-600 hover:bg-sage-700"
                   >
                     {savingGroupPrices ? 'Wird gespeichert...' : 'Gruppenpreise speichern'}
@@ -1230,7 +1230,8 @@ export default function PricesPage() {
                 </div>
                 <Button
                   onClick={handleCreateCategory}
-                  disabled={creatingCategory || !newCatName.trim()}
+                  disabled={!newCatName.trim()}
+                  loading={creatingCategory}
                   className="w-full bg-sage-600 hover:bg-sage-700 flex items-center justify-center gap-2"
                 >
                   <Plus className="h-4 w-4" />
@@ -1249,7 +1250,7 @@ export default function PricesPage() {
                 </div>
                 <Button
                   onClick={handleSaveCategories}
-                  disabled={savingCategories}
+                  loading={savingCategories}
                   className="bg-sage-600 hover:bg-sage-700"
                 >
                   {savingCategories ? 'Wird gespeichert...' : 'Kategorien speichern'}
@@ -1338,7 +1339,7 @@ export default function PricesPage() {
               </div>
               <Button
                 onClick={handleSaveCancellationPolicy}
-                disabled={savingCancellation}
+                loading={savingCancellation}
                 className="bg-sage-600 hover:bg-sage-700"
               >
                 {savingCancellation ? 'Wird gespeichert…' : 'Regeln speichern'}

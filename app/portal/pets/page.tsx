@@ -38,6 +38,11 @@ import type { PetCarePlan } from '@/lib/pet-care-plan'
 import { readApiResponse } from '@/lib/read-api-response'
 import { uploadPortalDocument } from '@/lib/portal-document-upload'
 import { formatDeceasedLabel, isPetDeceased } from '@/lib/pet-lifecycle'
+import {
+  PET_GESCHLECHT_OPTIONS,
+  formatPetGeschlecht,
+  normalizePetGeschlecht,
+} from '@/lib/pet-form-options'
 
 export default function PetsPage() {
   const [pets, setPets] = useState<Pet[]>([])
@@ -68,6 +73,7 @@ export default function PetsPage() {
   const [carePlan, setCarePlan] = useState<PetCarePlan>(() => carePlanFromPet())
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [petToDelete, setPetToDelete] = useState<Pet | null>(null)
+  const [isDeleting, setIsDeleting] = useState(false)
   const [formPhotoCount, setFormPhotoCount] = useState(0)
   const [formImpfpassCount, setFormImpfpassCount] = useState(0)
   const petPhotoGalleryRef = useRef<PetPhotoGalleryHandle>(null)
@@ -323,6 +329,7 @@ export default function PetsPage() {
   async function handleDelete() {
     if (!petToDelete) return
 
+    setIsDeleting(true)
     try {
       const response = await authenticatedFetch(`/api/portal/pets/${petToDelete.id}`, {
         method: 'DELETE',
@@ -351,6 +358,8 @@ export default function PetsPage() {
         description: 'Fehler beim Löschen',
         variant: 'destructive',
       })
+    } finally {
+      setIsDeleting(false)
     }
   }
 
@@ -451,18 +460,18 @@ export default function PetsPage() {
                 <div>
                   <Label htmlFor="pet-geschlecht">Geschlecht</Label>
                   <Select
-                    value={petFormData.geschlecht || ''}
+                    value={normalizePetGeschlecht(petFormData.geschlecht)}
                     onValueChange={(value) => setPetFormData({ ...petFormData, geschlecht: value })}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger id="pet-geschlecht">
                       <SelectValue placeholder="Geschlecht wählen" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="hündin">Hündin</SelectItem>
-                      <SelectItem value="rüde">Rüde</SelectItem>
-                      <SelectItem value="rüde_kastriert">Rüde - kastriert</SelectItem>
-                      <SelectItem value="rüde_kastriert_gechipt">Rüde - kastriert - gechipt</SelectItem>
-                      <SelectItem value="hündin_kastriert">Hündin - kastriert</SelectItem>
+                      {PET_GESCHLECHT_OPTIONS.map((opt) => (
+                        <SelectItem key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -608,7 +617,8 @@ export default function PetsPage() {
               <div className="flex gap-2">
                 <Button
                   onClick={handleSavePet}
-                  disabled={!petFormData.name || !petFormData.tierart || uploadingDocuments}
+                  disabled={!petFormData.name || !petFormData.tierart}
+                  loading={uploadingDocuments}
                   className="bg-sage-600 hover:bg-sage-700"
                 >
                   {uploadingDocuments 
@@ -672,7 +682,7 @@ export default function PetsPage() {
                           )}
                         </div>
                         <p className="text-sm text-sage-600">
-                          {[pet.tierart, pet.rasse, pet.farbe, pet.geschlecht].filter(Boolean).join(' • ')}
+                          {[pet.tierart, pet.rasse, pet.farbe, formatPetGeschlecht(pet.geschlecht)].filter(Boolean).join(' • ')}
                         </p>
                         <PetMissingFieldsHint
                           pet={pet}
@@ -759,12 +769,13 @@ export default function PetsPage() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Abbrechen</AlertDialogCancel>
+            <AlertDialogCancel disabled={isDeleting}>Abbrechen</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDelete}
+              disabled={isDeleting}
               className="bg-red-600 hover:bg-red-700"
             >
-              Löschen
+              {isDeleting ? 'Wird gelöscht...' : 'Löschen'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

@@ -177,4 +177,27 @@ describe('pet-care-plan', () => {
       'Morgens (½ h vor Futter): Apoquel ½ Tablette\nMorgens (mit Futter): Herzmedikament 1 Tablette'
     )
   })
+
+  it('preserves whitespace and trailing spaces in string fields for form typing', () => {
+    const plan = {
+      foodTypes: ['trocken'],
+      intolerances: 'Rind ',
+      individualWishes: 'Nur abends ',
+      feeding: [
+        { enabled: true, time: '6 Uhr ', food: 'Trockenfutter ', amount: '200g ', additive: 'Öl ', additiveAmount: '1 TL ' },
+        { enabled: false, time: '', food: '', amount: '', additive: '', additiveAmount: '' },
+        { enabled: false, time: '', food: '', amount: '', additive: '', additiveAmount: '' },
+      ],
+      medication: [
+        { timeSlot: 'Morgens', timing: 'vor Futter ', medication: 'Apoquel ', amount: '1/2 ' },
+      ],
+    }
+
+    const normalized = normalizeCarePlan(plan)
+    expect(normalized?.intolerances).toBe('Rind ')
+    expect(normalized?.individualWishes).toBe('Nur abends ')
+    expect(normalized?.feeding[0].food).toBe('Trockenfutter ')
+    expect(normalized?.feeding[0].time).toBe('6 Uhr ')
+    expect(normalized?.medication[0].medication).toBe('Apoquel ')
+  })
 })

@@ -96,7 +96,7 @@ export function emptyPetCarePlan(): PetCarePlan {
 
 function normalizeString(value: unknown): string {
   if (typeof value !== 'string') return ''
-  return value.trim()
+  return value
 }
 
 function normalizeTimeSlot(value: unknown): CarePlanSlotLabel {
@@ -160,7 +160,7 @@ function normalizeMedicationEntry(value: unknown): CarePlanMedicationEntry | nul
   const medication = normalizeString(raw.medication)
   const amount = normalizeString(raw.amount)
 
-  if (!timing && !medication && !amount) return null
+  if (!timing.trim() && !medication.trim() && !amount.trim()) return null
 
   return {
     timeSlot: normalizeTimeSlot(raw.timeSlot),
@@ -191,12 +191,12 @@ function padSlots<T>(items: T[], length: number, factory: () => T): T[] {
 }
 
 export function isMedicationEntryEmpty(entry: CarePlanMedicationEntry): boolean {
-  return !entry.timing && !entry.medication && !entry.amount
+  return !entry.timing.trim() && !entry.medication.trim() && !entry.amount.trim()
 }
 
 export function isMedicationEntryComplete(entry: CarePlanMedicationEntry): boolean {
   if (isMedicationEntryEmpty(entry)) return true
-  return Boolean(entry.timing && entry.medication && entry.amount)
+  return Boolean(entry.timing.trim() && entry.medication.trim() && entry.amount.trim())
 }
 
 export function getActiveMedicationEntries(
@@ -293,7 +293,7 @@ export function petHasLegacyCareText(
 
 function isFeedingSlotComplete(slot: CarePlanFeedingSlot): boolean {
   if (!slot.enabled) return true
-  return Boolean(slot.time && slot.food && slot.amount)
+  return Boolean(slot.time.trim() && slot.food.trim() && slot.amount.trim())
 }
 
 export function getActiveFeedingSlotCount(plan: PetCarePlan): number {
@@ -345,7 +345,7 @@ export function validateCarePlan(input: PetCarePlanInput): string | null {
     const slot = plan.feeding[index]
     if (!slot.enabled) continue
     const label = CARE_PLAN_SLOT_LABELS[index]
-    if (!slot.time || !slot.food || !slot.amount) {
+    if (!slot.time.trim() || !slot.food.trim() || !slot.amount.trim()) {
       return `Bitte fülle Uhrzeit, Futter und Menge für ${label} aus.`
     }
   }

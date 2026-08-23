@@ -66,10 +66,23 @@ export function DocumentManager({
       return
     }
 
-    if (!uploadForm.description.trim()) {
+    const descriptionRequired =
+      uploadForm.document_type !== 'impfpass' &&
+      uploadForm.document_type !== 'vertrag' &&
+      uploadForm.document_type !== 'wurmtest'
+
+    if (descriptionRequired && !uploadForm.description.trim()) {
       toast({ title: 'Fehler', description: 'Bitte gib eine Beschreibung ein', variant: 'destructive' })
       return
     }
+
+    const defaultDescription =
+      uploadForm.document_type === 'vertrag'
+        ? 'Betreuungsvertrag'
+        : uploadForm.document_type === 'wurmtest'
+        ? 'Wurmtest'
+        : ''
+    const description = uploadForm.description.trim() || defaultDescription
 
     setUploading(true)
     try {
@@ -77,7 +90,7 @@ export function DocumentManager({
       formData.append('file', file)
       formData.append('document_type', uploadForm.document_type)
       formData.append('customer_id', customerId)
-      formData.append('description', uploadForm.description.trim())
+      if (description) formData.append('description', description)
       if (uploadForm.pet_id) formData.append('pet_id', uploadForm.pet_id)
 
       const response = await authenticatedFetch('/api/admin/documents', {

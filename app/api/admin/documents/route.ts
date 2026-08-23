@@ -76,7 +76,9 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    if (!descriptionRaw?.trim()) {
+    const descriptionRequired =
+      documentType !== 'impfpass' && documentType !== 'vertrag' && documentType !== 'wurmtest'
+    if (descriptionRequired && !descriptionRaw?.trim()) {
       return NextResponse.json(
         { error: 'Beschreibung ist erforderlich' },
         { status: 400 }
@@ -142,8 +144,14 @@ export async function POST(request: NextRequest) {
       documentType === 'impfpass'
         ? normalizeImpfpassPageCategory(pageCategoryRaw ?? DEFAULT_IMPFASS_PAGE_CATEGORY)
         : null
+    const defaultDescription =
+      documentType === 'vertrag'
+        ? 'Betreuungsvertrag'
+        : documentType === 'wurmtest'
+        ? 'Wurmtest'
+        : null
     const description =
-      descriptionRaw?.trim() ? descriptionRaw.trim().slice(0, 500) : null
+      descriptionRaw?.trim() ? descriptionRaw.trim().slice(0, 500) : defaultDescription
 
     const { data, error: dbError } = await auth.client
       .from('documents')

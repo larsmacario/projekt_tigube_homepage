@@ -559,6 +559,7 @@ function ProfileContent() {
       const uploadFormData = new FormData()
       uploadFormData.append('file', pdfFile)
       uploadFormData.append('document_type', 'vertrag')
+      uploadFormData.append('description', 'Betreuungsvertrag (unterzeichnet)')
 
       const uploadResponse = await authenticatedFetch('/api/portal/documents', {
         method: 'POST',
@@ -733,6 +734,7 @@ function ProfileContent() {
               file: wurmtestFile,
               documentType: 'wurmtest',
               petId: savedPetId,
+              description: 'Wurmtest-Befund',
             }).then(({ error }) => {
               if (error) {
                 toast({
@@ -1271,7 +1273,7 @@ function ProfileContent() {
                     onClick={handleSaveStep1}
                     disabled={!step1FormComplete}
                     loading={saving}
-                    className="flex-1 bg-sage-600 hover:bg-sage-700 text-lg py-6"
+                    className="flex-1 bg-sage-600 hover:bg-sage-700 text-base sm:text-lg h-auto py-3.5 sm:py-5 px-4 whitespace-normal text-center leading-snug"
                   >
                     {saving ? 'Wird gespeichert...' : 'Weiter zu Schritt 2 →'}
                   </Button>
@@ -1279,7 +1281,7 @@ function ProfileContent() {
                     type="button"
                     variant="outline"
                     onClick={() => router.push('/portal')}
-                    className="border-sage-300 text-sage-700 hover:bg-sage-50 text-lg py-6"
+                    className="border-sage-300 text-sage-700 hover:bg-sage-50 text-base sm:text-lg h-auto py-3.5 sm:py-5 px-4 whitespace-normal text-center leading-snug"
                   >
                     Später fortfahren
                   </Button>
@@ -1651,21 +1653,21 @@ function ProfileContent() {
                       setStep(1)
                       router.push('/portal/profile?onboarding=true&step=1')
                     }}
-                    className="w-full sm:w-auto border-sage-300 text-sage-700 hover:bg-sage-50"
+                    className="w-full sm:w-auto border-sage-300 text-sage-700 hover:bg-sage-50 h-auto py-3.5 whitespace-normal"
                   >
                     ← Zurück zu Schritt 1
                   </Button>
                   <Button
                     onClick={handleSaveStep2Next}
                     disabled={pets.length === 0}
-                    className="w-full sm:flex-1 bg-sage-600 hover:bg-sage-700 text-lg py-6"
+                    className="w-full sm:flex-1 bg-sage-600 hover:bg-sage-700 text-base sm:text-lg h-auto py-3.5 sm:py-5 px-4 whitespace-normal text-center leading-snug"
                   >
                     Weiter zu Schritt 3 →
                   </Button>
                   <Button
                     variant="outline"
                     onClick={() => router.push('/portal')}
-                    className="w-full sm:w-auto border-sage-300 text-sage-700 hover:bg-sage-50"
+                    className="w-full sm:w-auto border-sage-300 text-sage-700 hover:bg-sage-50 h-auto py-3.5 whitespace-normal"
                   >
                     Später fortfahren
                   </Button>
@@ -1854,7 +1856,7 @@ function ProfileContent() {
                     setStep(2)
                     router.push('/portal/profile?onboarding=true&step=2')
                   }}
-                  className="w-full sm:w-auto border-sage-300 text-sage-700 hover:bg-sage-50"
+                  className="w-full sm:w-auto border-sage-300 text-sage-700 hover:bg-sage-50 h-auto py-3.5 whitespace-normal"
                 >
                   ← Zurück zu Schritt 2
                 </Button>
@@ -1864,14 +1866,14 @@ function ProfileContent() {
                     !dataConsent || !signatureImage || !contractLegal || contractLegalLoading
                   }
                   loading={saving}
-                  className="w-full sm:flex-1 bg-sage-600 hover:bg-sage-700 text-lg py-6 text-white"
+                  className="w-full sm:flex-1 bg-sage-600 hover:bg-sage-700 text-base sm:text-lg h-auto py-3.5 sm:py-5 px-4 text-white whitespace-normal text-center leading-snug"
                 >
                   {saving ? 'Vertrag wird übermittelt...' : '✓ Vertrag unterzeichnen & Onboarding abschließen'}
                 </Button>
                 <Button
                   variant="outline"
                   onClick={() => router.push('/portal')}
-                  className="w-full sm:w-auto border-sage-300 text-sage-700 hover:bg-sage-50"
+                  className="w-full sm:w-auto border-sage-300 text-sage-700 hover:bg-sage-50 h-auto py-3.5 whitespace-normal"
                 >
                   Später fortfahren
                 </Button>

@@ -69,7 +69,12 @@ export default function DocumentsPage() {
       return
     }
 
-    if (!uploadForm.description.trim()) {
+    const descriptionRequired =
+      uploadForm.document_type !== 'impfpass' &&
+      uploadForm.document_type !== 'vertrag' &&
+      uploadForm.document_type !== 'wurmtest'
+
+    if (descriptionRequired && !uploadForm.description.trim()) {
       toast({
         title: 'Fehler',
         description: 'Bitte gib eine Beschreibung ein',
@@ -98,10 +103,20 @@ export default function DocumentsPage() {
     }
 
     const file = fileInput.files[0]
+    const defaultDescription =
+      uploadForm.document_type === 'vertrag'
+        ? 'Betreuungsvertrag'
+        : uploadForm.document_type === 'wurmtest'
+        ? 'Wurmtest'
+        : ''
+    const description = uploadForm.description.trim() || defaultDescription
+
     const formData = new FormData()
     formData.append('file', file)
     formData.append('document_type', uploadForm.document_type)
-    formData.append('description', uploadForm.description.trim())
+    if (description) {
+      formData.append('description', description)
+    }
     if (uploadForm.pet_id) {
       formData.append('pet_id', uploadForm.pet_id)
     }

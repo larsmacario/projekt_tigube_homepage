@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
@@ -13,15 +13,24 @@ import { Label } from "@/components/ui/label"
 import { CalendarIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
 import {
-  getFutureVacationPeriods,
+  formatVacationDisplay,
   TIGUBE_URL,
   type VacationDate,
 } from "@/lib/vacation-dates"
+import {
+  getServicesForPetType,
+  isServiceAllowedForPetType,
+} from "@/lib/booking-service"
+import { resolveContactVacationConflict } from "@/lib/contact-vacation-conflict"
 import { DEFAULT_WAITLIST_CMS, type WaitlistCmsContent } from "@/lib/waitlist-defaults"
+
+export type PetType = "Hund" | "Katze"
 
 export type ContactFormProps = {
   /** Vorauswahl z. B. auf /hundepension oder /katzenbetreuung */
   defaultService?: string
+  /** Vorauswahl Tierart z. B. aus BookingModal */
+  defaultPet?: PetType
   /** Eindeutige Präfixe für IDs (Modal vs. Seite) */
   idPrefix?: string
   /** Ohne äußere Card — z. B. wenn der Dialog schon einen Rahmen hat */
@@ -50,26 +59,60 @@ const emptyForm = {
   alter: "",
 }
 
+function resolveInitialService(pet: string, defaultService: string): string {
+  if (defaultService && isServiceAllowedForPetType(defaultService, pet)) {
+    return defaultService
+  }
+  if (pet === "Katze") {
+    return "katzenbetreuung"
+  }
+  return ""
+}
+
 export function ContactForm({
   defaultService = "",
+  defaultPet,
   idPrefix = "",
   bare = false,
   variant = "page",
 }: ContactFormProps) {
   const m = variant === "modal"
-  const [formData, setFormData] = useState(() => ({
-    ...emptyForm,
-    service: defaultService,
-  }))
+  const [formData, setFormData] = useState(() => {
+    const pet = defaultPet ?? ""
+    return {
+      ...emptyForm,
+      pet,
+      service: resolveInitialService(pet, defaultService),
+    }
+  })
 
   const [vacationDates, setVacationDates] = useState<VacationDate[]>([])
   const [waitlistEnabled, setWaitlistEnabled] = useState(false)
   const [waitlistTexts, setWaitlistTexts] = useState<WaitlistCmsContent>(DEFAULT_WAITLIST_CMS)
-  const [step, setStep] = useState<1 | 2>(1)
-  const [ferienAntwort, setFerienAntwort] = useState<"" | "ausserhalb" | "innerhalb">("")
   const [submitOutcome, setSubmitOutcome] = useState<"normal" | "referred" | "waitlist" | null>(null)
 
-  const futureVacationPeriods = getFutureVacationPeriods(vacationDates)
+  const serviceOptions = useMemo(
+    () => getServicesForPetType(formData.pet),
+    [formData.pet]
+  )
+
+  const vacationConflict = useMemo(
+    () =>
+      resolveContactVacationConflict({
+        service: formData.service,
+        konkreterUrlaub: formData.konkreterUrlaub,
+        urlaubVon: formData.urlaubVon,
+        urlaubBis: formData.urlaubBis,
+        vacationDates,
+      }),
+    [
+      formData.service,
+      formData.konkreterUrlaub,
+      formData.urlaubVon,
+      formData.urlaubBis,
+      vacationDates,
+    ]
+  )
 
   useEffect(() => {
     async function loadFormConfig() {
@@ -136,7 +179,36 @@ export function ContactForm({
   const vonInputId = `${idPrefix}urlaubVon-input`
   const bisInputId = `${idPrefix}urlaubBis-input`
 
-  function validateStep1(): string | null {
+  function handlePetChange(pet: PetType) {
+    const nextService = resolveInitialService(pet, "")
+    setFormData((prev) => ({
+      ...prev,
+      pet,
+      service: isServiceAllowedForPetType(prev.service, pet) ? prev.service : nextService,
+      anzahlTiere: pet === "Katze" ? "" : prev.anzahlTiere,
+      tiernamen: pet === "Katze" ? "" : prev.tiernamen,
+      alter: pet === "Katze" ? "" : prev.alter,
+      intaktKastriert: pet === "Katze" ? "" : prev.intaktKastriert,
+      schulferienBW: pet === "Katze" ? false : prev.schulferienBW,
+      konkreterUrlaub: pet === "Katze" ? "" : prev.konkreterUrlaub,
+      urlaubVon: pet === "Katze" ? "" : prev.urlaubVon,
+      urlaubBis: pet === "Katze" ? "" : prev.urlaubBis,
+    }))
+  }
+
+  function validateForm(): string | null {
+    if (!formData.pet) {
+      return "Bitte wähle aus, ob es sich um einen Hund oder eine Katze handelt."
+    }
+
+    if (!formData.service) {
+      return "Bitte wähle eine Betreuungsart aus."
+    }
+
+    if (!isServiceAllowedForPetType(formData.service, formData.pet)) {
+      return "Die gewählte Betreuungsart passt nicht zur Tierart."
+    }
+
     if (!formData.availability.trim()) {
       return "Bitte wähle mindestens ein Zeitfenster für die Erreichbarkeit aus oder gib eigene Zeiten an."
     }
@@ -161,38 +233,23 @@ export function ContactForm({
     return null
   }
 
-  const handleContinue = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setSubmitStatus({ type: null, message: "" })
 
-    const validationError = validateStep1()
+    const validationError = validateForm()
     if (validationError) {
       setSubmitStatus({ type: "error", message: validationError })
       return
     }
 
-    setFerienAntwort("")
-    setStep(2)
-  }
+    const ferienKonflikt = resolveContactVacationConflict({
+      service: formData.service,
+      konkreterUrlaub: formData.konkreterUrlaub,
+      urlaubVon: formData.urlaubVon,
+      urlaubBis: formData.urlaubBis,
+      vacationDates,
+    }).conflict
 
-  const handleBack = () => {
-    setSubmitStatus({ type: null, message: "" })
-    setFerienAntwort("")
-    setStep(1)
-  }
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-
-    if (ferienAntwort === "") {
-      setSubmitStatus({
-        type: "error",
-        message: "Bitte bestätige, ob dein Betreuungszeitraum in unsere Betriebsferien fällt.",
-      })
-      return
-    }
-
-    const ferienKonflikt = ferienAntwort === "innerhalb"
     setIsSubmitting(true)
     setSubmitStatus({ type: null, message: "" })
 
@@ -245,14 +302,13 @@ export function ContactForm({
 
       setFormData({
         ...emptyForm,
-        service: defaultService,
+        pet: defaultPet ?? "",
+        service: resolveInitialService(defaultPet ?? "", defaultService),
       })
       setAvailabilityDays([])
       setAvailabilityTimes([])
       setCustomAvailability("")
       setShowCustomAvailability(false)
-      setFerienAntwort("")
-      setStep(1)
     } catch (error) {
       console.error("Fehler beim Senden:", error)
       setSubmitStatus({
@@ -318,7 +374,7 @@ export function ContactForm({
     </div>
   ) : (
     <form
-      onSubmit={step === 1 ? handleContinue : handleSubmit}
+      onSubmit={handleSubmit}
       className={cn(m ? "space-y-4" : "space-y-6")}
     >
       {waitlistEnabled && (
@@ -332,8 +388,6 @@ export function ContactForm({
         </div>
       )}
 
-      {step === 1 && (
-        <>
       <div className={grid2}>
         <div>
           <label className={labelCls}>Vorname *</label>
@@ -385,20 +439,68 @@ export function ContactForm({
         </div>
       </div>
 
+      <div className="space-y-2">
+        <label className={labelCls}>Dein Tier *</label>
+        <RadioGroup
+          value={formData.pet}
+          onValueChange={(value) => handlePetChange(value as PetType)}
+          className={cn("flex", m ? "gap-5 flex-wrap" : "gap-6")}
+          required
+        >
+          <div className="flex items-center space-x-2">
+            <RadioGroupItem
+              value="Hund"
+              id={`${idPrefix}pet-hund`}
+              className="border-sage-300"
+            />
+            <Label
+              htmlFor={`${idPrefix}pet-hund`}
+              className={cn(
+                "text-gray-700 cursor-pointer",
+                m ? "text-xs" : "text-sm"
+              )}
+            >
+              Hund
+            </Label>
+          </div>
+          <div className="flex items-center space-x-2">
+            <RadioGroupItem
+              value="Katze"
+              id={`${idPrefix}pet-katze`}
+              className="border-sage-300"
+            />
+            <Label
+              htmlFor={`${idPrefix}pet-katze`}
+              className={cn(
+                "text-gray-700 cursor-pointer",
+                m ? "text-xs" : "text-sm"
+              )}
+            >
+              Katze
+            </Label>
+          </div>
+        </RadioGroup>
+      </div>
+
       <div>
-        <label className={labelCls}>Gewünschte Leistung</label>
+        <label className={labelCls}>Gewünschte Betreuungsart *</label>
         <select
-          required={m}
+          required
           value={formData.service}
           onChange={(e) =>
             setFormData({ ...formData, service: e.target.value })
           }
           className={selectCls}
+          disabled={!formData.pet}
         >
-          <option value="">Bitte wählen</option>
-          <option value="tagesbetreuung">Tagesbetreuung</option>
-          <option value="hundepension">Urlaubsbetreuung</option>
-          <option value="katzenbetreuung">Mobile Katzenbetreuung</option>
+          <option value="">
+            {formData.pet ? "Bitte wählen" : "Zuerst Tierart wählen"}
+          </option>
+          {serviceOptions.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
         </select>
       </div>
 
@@ -661,72 +763,21 @@ export function ContactForm({
                     </div>
                   </div>
                 </div>
+                {vacationConflict.conflict && vacationConflict.overlappingPeriod && (
+                  <div
+                    className={cn(
+                      "rounded-lg border border-amber-200 bg-amber-50 text-amber-950",
+                      m ? "mt-2 p-2.5 text-xs" : "mt-3 p-3 text-sm"
+                    )}
+                  >
+                    Dein gewählter Zeitraum fällt in unsere Betriebsferien (
+                    {formatVacationDisplay(vacationConflict.overlappingPeriod)}). Nach dem
+                    Absenden leiten wir dich zu tigube.de für alternative Betreuung weiter.
+                  </div>
+                )}
               </div>
             )}
           </div>
-        </div>
-      )}
-
-      {formData.service !== "hundepension" && (
-        <div className="space-y-2">
-          <label className={labelCls}>Dein Tier *</label>
-          <RadioGroup
-            value={formData.pet}
-            onValueChange={(value) =>
-              setFormData({ ...formData, pet: value })
-            }
-            className={cn("flex", m ? "gap-5 flex-wrap" : "gap-6")}
-            required
-          >
-            <div className="flex items-center space-x-2">
-              <RadioGroupItem
-                value="Hund"
-                id={`${idPrefix}pet-hund`}
-                className="border-sage-300"
-              />
-              <Label
-                htmlFor={`${idPrefix}pet-hund`}
-                className={cn(
-                  "text-gray-700 cursor-pointer",
-                  m ? "text-xs" : "text-sm"
-                )}
-              >
-                Hund
-              </Label>
-            </div>
-            <div className="flex items-center space-x-2">
-              <RadioGroupItem
-                value="Katze"
-                id={`${idPrefix}pet-katze`}
-                className="border-sage-300"
-              />
-              <Label
-                htmlFor={`${idPrefix}pet-katze`}
-                className={cn(
-                  "text-gray-700 cursor-pointer",
-                  m ? "text-xs" : "text-sm"
-                )}
-              >
-                Katze
-              </Label>
-            </div>
-            <div className="flex items-center space-x-2">
-              <RadioGroupItem
-                value="Sonstiges"
-                id={`${idPrefix}pet-sonstiges`}
-                className="border-sage-300"
-              />
-              <Label
-                htmlFor={`${idPrefix}pet-sonstiges`}
-                className={cn(
-                  "text-gray-700 cursor-pointer",
-                  m ? "text-xs" : "text-sm"
-                )}
-              >
-                Sonstiges
-              </Label>
-            </div>
-          </RadioGroup>
         </div>
       )}
 
@@ -896,140 +947,16 @@ export function ContactForm({
           "w-full bg-sage-600 hover:bg-sage-700 text-white disabled:opacity-50 disabled:cursor-not-allowed",
           m && "h-10 text-sm"
         )}
+        loading={isSubmitting}
       >
-        Weiter
+        {isSubmitting
+          ? "Wird gesendet..."
+          : vacationConflict.conflict
+            ? "Weiter zur Alternative"
+            : waitlistEnabled
+              ? "Auf Warteliste setzen"
+              : "Anfrage absenden"}
       </Button>
-        </>
-      )}
-
-      {step === 2 && (
-        <>
-          <div className={cn("space-y-3", m && "space-y-2")}>
-            <h3
-              className={cn(
-                "font-raleway font-bold text-sage-900",
-                m ? "text-sm sm:text-base" : "text-lg"
-              )}
-            >
-              Betriebsferien prüfen
-            </h3>
-            <p className={cn("text-gray-600 leading-relaxed", m ? "text-xs" : "text-sm")}>
-              In folgenden Zeiträumen findet bei uns keine Tierbetreuung statt. Bitte prüfe,
-              ob dein gewünschter Betreuungszeitraum in diese Ferien fällt.
-            </p>
-          </div>
-
-          {futureVacationPeriods.length > 0 ? (
-            <ul
-              className={cn(
-                "rounded-lg border border-sage-200 bg-sage-50 divide-y divide-sage-200",
-                m ? "text-xs" : "text-sm"
-              )}
-            >
-              {futureVacationPeriods.map((period, index) => (
-                <li key={period.id ?? index} className={cn("px-4 py-3", m && "px-3 py-2.5")}>
-                  <p className="font-medium text-sage-900">{period.period}</p>
-                  {period.label && (
-                    <p className="text-sage-600 mt-0.5">{period.label}</p>
-                  )}
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className={cn("text-sage-600", m ? "text-xs" : "text-sm")}>
-              Derzeit sind keine zukünftigen Betriebsferien hinterlegt.
-            </p>
-          )}
-
-          <div className="space-y-3">
-            <label className={labelCls}>
-              Liegt dein gewünschter Betreuungszeitraum in einem dieser Zeiträume? *
-            </label>
-            <RadioGroup
-              value={ferienAntwort}
-              onValueChange={(value) =>
-                setFerienAntwort(value as "ausserhalb" | "innerhalb")
-              }
-              className={cn("space-y-2", m && "space-y-1.5")}
-              required
-            >
-              <div className="flex items-start space-x-2">
-                <RadioGroupItem
-                  value="ausserhalb"
-                  id={`${idPrefix}ferien-ausserhalb`}
-                  className="border-sage-300 mt-0.5"
-                />
-                <Label
-                  htmlFor={`${idPrefix}ferien-ausserhalb`}
-                  className={cn(
-                    "text-gray-700 cursor-pointer leading-snug",
-                    m ? "text-xs" : "text-sm"
-                  )}
-                >
-                  Nein, mein Zeitraum liegt außerhalb der Betriebsferien
-                </Label>
-              </div>
-              <div className="flex items-start space-x-2">
-                <RadioGroupItem
-                  value="innerhalb"
-                  id={`${idPrefix}ferien-innerhalb`}
-                  className="border-sage-300 mt-0.5"
-                />
-                <Label
-                  htmlFor={`${idPrefix}ferien-innerhalb`}
-                  className={cn(
-                    "text-gray-700 cursor-pointer leading-snug",
-                    m ? "text-xs" : "text-sm"
-                  )}
-                >
-                  Ja, mein Zeitraum fällt in die Betriebsferien
-                </Label>
-              </div>
-            </RadioGroup>
-          </div>
-
-          {submitStatus.type === "error" && (
-            <div
-              className={cn(
-                "rounded-lg bg-red-50 text-red-800 border border-red-200",
-                m ? "p-2.5 text-xs sm:text-sm" : "p-4"
-              )}
-            >
-              {submitStatus.message}
-            </div>
-          )}
-
-          <div className={cn("flex flex-col-reverse sm:flex-row gap-3", m && "gap-2")}>
-            <Button
-              type="button"
-              variant="outline"
-              className={cn("w-full sm:w-auto", m && "h-10 text-sm")}
-              onClick={handleBack}
-              disabled={isSubmitting}
-            >
-              Zurück
-            </Button>
-            <Button
-              type="submit"
-              size={m ? "default" : "lg"}
-              className={cn(
-                "w-full sm:flex-1 bg-sage-600 hover:bg-sage-700 text-white disabled:opacity-50 disabled:cursor-not-allowed",
-                m && "h-10 text-sm"
-              )}
-              disabled={ferienAntwort === ""}
-              loading={isSubmitting}
-            >
-              {isSubmitting
-                ? "Wird gesendet..."
-                : ferienAntwort === "innerhalb"
-                  ? "Weiter zur Alternative"
-                  : waitlistEnabled
-                    ? "Auf Warteliste setzen"
-                    : "Anfrage absenden"}
-            </Button>
-          </div>
-        </>
-      )}
     </form>
   )
 

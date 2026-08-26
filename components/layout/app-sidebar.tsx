@@ -27,6 +27,7 @@ type AppSidebarProps = {
   navBadgeValues?: Partial<Record<NavBadgeKey, number>>
   userEmail?: string | null
   onLogout: () => void
+  sidebarSlot?: React.ReactNode
 }
 
 export function AppSidebar({
@@ -36,6 +37,7 @@ export function AppSidebar({
   navBadgeValues,
   userEmail,
   onLogout,
+  sidebarSlot,
 }: AppSidebarProps) {
   const pathname = usePathname()
   const { isMobile, setOpenMobile } = useSidebar()
@@ -97,6 +99,8 @@ export function AppSidebar({
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
+
+      {sidebarSlot}
 
       <SidebarFooter>
         {userEmail && (

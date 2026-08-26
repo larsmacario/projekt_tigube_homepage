@@ -4,6 +4,7 @@ import { AuthGuard } from '@/components/auth/auth-guard'
 import { AuthSessionProvider } from '@/components/auth/auth-session-provider'
 import { AppShell } from '@/components/layout/app-shell'
 import { NewsBar } from '@/components/news-bar'
+import { PortalSidebarAds } from '@/components/portal/portal-sidebar-ads'
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { getCurrentUser, signOut } from '@/lib/auth'
@@ -47,6 +48,7 @@ export default function PortalLayout({
           userEmail={user?.email}
           onLogout={handleLogout}
           banner={<NewsBar />}
+          sidebarSlot={<PortalSidebarAds />}
         >
           {children}
         </AppShell>

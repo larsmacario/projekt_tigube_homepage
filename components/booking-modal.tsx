@@ -35,7 +35,11 @@ export function BookingModal({ animalType, children }: BookingModalProps) {
           <DialogTitle>Unverbindliche Anfrage</DialogTitle>
         </DialogHeader>
         <div className="min-h-0 px-3 pb-3 sm:px-4 sm:pb-4">
-          <ContactForm variant="modal" idPrefix={idPrefix} />
+          <ContactForm
+            variant="modal"
+            idPrefix={idPrefix}
+            defaultPet={animalType === "dog" ? "Hund" : "Katze"}
+          />
         </div>
       </DialogContent>
     </Dialog>

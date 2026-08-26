@@ -18,6 +18,7 @@ type AppShellProps = {
   userEmail?: string | null
   onLogout: () => void
   banner?: React.ReactNode
+  sidebarSlot?: React.ReactNode
   children: React.ReactNode
 }
 
@@ -29,6 +30,7 @@ export function AppShell({
   userEmail,
   onLogout,
   banner,
+  sidebarSlot,
   children,
 }: AppShellProps) {
   const { open, setOpen, ready } = useSidebarPersist()
@@ -52,6 +54,7 @@ export function AppShell({
         navBadgeValues={navBadgeValues}
         userEmail={userEmail}
         onLogout={onLogout}
+        sidebarSlot={sidebarSlot}
       />
       <SidebarInset className="bg-sage-50">
         {banner}

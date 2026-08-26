@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { sendLeadEmails } from '@/lib/email'
 import { buildReferredLeadMessage } from '@/lib/vacation-dates'
+import { resolveContactVacationConflict } from '@/lib/contact-vacation-conflict'
+import { fetchVacationDatesForContact } from '@/lib/contact-vacation-dates'
+import { isServiceAllowedForPetType } from '@/lib/booking-service'
 import { getPublicWaitlistConfig, isWaitlistEnabled } from '@/lib/waitlist-settings'
 import type { ContactType } from '@/lib/types'
 
@@ -38,6 +41,20 @@ export async function POST(request: NextRequest) {
     if (!formData.name || !formData.email || !formData.message || !formData.availability) {
       return NextResponse.json(
         { error: 'Pflichtfelder fehlen' },
+        { status: 400 }
+      )
+    }
+
+    if (!formData.pet || !formData.service) {
+      return NextResponse.json(
+        { error: 'Tierart und Betreuungsart sind erforderlich' },
+        { status: 400 }
+      )
+    }
+
+    if (!isServiceAllowedForPetType(formData.service, formData.pet)) {
+      return NextResponse.json(
+        { error: 'Die gewählte Betreuungsart passt nicht zur Tierart' },
         { status: 400 }
       )
     }
@@ -88,7 +105,14 @@ export async function POST(request: NextRequest) {
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     )
 
-    const ferienKonflikt = formData.ferienKonflikt === true
+    const vacationDates = await fetchVacationDatesForContact()
+    const ferienKonflikt = resolveContactVacationConflict({
+      service: formData.service,
+      konkreterUrlaub: formData.konkreterUrlaub,
+      urlaubVon: formData.urlaubVon,
+      urlaubBis: formData.urlaubBis,
+      vacationDates,
+    }).conflict
     const waitlistEnabled = await isWaitlistEnabled(supabase)
     const waitlistConfig = waitlistEnabled ? await getPublicWaitlistConfig(supabase) : null
 

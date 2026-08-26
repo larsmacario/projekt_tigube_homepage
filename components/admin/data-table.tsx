@@ -84,11 +84,13 @@ export function DataTable({
     setEditValue(currentValue)
   }
 
-  async function handleCellSave() {
+  async function handleCellSave(valueOverride?: unknown) {
     if (!editingCell || !onCellUpdate) return
 
+    const valueToSave = valueOverride !== undefined ? valueOverride : editValue
+
     try {
-      await onCellUpdate(editingCell.rowId, editingCell.columnId, editValue)
+      await onCellUpdate(editingCell.rowId, editingCell.columnId, valueToSave)
       setEditingCell(null)
       setEditValue('')
     } catch (error: any) {
@@ -205,7 +207,7 @@ export function DataTable({
     column: TableColumn,
     value: any,
     setValue: (val: any) => void,
-    onSave: () => void,
+    onSave: (valueOverride?: unknown) => void,
     onCancel: () => void
   ) {
     switch (column.fieldType) {
@@ -271,8 +273,9 @@ export function DataTable({
                 selected={dateValue}
                 onSelect={(date) => {
                   if (date) {
-                    setValue(date.toISOString().split('T')[0])
-                    setTimeout(onSave, 100)
+                    const nextValue = date.toISOString().split('T')[0]
+                    setValue(nextValue)
+                    setTimeout(() => onSave(nextValue), 100)
                   }
                 }}
                 locale={de}
@@ -283,7 +286,13 @@ export function DataTable({
         )
       case 'select':
         return (
-          <Select value={value || ''} onValueChange={(val) => { setValue(val); setTimeout(onSave, 100) }}>
+          <Select
+            value={value || ''}
+            onValueChange={(val) => {
+              setValue(val)
+              setTimeout(() => onSave(val), 100)
+            }}
+          >
             <SelectTrigger className="h-8">
               <SelectValue placeholder="Wählen" />
             </SelectTrigger>
@@ -309,8 +318,9 @@ export function DataTable({
           <Checkbox
             checked={value === true}
             onCheckedChange={(checked) => {
-              setValue(checked === true)
-              setTimeout(onSave, 100)
+              const nextValue = checked === true
+              setValue(nextValue)
+              setTimeout(() => onSave(nextValue), 100)
             }}
           />
         )

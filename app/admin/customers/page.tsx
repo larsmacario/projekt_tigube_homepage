@@ -282,7 +282,8 @@ export default function CustomersPage() {
       // Aktualisiere lokalen State
       setCustomers(prev => prev.map(customer => {
         if (String(customer.id) === String(rowId)) {
-          return { ...customer, [columnId]: value }
+          const fieldKey = column.isProperty ? columnId : column.fieldName
+          return { ...customer, [fieldKey]: value }
         }
         return customer
       }))

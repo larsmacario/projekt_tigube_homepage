@@ -9,7 +9,19 @@ import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { useToast } from '@/hooks/use-toast'
-import { Plus, Trash2 } from 'lucide-react'
+import { Copy, Plus, RotateCcw, Trash2 } from 'lucide-react'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '@/components/ui/alert-dialog'
+import { Checkbox } from '@/components/ui/checkbox'
 import { authenticatedFetch } from '@/lib/authenticated-fetch'
 import {
   FIXED_PERCENTAGE_SURCHARGE_RATE,
@@ -99,6 +111,10 @@ export default function PricesPage() {
   const [newGroupName, setNewGroupName] = useState('')
   const [newGroupDesc, setNewGroupDesc] = useState('')
   const [creatingGroup, setCreatingGroup] = useState(false)
+  const [duplicatingGroupId, setDuplicatingGroupId] = useState<string | null>(null)
+  const [resettingGroup, setResettingGroup] = useState(false)
+  const [promotingGroup, setPromotingGroup] = useState(false)
+  const [promoteConfirmChecked, setPromoteConfirmChecked] = useState(false)
 
   // Category creation form
   const [newCatName, setNewCatName] = useState('')
@@ -312,6 +328,120 @@ export default function PricesPage() {
       console.error('Error creating group:', error)
     } finally {
       setCreatingGroup(false)
+    }
+  }
+
+  async function handleDuplicateGroup(groupId: string) {
+    setDuplicatingGroupId(groupId)
+    try {
+      const response = await authenticatedFetch(
+        `/api/admin/customer-groups/${groupId}/duplicate`,
+        { method: 'POST' }
+      )
+      const data = await response.json()
+
+      if (response.ok) {
+        const newGroup = data.group as CustomerGroup
+        setGroups((prev) =>
+          [...prev, newGroup].sort((a, b) => a.name.localeCompare(b.name, 'de'))
+        )
+        setSelectedGroupId(newGroup.id)
+        toast({
+          title: 'Erfolg',
+          description: `Gruppe „${newGroup.name}“ erstellt${
+            data.copiedRulesCount > 0
+              ? ` (${data.copiedRulesCount} Preisregeln kopiert)`
+              : ''
+          }.`,
+        })
+      } else {
+        toast({
+          title: 'Fehler',
+          description: data.error || 'Duplizieren fehlgeschlagen',
+          variant: 'destructive',
+        })
+      }
+    } catch (error) {
+      console.error('Error duplicating group:', error)
+      toast({
+        title: 'Fehler',
+        description: 'Duplizieren fehlgeschlagen',
+        variant: 'destructive',
+      })
+    } finally {
+      setDuplicatingGroupId(null)
+    }
+  }
+
+  async function handleResetGroupToStandard(groupId: string) {
+    setResettingGroup(true)
+    try {
+      const response = await authenticatedFetch(
+        `/api/admin/customer-groups/${groupId}/reset-to-standard`,
+        { method: 'POST' }
+      )
+      const data = await response.json()
+
+      if (response.ok) {
+        setGroupPriceForms({})
+        toast({
+          title: 'Erfolg',
+          description: 'Gruppenpreise wurden auf die Standard-Preisliste zurückgesetzt.',
+        })
+      } else {
+        toast({
+          title: 'Fehler',
+          description: data.error || 'Zurücksetzen fehlgeschlagen',
+          variant: 'destructive',
+        })
+      }
+    } catch (error) {
+      console.error('Error resetting group to standard:', error)
+      toast({
+        title: 'Fehler',
+        description: 'Zurücksetzen fehlgeschlagen',
+        variant: 'destructive',
+      })
+    } finally {
+      setResettingGroup(false)
+    }
+  }
+
+  async function handlePromoteGroupToStandard(groupId: string) {
+    setPromotingGroup(true)
+    try {
+      const response = await authenticatedFetch(
+        `/api/admin/customer-groups/${groupId}/promote-to-standard`,
+        { method: 'POST' }
+      )
+      const data = await response.json()
+
+      if (response.ok) {
+        setGroupPriceForms({})
+        await loadAllData()
+        toast({
+          title: 'Erfolg',
+          description: `Standard-Preisliste aktualisiert (${data.updatedCount} Preise geändert${
+            data.archivedCount > 0 ? `, ${data.archivedCount} archiviert` : ''
+          }).`,
+        })
+      } else {
+        toast({
+          title: 'Fehler',
+          description: data.error || 'Übernahme fehlgeschlagen',
+          variant: 'destructive',
+        })
+      }
+    } catch (error) {
+      console.error('Error promoting group to standard:', error)
+      toast({
+        title: 'Fehler',
+        description: 'Übernahme fehlgeschlagen',
+        variant: 'destructive',
+      })
+    } finally {
+      setPromotingGroup(false)
+      setPromoteConfirmChecked(false)
     }
   }
 
@@ -1139,17 +1269,33 @@ export default function PricesPage() {
                             <p className="text-xs text-sage-600 truncate">{g.description}</p>
                           )}
                         </div>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            handleDeleteGroup(g.id)
-                          }}
-                          className="text-red-600 hover:text-red-800 hover:bg-red-50 p-2 h-8 w-8"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
+                        <div className="flex items-center gap-1 shrink-0">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            disabled={duplicatingGroupId === g.id}
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              void handleDuplicateGroup(g.id)
+                            }}
+                            className="text-sage-600 hover:text-sage-900 hover:bg-sage-100 p-2 h-8 w-8"
+                            title="Gruppe duplizieren"
+                          >
+                            <Copy className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleDeleteGroup(g.id)
+                            }}
+                            className="text-red-600 hover:text-red-800 hover:bg-red-50 p-2 h-8 w-8"
+                            title="Gruppe löschen"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -1162,7 +1308,7 @@ export default function PricesPage() {
           <div className="lg:col-span-2">
             {selectedGroupId ? (
               <Card>
-                <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div>
                     <CardTitle>
                       Preise für Gruppe: {groups.find(g => g.id === selectedGroupId)?.name}
@@ -1171,13 +1317,108 @@ export default function PricesPage() {
                       Passe Sonderpreise oder Rabatte für diese Gruppe an oder entferne einzelne Preise für diese Gruppe. Im Standard-Katalog bleiben alle Preise unverändert erhalten.
                     </p>
                   </div>
-                  <Button
-                    onClick={handleSaveGroupPrices}
-                    loading={savingGroupPrices}
-                    className="bg-sage-600 hover:bg-sage-700"
-                  >
-                    {savingGroupPrices ? 'Wird gespeichert...' : 'Gruppenpreise speichern'}
-                  </Button>
+                  <div className="flex flex-wrap items-center gap-2 shrink-0">
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          disabled={resettingGroup || promotingGroup}
+                          className="border-sage-300 text-sage-700 hover:bg-sage-50 gap-1.5"
+                        >
+                          <RotateCcw className="h-3.5 w-3.5" />
+                          Auf Standard zurücksetzen
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Gruppenpreise zurücksetzen?</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            Alle Sonderpreise und Entfernungen dieser Gruppe werden gelöscht. Die
+                            Gruppe nutzt danach wieder die Standard-Preisliste aus dem Katalog.
+                            Der Standard-Katalog selbst bleibt unverändert.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Abbrechen</AlertDialogCancel>
+                          <AlertDialogAction
+                            onClick={() => void handleResetGroupToStandard(selectedGroupId)}
+                            disabled={resettingGroup}
+                          >
+                            {resettingGroup ? 'Wird zurückgesetzt…' : 'Zurücksetzen'}
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+
+                    <AlertDialog
+                      onOpenChange={(open) => {
+                        if (!open) setPromoteConfirmChecked(false)
+                      }}
+                    >
+                      <AlertDialogTrigger asChild>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          disabled={resettingGroup || promotingGroup}
+                          className="border-amber-300 text-amber-900 hover:bg-amber-50 gap-1.5"
+                        >
+                          Zur Standard-Liste machen
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Gruppe als Standard-Preisliste übernehmen?</AlertDialogTitle>
+                          <AlertDialogDescription asChild>
+                            <div className="space-y-3 text-sm text-muted-foreground">
+                              <p>
+                                Die effektiven Preise dieser Gruppe werden in den globalen
+                                Standard-Katalog übernommen. Das betrifft alle Kunden ohne
+                                individuelle Kunden- oder Tier-Overrides.
+                              </p>
+                              <p>
+                                Entfernte Posten werden im Katalog archiviert. Sonderpreise und
+                                Rabatte werden als feste Katalogpreise gespeichert.
+                              </p>
+                              <label className="flex items-start gap-2 text-sage-800">
+                                <Checkbox
+                                  checked={promoteConfirmChecked}
+                                  onCheckedChange={(checked) =>
+                                    setPromoteConfirmChecked(checked === true)
+                                  }
+                                  className="mt-0.5"
+                                />
+                                <span>
+                                  Ich verstehe, dass die Standardpreise im Katalog überschrieben
+                                  werden und diese Aktion nicht rückgängig gemacht werden kann.
+                                </span>
+                              </label>
+                            </div>
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Abbrechen</AlertDialogCancel>
+                          <AlertDialogAction
+                            onClick={() => void handlePromoteGroupToStandard(selectedGroupId)}
+                            disabled={!promoteConfirmChecked || promotingGroup}
+                            className="bg-amber-700 hover:bg-amber-800"
+                          >
+                            {promotingGroup ? 'Wird übernommen…' : 'Standard-Liste übernehmen'}
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+
+                    <Button
+                      onClick={handleSaveGroupPrices}
+                      loading={savingGroupPrices}
+                      className="bg-sage-600 hover:bg-sage-700"
+                    >
+                      {savingGroupPrices ? 'Wird gespeichert...' : 'Gruppenpreise speichern'}
+                    </Button>
+                  </div>
                 </CardHeader>
                 <CardContent className="space-y-6">
                   {categories.map((category) => {

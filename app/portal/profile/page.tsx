@@ -10,7 +10,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { useToast } from '@/hooks/use-toast'
 import { Plus, Trash2 } from 'lucide-react'
-import type { Customer, Pet, Document } from '@/lib/types'
+import type { Customer, Pet, Document, CustomerEmailChangeRequest } from '@/lib/types'
 import { PetAvatar } from '@/components/pet-avatar'
 import { authenticatedFetch } from '@/lib/authenticated-fetch'
 import {
@@ -63,10 +63,23 @@ function ProfileContent() {
   }, [isOnboarding, stepParam, step])
   
   const [customer, setCustomer] = useState<Customer | null>(null)
+  const [emailChange, setEmailChange] = useState<CustomerEmailChangeRequest | null>(null)
   const [documents, setDocuments] = useState<Document[]>([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const { toast } = useToast()
+
+  useEffect(() => {
+    if (searchParams.get('email-change') !== 'confirmed') return
+    toast({
+      title: 'E-Mail bestätigt',
+      description: 'Deine neue E-Mail-Adresse wird jetzt als Login- und Kontaktadresse übernommen.',
+    })
+    const next = new URLSearchParams(searchParams.toString())
+    next.delete('email-change')
+    const query = next.toString()
+    router.replace(query ? `/portal/profile?${query}` : '/portal/profile')
+  }, [searchParams, router, toast])
 
   // Schritt 1: Persönliche Daten
   const [personalData, setPersonalData] = useState({
@@ -218,6 +231,7 @@ function ProfileContent() {
         })
         
         setCustomer(data.customer)
+        setEmailChange(data.emailChange || null)
         
         // Persönliche Daten vorausfüllen (auch wenn leer, werden aus DB geladen)
         const loadedPersonalData = {
@@ -545,7 +559,6 @@ function ProfileContent() {
       }
 
       const pdfBlob = await buildBetreuungsvertragPdf({
-        title: contractLegal.title,
         contractHtml: contractLegal.content,
         party: pdfPersonal,
         pets,
@@ -636,9 +649,15 @@ function ProfileContent() {
       if (response.ok) {
         const data = await response.json()
         setCustomer(data.customer)
+        setEmailChange(data.emailChange || null)
+        if (data.emailChange) {
+          setPersonalData((current) => ({ ...current, email: data.customer.email || '' }))
+        }
         toast({
           title: 'Persönliche Daten gespeichert',
-          description: 'Bitte fahre mit Schritt 2 fort.',
+          description: data.emailChange
+            ? 'Die E-Mail-Änderung muss noch bestätigt werden. Bitte fahre mit Schritt 2 fort.'
+            : 'Bitte fahre mit Schritt 2 fort.',
         })
         // Weiter zu Schritt 2
         setStep(2)
@@ -984,9 +1003,15 @@ function ProfileContent() {
       if (response.ok) {
         const data = await response.json()
         setCustomer(data.customer)
+        setEmailChange(data.emailChange || null)
+        if (data.emailChange) {
+          setPersonalData((current) => ({ ...current, email: data.customer.email || '' }))
+        }
         toast({
           title: 'Erfolg',
-          description: 'Profil erfolgreich gespeichert',
+          description: data.emailChange
+            ? 'Die E-Mail-Änderung wurde gestartet. Bitte bestätige die E-Mails von Supabase.'
+            : 'Profil erfolgreich gespeichert',
         })
       } else {
         const error = await response.json()
@@ -1001,6 +1026,47 @@ function ProfileContent() {
       toast({
         title: 'Fehler',
         description: 'Fehler beim Speichern',
+        variant: 'destructive',
+      })
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function acceptAdminEmailChange() {
+    setSaving(true)
+    try {
+      const response = await authenticatedFetch('/api/portal/profile/email-change', { method: 'POST' })
+      const data = await response.json()
+      if (!response.ok) throw new Error(data.error || 'E-Mail-Änderung konnte nicht gestartet werden')
+      setEmailChange(data.emailChange || null)
+      toast({
+        title: 'Bestätigung gestartet',
+        description: 'Bitte bestätige die E-Mail-Änderung über die Nachrichten von Supabase.',
+      })
+    } catch (error) {
+      toast({
+        title: 'Fehler',
+        description: error instanceof Error ? error.message : 'E-Mail-Änderung konnte nicht gestartet werden',
+        variant: 'destructive',
+      })
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function declineAdminEmailChange() {
+    setSaving(true)
+    try {
+      const response = await authenticatedFetch('/api/portal/profile/email-change', { method: 'DELETE' })
+      const data = await response.json()
+      if (!response.ok) throw new Error(data.error || 'E-Mail-Änderung konnte nicht abgelehnt werden')
+      setEmailChange(null)
+      toast({ title: 'E-Mail-Änderung abgelehnt' })
+    } catch (error) {
+      toast({
+        title: 'Fehler',
+        description: error instanceof Error ? error.message : 'E-Mail-Änderung konnte nicht abgelehnt werden',
         variant: 'destructive',
       })
     } finally {
@@ -1157,6 +1223,28 @@ function ProfileContent() {
                   onChange={(e) => setPersonalData({ ...personalData, email: e.target.value })}
                   required
                 />
+                {emailChange && (
+                  <div className="mt-2 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+                    <p className="font-medium">E-Mail-Änderung ausstehend: {emailChange.requested_email}</p>
+                    {emailChange.status === 'awaiting_customer_confirmation' ? (
+                      <>
+                        <p className="mt-1">Diese Änderung wurde von der Verwaltung angefordert.</p>
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          <Button size="sm" onClick={acceptAdminEmailChange} loading={saving}>
+                            Änderung bestätigen
+                          </Button>
+                          <Button size="sm" variant="outline" onClick={declineAdminEmailChange} disabled={saving}>
+                            Ablehnen
+                          </Button>
+                        </div>
+                      </>
+                    ) : (
+                      <p className="mt-1">
+                        Bitte bestätige die E-Mail-Änderung über die Nachrichten von Supabase. Bis dahin bleibt deine bisherige Adresse aktiv.
+                      </p>
+                    )}
+                  </div>
+                )}
               </div>
               <div>
                 <Label htmlFor="telefonnummer">Telefonnummer *</Label>
@@ -1683,7 +1771,7 @@ function ProfileContent() {
         <div className="space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle>{contractLegal?.title ?? 'Betreuungsvertrag'}</CardTitle>
+              <CardTitle>Betreuungsvertrag</CardTitle>
               <CardDescription>
                 Bitte lies den Vertrag aufmerksam durch (gleicher Text wie unter{' '}
                 <a href="/agb" target="_blank" rel="noopener noreferrer" className="text-sage-700 underline">

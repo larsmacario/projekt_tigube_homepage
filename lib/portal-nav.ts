@@ -5,6 +5,7 @@ import {
   File,
   Euro,
   Calendar,
+  UserPlus,
 } from "lucide-react"
 import type { NavItem } from "@/lib/nav-types"
 
@@ -15,6 +16,7 @@ export const portalNavItems: NavItem[] = [
   { label: "Dokumente", href: "/portal/documents", icon: File },
   { label: "Preise", href: "/portal/prices", icon: Euro },
   { label: "Buchungen", href: "/portal/bookings", icon: Calendar },
+  { label: "Springerliste", href: "/portal/springer", icon: UserPlus },
 ]
 
 export const portalShellConfig = {

@@ -13,6 +13,47 @@ import { ONBOARDING_EMAIL_STATUS_RESET } from '@/lib/onboarding-email'
 
 type MappedSevdeskCustomer = ReturnType<typeof mapSevdeskContactToPortalFields>
 
+export type SevdeskImportMatchRecord = {
+  id: string
+  user_id?: string | null
+  kundennummer?: string | null
+  sevdesk_contact_id?: string | null
+}
+
+export type SevdeskImportMatchResult =
+  | { action: 'update'; existing: SevdeskImportMatchRecord }
+  | { action: 'create' }
+  | { action: 'conflict'; reason: string }
+
+export function resolveSevdeskImportMatch(options: {
+  bySevdesk: SevdeskImportMatchRecord | null
+  byNumber: SevdeskImportMatchRecord | null
+  byEmail: SevdeskImportMatchRecord | null
+}): SevdeskImportMatchResult {
+  const matches = [options.bySevdesk, options.byNumber, options.byEmail].filter(
+    (match): match is SevdeskImportMatchRecord => Boolean(match)
+  )
+
+  if (matches.length === 0) {
+    return { action: 'create' }
+  }
+
+  const uniqueIds = new Set(matches.map((match) => match.id))
+  if (uniqueIds.size > 1) {
+    return {
+      action: 'conflict',
+      reason: 'Kundennummer, SevDesk-ID oder E-Mail verweisen auf unterschiedliche Portal-Kunden',
+    }
+  }
+
+  const existing = options.bySevdesk ?? options.byNumber ?? options.byEmail
+  if (!existing) {
+    return { action: 'create' }
+  }
+
+  return { action: 'update', existing }
+}
+
 const IMPORT_PLACEHOLDER_FIELDS = {
   service: 'import',
   message: 'Import aus SevDesk',
@@ -20,11 +61,15 @@ const IMPORT_PLACEHOLDER_FIELDS = {
   contact_type: 'customer' as const,
 }
 
-function buildStammdatenPayload(mapped: MappedSevdeskCustomer, sevdeskContactId: string) {
+function buildStammdatenPayload(
+  mapped: MappedSevdeskCustomer,
+  sevdeskContactId: string,
+  includeEmail = true
+) {
   return {
     nachname: mapped.nachname,
     vorname: mapped.vorname,
-    email: mapped.email,
+    ...(includeEmail ? { email: mapped.email } : {}),
     telefonnummer: mapped.telefonnummer,
     kundennummer: mapped.kundennummer,
     strasse: mapped.strasse,
@@ -57,7 +102,10 @@ export function buildSevdeskImportUpdatePayload(
   existing: { user_id?: string | null }
 ) {
   const payload = {
-    ...buildStammdatenPayload(mapped, sevdeskContactId),
+    // Nach Abschluss des Onboardings ist das Portal die führende Quelle für die
+    // bestätigte Kontakt- und Login-Adresse. Ein SevDesk-Import darf sie nicht
+    // zurücksetzen.
+    ...buildStammdatenPayload(mapped, sevdeskContactId, !existing.user_id),
     service: 'import',
   }
 
@@ -122,36 +170,44 @@ export async function importActiveSevdeskCustomers(options: {
         const detail = await loadSevdeskContactDetail(contact)
         const mapped = mapSevdeskContactToPortalFields(detail)
 
-        const existingByNumber = await options.db
-          .from('contacts')
-          .select('id, sevdesk_contact_id, user_id')
-          .eq('contact_type', 'customer')
-          .eq('kundennummer', mapped.kundennummer)
-          .maybeSingle()
-
         const existingBySevdesk = await options.db
           .from('contacts')
-          .select('id, kundennummer, user_id')
+          .select('id, kundennummer, user_id, sevdesk_contact_id')
           .eq('contact_type', 'customer')
           .eq('sevdesk_contact_id', detail.id)
           .maybeSingle()
 
-        if (
-          existingByNumber.data &&
-          existingBySevdesk.data &&
-          existingByNumber.data.id !== existingBySevdesk.data.id
-        ) {
+        const existingByNumber = await options.db
+          .from('contacts')
+          .select('id, sevdesk_contact_id, user_id, kundennummer')
+          .eq('contact_type', 'customer')
+          .eq('kundennummer', mapped.kundennummer)
+          .maybeSingle()
+
+        const existingByEmail = await options.db
+          .from('contacts')
+          .select('id, sevdesk_contact_id, user_id, kundennummer')
+          .eq('contact_type', 'customer')
+          .ilike('email', mapped.email)
+          .maybeSingle()
+
+        const match = resolveSevdeskImportMatch({
+          bySevdesk: existingBySevdesk.data,
+          byNumber: existingByNumber.data,
+          byEmail: existingByEmail.data,
+        })
+
+        if (match.action === 'conflict') {
           summary.failed += 1
           summary.failures?.push({
             customerNumber,
-            reason: 'Kundennummer und SevDesk-ID verweisen auf unterschiedliche Portal-Kunden',
+            reason: match.reason,
           })
           continue
         }
 
-        const existing = existingByNumber.data ?? existingBySevdesk.data
-
-        if (existing) {
+        if (match.action === 'update') {
+          const existing = match.existing
           const payload = buildSevdeskImportUpdatePayload(mapped, detail.id, existing)
           const { error } = await options.db
             .from('contacts')
@@ -162,7 +218,10 @@ export async function importActiveSevdeskCustomers(options: {
             throw new Error(error.message)
           }
           summary.updated += 1
-        } else {
+          continue
+        }
+
+        {
           const payload = buildSevdeskImportCreatePayload(mapped, detail.id)
           const { error } = await options.db.from('contacts').insert(payload)
           if (error) {

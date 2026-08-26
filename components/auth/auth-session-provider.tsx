@@ -34,7 +34,7 @@ export function AuthSessionProvider({ children }: { children: React.ReactNode })
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       // Supabase blockiert bei async auth-Aufrufen im Callback – immer deferren
       if (
-        (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION') &&
+        (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION' || event === 'USER_UPDATED') &&
         session?.access_token &&
         session.refresh_token
       ) {

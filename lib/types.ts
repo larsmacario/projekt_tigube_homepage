@@ -81,6 +81,21 @@ export interface Contact {
 /** Alias — Kunden sind `contacts` mit contact_type customer */
 export type Customer = Contact
 
+export type CustomerEmailChangeStatus =
+  | 'awaiting_customer_confirmation'
+  | 'awaiting_auth_confirmation'
+
+export interface CustomerEmailChangeRequest {
+  id: string
+  customer_id: string
+  requested_email: string
+  source: 'admin' | 'customer'
+  status: CustomerEmailChangeStatus
+  requested_by: string | null
+  created_at: string
+  updated_at: string
+}
+
 export interface Pet {
   id: string
   customer_id: string
@@ -315,6 +330,7 @@ export type ServiceType = 'hundepension' | 'katzenbetreuung' | 'tagesbetreuung'
 export type BookingStatus = 'pending' | 'approved' | 'rejected' | 'cancelled'
 export type CancellationFinancialStatus = 'none' | 'pending' | 'processed'
 export type DayCareMode = 'once' | 'recurring'
+export type DayCareIntervalWeeks = 1 | 2
 
 export interface BookingRequest {
   id: string
@@ -325,6 +341,8 @@ export interface BookingRequest {
   end_date: string | null
   day_care_mode: DayCareMode | null
   day_care_weekdays: number[] | null
+  /** Nur bei recurring: 1 = wöchentlich, 2 = alle 14 Tage. Fehlend = wöchentlich. */
+  day_care_interval_weeks?: DayCareIntervalWeeks | null
   selected_dates: string[] | null
   message: string | null
   status: BookingStatus
@@ -396,6 +414,55 @@ export interface BookingLineItem {
   created_by: string | null
   created_at: string
   updated_at: string
+}
+
+export type SpringerOfferStatus = 'draft' | 'sent' | 'responded' | 'closed' | 'send_failed'
+
+export interface SpringerRegistration {
+  id: string
+  customer_id: string
+  pet_id: string
+  weekdays: number[]
+  is_active: boolean
+  created_at: string
+  updated_at: string
+  pet?: Pet
+  customer?: Customer
+}
+
+export interface SpringerOffer {
+  id: string
+  registration_id: string
+  customer_id: string
+  pet_id: string
+  source_booking_id: string | null
+  cancellation_event_id: string | null
+  offer_date: string
+  token: string
+  status: SpringerOfferStatus
+  response_booking_id: string | null
+  sent_at: string | null
+  closed_at: string | null
+  created_at: string
+  updated_at: string
+  pet?: Pet
+  customer?: Customer
+  registration?: SpringerRegistration
+}
+
+export interface BookingCancellationEvent {
+  id: string
+  booking_id: string
+  customer_id: string
+  cancelled_dates: string[]
+  booking_total: number
+  cancellation_charge_amount: number
+  cancellation_refund_amount: number
+  cancellation_rule_set_id: string | null
+  cancellation_tier_label: string | null
+  cancellation_policy_snapshot: Record<string, unknown> | null
+  price_snapshot: Record<string, unknown>
+  created_at: string
 }
 
 export interface CapacitySetting {

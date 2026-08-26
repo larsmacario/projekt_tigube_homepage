@@ -18,7 +18,6 @@ export type BetreuungsvertragParty = {
 }
 
 export type BetreuungsvertragPdfOptions = {
-  title: string
   contractHtml: string
   party: BetreuungsvertragParty
   pets: Pet[]
@@ -30,6 +29,42 @@ export type BetreuungsvertragPdfOptions = {
 const PAGE_BOTTOM = 275
 const MARGIN_LEFT = 20
 const CONTENT_WIDTH = 170
+const PDF_PAGE_WIDTH = 210
+const CONTRACT_LOGO_PATH = '/images/tigube-logo.png'
+const CONTRACT_LOGO_TOP = 12
+const CONTRACT_LOGO_WIDTH = 90
+const CONTRACT_LOGO_HEIGHT = (CONTRACT_LOGO_WIDTH * 135) / 500
+const CONTRACT_TITLE_Y = 48
+const CONTRACT_CONTENT_START_Y = 62
+
+type BetreuungsvertragHeaderDoc = Pick<jsPDF, 'addImage' | 'setFont' | 'setFontSize' | 'text'>
+
+export async function renderBetreuungsvertragPdfHeader(
+  doc: BetreuungsvertragHeaderDoc,
+  pageWidth = PDF_PAGE_WIDTH
+): Promise<number> {
+  const logoResponse = await fetch(CONTRACT_LOGO_PATH)
+  if (!logoResponse.ok) {
+    throw new Error('Firmenlogo konnte nicht für den Betreuungsvertrag geladen werden')
+  }
+
+  const logoBytes = new Uint8Array(await logoResponse.arrayBuffer())
+  const logoX = (pageWidth - CONTRACT_LOGO_WIDTH) / 2
+  doc.addImage(
+    logoBytes,
+    'PNG',
+    logoX,
+    CONTRACT_LOGO_TOP,
+    CONTRACT_LOGO_WIDTH,
+    CONTRACT_LOGO_HEIGHT
+  )
+
+  doc.setFont('Helvetica', 'bold')
+  doc.setFontSize(22)
+  doc.text('Betreuungsvertrag', MARGIN_LEFT, CONTRACT_TITLE_Y)
+
+  return CONTRACT_CONTENT_START_Y
+}
 
 function drawFooter(doc: jsPDF, pageNumber: number) {
   doc.setFont('Helvetica', 'normal')
@@ -65,12 +100,6 @@ function writeLines(
 }
 
 function renderPartySection(doc: jsPDF, y: number, options: BetreuungsvertragPdfOptions, pageNumber: { n: number }) {
-  doc.setFont('Helvetica', 'bold')
-  doc.setFontSize(22)
-  y = ensureSpace(doc, y, 20, pageNumber)
-  doc.text(options.title.toUpperCase(), MARGIN_LEFT, y)
-  y += 10
-
   doc.setFont('Helvetica', 'bold')
   doc.setFontSize(12)
   y = ensureSpace(doc, y, 8, pageNumber)
@@ -232,7 +261,7 @@ export async function buildBetreuungsvertragPdf(options: BetreuungsvertragPdfOpt
   const pageNumber = { n: 1 }
   const blocks = parseLegalHtmlToBlocks(options.contractHtml)
 
-  let y = 20
+  let y = await renderBetreuungsvertragPdfHeader(doc)
   y = renderPartySection(doc, y, options, pageNumber)
   y = renderLegalBlocks(doc, y, blocks, options.fotoVideoConsent, pageNumber)
 

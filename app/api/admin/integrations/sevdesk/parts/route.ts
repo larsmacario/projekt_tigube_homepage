@@ -5,15 +5,15 @@ import { listSevdeskParts } from '@/lib/sevdesk'
 export const runtime = 'nodejs'
 
 export async function GET(request: NextRequest) {
-  const auth = await requireAdmin(request)
-  if ('error' in auth) {
-    return NextResponse.json({ error: auth.error }, { status: auth.status })
-  }
-
-  const limitParam = request.nextUrl.searchParams.get('limit')
-  const limit = limitParam ? Math.min(Math.max(Number.parseInt(limitParam, 10) || 50, 1), 100) : 50
-
   try {
+    const auth = await requireAdmin(request)
+    if ('error' in auth) {
+      return NextResponse.json({ error: auth.error }, { status: auth.status })
+    }
+
+    const limitParam = request.nextUrl.searchParams.get('limit')
+    const limit = limitParam ? Math.min(Math.max(Number.parseInt(limitParam, 10) || 50, 1), 100) : 50
+
     const parts = await listSevdeskParts(limit)
     return NextResponse.json({ parts })
   } catch (error) {

@@ -57,7 +57,7 @@ export interface PortalBookingWizardOverviewProps {
   dayCareRecurringLines: PetServiceLine[]
   dateRange?: DateRange
   dayCareOnceDates: Record<string, Date[]>
-  dayCareRecurring: Record<string, { weekdays: number[]; startDate?: Date }>
+  dayCareRecurring: Record<string, { weekdays: number[]; startDate?: Date; intervalWeeks?: 1 | 2 }>
   selectedAddonIds: string[]
   addonServices: AddonService[]
   catalogPrices: BookingExtraPrice[]
@@ -194,6 +194,7 @@ export function PortalBookingWizardOverview({
             service_type: 'tagesbetreuung',
             day_care_mode: 'recurring',
             day_care_weekdays: cfg.weekdays,
+            day_care_interval_weeks: cfg.intervalWeeks === 2 ? 2 : 1,
             selected_dates: null,
             start_date: toIsoDate(startOfDay(cfg.startDate)),
             end_date: null,

@@ -1,4 +1,5 @@
 import type { SevdeskContactDetail } from '@/lib/types'
+import { normalizeCustomerEmail } from '@/lib/customer-email'
 
 function splitStreetLine(street: string | null): { strasse: string | null; hausnummer: string | null } {
   if (!street?.trim()) {
@@ -39,7 +40,7 @@ export function mapSevdeskContactToPortalFields(detail: SevdeskContactDetail): {
 
   const nachname = detail.familyname?.trim() || detail.name?.trim() || 'Unbekannt'
   const vorname = detail.surename?.trim() || null
-  const email = pickCommunicationValue(detail.communicationWays, 'EMAIL')
+  const rawEmail = pickCommunicationValue(detail.communicationWays, 'EMAIL')
   const telefonnummer = pickCommunicationValue(detail.communicationWays, 'PHONE') || '-'
 
   const primaryAddress =
@@ -48,8 +49,15 @@ export function mapSevdeskContactToPortalFields(detail: SevdeskContactDetail): {
 
   const { strasse, hausnummer } = splitStreetLine(primaryAddress?.street ?? null)
 
-  if (!email) {
+  if (!rawEmail) {
     throw new Error(`Keine E-Mail für Kundennummer ${customerNumber}`)
+  }
+
+  let email: string
+  try {
+    email = normalizeCustomerEmail(rawEmail)
+  } catch {
+    throw new Error(`Ungültige E-Mail für Kundennummer ${customerNumber}`)
   }
 
   return {

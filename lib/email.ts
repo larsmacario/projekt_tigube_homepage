@@ -76,6 +76,34 @@ export async function sendOnboardingEmail(data: { email: string; name: string; o
   }
 }
 
+export async function sendCustomerEmailChangeRequestEmail(data: {
+  email: string
+  name: string
+  requestedEmail: string
+  profileUrl: string
+}): Promise<EmailDelivery> {
+  try {
+    const config = getSmtpConfig()
+    const transporter = nodemailer.createTransport({
+      host: config.host,
+      port: config.port,
+      secure: config.secure,
+      auth: { user: config.user, pass: config.password },
+    })
+
+    await transporter.sendMail({
+      from: config.from,
+      to: data.email,
+      subject: 'Bestätigung einer E-Mail-Änderung',
+      text: `Hallo ${data.name || 'zusammen'},\n\nim Kundenportal wurde eine Änderung deiner E-Mail-Adresse auf ${data.requestedEmail} angefordert. Melde dich im Kundenportal an, um die Änderung zu bestätigen oder abzulehnen:\n${data.profileUrl}\n\nDie bisherige E-Mail-Adresse bleibt bis zur Bestätigung aktiv.\n\nHerzliche Grüße\nTamara und Gabriel`,
+      html: `<p>Hallo ${escapeHtml(data.name || 'zusammen')},</p><p>im Kundenportal wurde eine Änderung deiner E-Mail-Adresse auf <strong>${escapeHtml(data.requestedEmail)}</strong> angefordert.</p><p><a href="${escapeHtml(data.profileUrl)}">Im Kundenportal prüfen</a></p><p>Die bisherige E-Mail-Adresse bleibt bis zur Bestätigung aktiv.</p><p>Herzliche Grüße<br>Tamara und Gabriel</p>`,
+    })
+    return { status: 'sent', error: null }
+  } catch (error) {
+    return { status: 'failed', error: error instanceof Error ? error.message : 'Interner SMTP-Fehler' }
+  }
+}
+
 export async function sendAdminInvitationEmail(data: { email: string; name: string; invitationUrl: string }): Promise<EmailDelivery> {
   try {
     const config = getSmtpConfig()
@@ -671,6 +699,8 @@ export async function sendVaccinationReminderEmail(
     }
   }
 }
+
+export { sendSpringerOfferEmail } from '@/lib/springer-email'
 
 export async function sendNewsletterEmail(options: NewsletterEmailOptions): Promise<EmailDelivery> {
   try {

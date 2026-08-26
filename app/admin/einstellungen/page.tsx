@@ -29,7 +29,9 @@ import { CollapsibleAdminCard } from '@/components/admin/collapsible-admin-card'
 import { Switch } from '@/components/ui/switch'
 import { useToast } from '@/hooks/use-toast'
 import { authenticatedFetch } from '@/lib/authenticated-fetch'
+import { readApiResponse } from '@/lib/read-api-response'
 import type { SevdeskContact, SevdeskCustomerImportSummary, SevdeskPart, SevdeskSettings, SiteSettings, WaitlistCmsContent } from '@/lib/types'
+import type { CustomerDuplicateGroup } from '@/lib/customer-merge'
 import { ExternalLink, Loader2, RefreshCw } from 'lucide-react'
 import Link from 'next/link'
 
@@ -79,6 +81,9 @@ export default function AdminEinstellungenPage() {
     mailFailed: number
     mailSent: number
   } | null>(null)
+  const [duplicateGroups, setDuplicateGroups] = useState<CustomerDuplicateGroup[]>([])
+  const [loadingDuplicates, setLoadingDuplicates] = useState(false)
+  const [mergingGroupEmail, setMergingGroupEmail] = useState<string | null>(null)
 
   const loadImportMailStats = useCallback(async () => {
     const response = await authenticatedFetch('/api/admin/integrations/sevdesk/import-stats')
@@ -110,7 +115,7 @@ export default function AdminEinstellungenPage() {
   }, [])
 
   useEffect(() => {
-    Promise.all([loadSettings(), loadWaitlistSettings(), loadImportMailStats()])
+    Promise.all([loadSettings(), loadWaitlistSettings(), loadImportMailStats(), loadDuplicateGroups()])
       .catch((error) => {
         console.error(error)
         toast({
@@ -244,11 +249,9 @@ export default function AdminEinstellungenPage() {
     setLoadingContacts(true)
     try {
       const response = await authenticatedFetch('/api/admin/integrations/sevdesk/contacts?limit=50')
-      const data = await response.json()
-      if (!response.ok) {
-        throw new Error(data.error || 'Kontakte konnten nicht geladen werden')
-      }
-      setContacts(data.contacts ?? [])
+      const { data, error } = await readApiResponse<{ contacts?: SevdeskContact[] }>(response)
+      if (error) throw new Error(error)
+      setContacts(data?.contacts ?? [])
     } catch (error) {
       toast({
         title: 'Fehler',
@@ -274,7 +277,7 @@ export default function AdminEinstellungenPage() {
       setLastImportSummary(data.summary ?? null)
       await loadImportMailStats()
       await loadSettings()
-      await loadSettings()
+      await loadDuplicateGroups()
       toast({
         title: 'Kundenimport abgeschlossen',
         description: `${data.summary?.created ?? 0} neu, ${data.summary?.updated ?? 0} aktualisiert, ${data.summary?.skipped ?? 0} übersprungen.`,
@@ -290,15 +293,67 @@ export default function AdminEinstellungenPage() {
     }
   }
 
+  async function loadDuplicateGroups() {
+    setLoadingDuplicates(true)
+    try {
+      const response = await authenticatedFetch('/api/admin/integrations/sevdesk/duplicate-customers')
+      const { data, error } = await readApiResponse<{ groups?: CustomerDuplicateGroup[] }>(response)
+      if (error) throw new Error(error)
+      setDuplicateGroups(data?.groups ?? [])
+    } catch (error) {
+      toast({
+        title: 'Fehler',
+        description: error instanceof Error ? error.message : 'Dubletten konnten nicht geladen werden',
+        variant: 'destructive',
+      })
+    } finally {
+      setLoadingDuplicates(false)
+    }
+  }
+
+  async function handleMergeDuplicateGroup(group: CustomerDuplicateGroup) {
+    if (!group.suggestedTargetId || !group.suggestedSourceId) return
+
+    setMergingGroupEmail(group.email)
+    try {
+      const response = await authenticatedFetch(
+        '/api/admin/integrations/sevdesk/duplicate-customers/merge',
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            targetCustomerId: group.suggestedTargetId,
+            sourceCustomerId: group.suggestedSourceId,
+          }),
+        }
+      )
+      const data = await response.json()
+      if (!response.ok) {
+        throw new Error(data.error || 'Zusammenführen fehlgeschlagen')
+      }
+      await loadDuplicateGroups()
+      toast({
+        title: 'Kunden zusammengeführt',
+        description: `Die Dublette für ${group.email} wurde bereinigt.`,
+      })
+    } catch (error) {
+      toast({
+        title: 'Fehler',
+        description: error instanceof Error ? error.message : 'Zusammenführen fehlgeschlagen',
+        variant: 'destructive',
+      })
+    } finally {
+      setMergingGroupEmail(null)
+    }
+  }
+
   async function loadParts() {
     setLoadingParts(true)
     try {
       const response = await authenticatedFetch('/api/admin/integrations/sevdesk/parts?limit=50')
-      const data = await response.json()
-      if (!response.ok) {
-        throw new Error(data.error || 'Artikel konnten nicht geladen werden')
-      }
-      setParts(data.parts ?? [])
+      const { data, error } = await readApiResponse<{ parts?: SevdeskPart[] }>(response)
+      if (error) throw new Error(error)
+      setParts(data?.parts ?? [])
     } catch (error) {
       toast({
         title: 'Fehler',
@@ -487,8 +542,9 @@ export default function AdminEinstellungenPage() {
         <CardHeader>
           <CardTitle>SevDesk-Kundenimport</CardTitle>
           <CardDescription>
-            Importiert alle SevDesk-Kontakte mit dem Tag „aktiv“ ins Portal. Stammdaten aus SevDesk
-            überschreiben vorhandene Kunden mit derselben Kundennummer.
+            Importiert alle SevDesk-Kontakte mit dem Tag „aktiv“ ins Portal. Bestehende Kunden werden
+            über SevDesk-ID, Kundennummer oder E-Mail zugeordnet. Das Portal bleibt für bestätigte
+            Login-Adressen führend.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -561,6 +617,139 @@ export default function AdminEinstellungenPage() {
               ))}
             </div>
           )}
+
+          <div className="rounded-lg border border-sage-200 p-4 space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <p className="font-medium text-sage-900">Kunden-Dubletten abgleichen</p>
+                <p className="text-sm text-sage-600">
+                  Zeigt Kunden mit identischer E-Mail. Portal-Datensätze bleiben führend; SevDesk-Stammdaten
+                  werden auf den Ziel-Kunden übernommen.
+                </p>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => void loadDuplicateGroups()}
+                disabled={loadingDuplicates}
+              >
+                {loadingDuplicates ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                Aktualisieren
+              </Button>
+            </div>
+
+            {loadingDuplicates && duplicateGroups.length === 0 ? (
+              <p className="text-sm text-sage-500">Dubletten werden geladen …</p>
+            ) : duplicateGroups.length === 0 ? (
+              <p className="text-sm text-sage-600">Keine Kunden-Dubletten gefunden.</p>
+            ) : (
+              <div className="space-y-3">
+                {duplicateGroups.map((group) => {
+                  const target = group.customers.find((customer) => customer.id === group.suggestedTargetId)
+                  const source = group.customers.find((customer) => customer.id === group.suggestedSourceId)
+
+                  return (
+                    <div
+                      key={group.email}
+                      className="rounded-md border border-sage-200 bg-white p-3 space-y-3"
+                    >
+                      <div className="flex flex-wrap items-start justify-between gap-2">
+                        <div>
+                          <p className="font-medium">{group.email}</p>
+                          <p className="text-sm text-sage-600">
+                            {group.customers.length} Datensätze
+                            {group.kind === 'key_conflict' ? ' · manuell klären' : ''}
+                          </p>
+                          {group.reason && (
+                            <p className="mt-1 text-sm text-amber-800">{group.reason}</p>
+                          )}
+                        </div>
+                        {group.mergeable && target && source ? (
+                          <AlertDialog>
+                            <AlertDialogTrigger asChild>
+                              <Button
+                                size="sm"
+                                loading={mergingGroupEmail === group.email}
+                                disabled={mergingGroupEmail !== null && mergingGroupEmail !== group.email}
+                              >
+                                Zusammenführen
+                              </Button>
+                            </AlertDialogTrigger>
+                            <AlertDialogContent>
+                              <AlertDialogHeader>
+                                <AlertDialogTitle>Kunden-Dublette zusammenführen?</AlertDialogTitle>
+                                <AlertDialogDescription asChild>
+                                  <div className="space-y-2 text-sm">
+                                    <p>
+                                      Ziel bleibt{' '}
+                                      <strong>
+                                        {[target.vorname, target.nachname].filter(Boolean).join(' ') || target.email}
+                                      </strong>
+                                      {target.user_id ? ' (Portal-Konto)' : ''}.
+                                    </p>
+                                    <p>
+                                      Quelle{' '}
+                                      <strong>
+                                        {[source.vorname, source.nachname].filter(Boolean).join(' ') || source.email}
+                                      </strong>{' '}
+                                      wird gelöscht, nachdem Tiere, Dokumente, Buchungen und SevDesk-Felder
+                                      übernommen wurden.
+                                    </p>
+                                  </div>
+                                </AlertDialogDescription>
+                              </AlertDialogHeader>
+                              <AlertDialogFooter>
+                                <AlertDialogCancel>Abbrechen</AlertDialogCancel>
+                                <AlertDialogAction onClick={() => void handleMergeDuplicateGroup(group)}>
+                                  Zusammenführen
+                                </AlertDialogAction>
+                              </AlertDialogFooter>
+                            </AlertDialogContent>
+                          </AlertDialog>
+                        ) : null}
+                      </div>
+
+                      <div className="overflow-x-auto">
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>Name</TableHead>
+                              <TableHead>Portal</TableHead>
+                              <TableHead>Kundennummer</TableHead>
+                              <TableHead>SevDesk</TableHead>
+                              <TableHead>Tiere</TableHead>
+                              <TableHead>Dokumente</TableHead>
+                              <TableHead>Buchungen</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {group.customers.map((customer) => (
+                              <TableRow key={customer.id}>
+                                <TableCell>
+                                  {[customer.vorname, customer.nachname].filter(Boolean).join(' ') || '—'}
+                                  {customer.id === group.suggestedTargetId ? (
+                                    <Badge variant="secondary" className="ml-2">Ziel</Badge>
+                                  ) : customer.id === group.suggestedSourceId ? (
+                                    <Badge variant="outline" className="ml-2">Quelle</Badge>
+                                  ) : null}
+                                </TableCell>
+                                <TableCell>{customer.user_id ? 'Ja' : 'Nein'}</TableCell>
+                                <TableCell>{customer.kundennummer || '—'}</TableCell>
+                                <TableCell>{customer.sevdesk_contact_id || '—'}</TableCell>
+                                <TableCell>{customer.petCount}</TableCell>
+                                <TableCell>{customer.documentCount}</TableCell>
+                                <TableCell>{customer.bookingCount}</TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </div>
         </CardContent>
       </Card>
 

@@ -52,4 +52,18 @@ describe('sevdesk-contact-mapper', () => {
       })
     ).toThrow(/Kundennummer/)
   })
+
+  it('normalisiert importierte E-Mail-Adressen', () => {
+    const mapped = mapSevdeskContactToPortalFields({
+      id: '2',
+      name: 'Test',
+      surename: null,
+      customerNumber: 'K-200',
+      category: null,
+      communicationWays: [{ type: 'EMAIL', value: '  TEST@EXAMPLE.DE ' }],
+      addresses: [],
+    })
+
+    expect(mapped.email).toBe('test@example.de')
+  })
 })

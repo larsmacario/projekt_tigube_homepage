@@ -229,7 +229,7 @@ export function PortalBookingWizard({
   const [dateRange, setDateRange] = useState<DateRange | undefined>()
   const [dayCareOnceDates, setDayCareOnceDates] = useState<Record<string, Date[]>>({})
   const [dayCareRecurring, setDayCareRecurring] = useState<
-    Record<string, { weekdays: number[]; startDate?: Date }>
+    Record<string, { weekdays: number[]; startDate?: Date; intervalWeeks?: 1 | 2 }>
   >({})
   const [calendarMonth, setCalendarMonth] = useState<Date>(() => startOfDay(new Date()))
   const [message, setMessage] = useState('')
@@ -781,6 +781,7 @@ export function PortalBookingWizard({
           service_type: line.service_type,
           day_care_mode: 'recurring' as const,
           day_care_weekdays: cfg?.weekdays || [],
+          day_care_interval_weeks: cfg?.intervalWeeks === 2 ? 2 : 1,
           start_date: cfg?.startDate ? toIsoDate(startOfDay(cfg.startDate)) : undefined,
         }
       }
@@ -1157,6 +1158,45 @@ export function PortalBookingWizard({
                       </Button>
                     )
                   })}
+                </div>
+                <div>
+                  <Label>Rhythmus</Label>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={(cfg.intervalWeeks ?? 1) === 1 ? 'default' : 'outline'}
+                      className={(cfg.intervalWeeks ?? 1) === 1 ? 'bg-sage-600 hover:bg-sage-700' : ''}
+                      onClick={() =>
+                        setDayCareRecurring((prev) => ({
+                          ...prev,
+                          [line.pet_id]: {
+                            ...(prev[line.pet_id] || { weekdays: cfg.weekdays }),
+                            intervalWeeks: 1,
+                          },
+                        }))
+                      }
+                    >
+                      Wöchentlich
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={cfg.intervalWeeks === 2 ? 'default' : 'outline'}
+                      className={cfg.intervalWeeks === 2 ? 'bg-sage-600 hover:bg-sage-700' : ''}
+                      onClick={() =>
+                        setDayCareRecurring((prev) => ({
+                          ...prev,
+                          [line.pet_id]: {
+                            ...(prev[line.pet_id] || { weekdays: cfg.weekdays }),
+                            intervalWeeks: 2,
+                          },
+                        }))
+                      }
+                    >
+                      Alle 14 Tage
+                    </Button>
+                  </div>
                 </div>
                 <div>
                   <Label>Startdatum</Label>

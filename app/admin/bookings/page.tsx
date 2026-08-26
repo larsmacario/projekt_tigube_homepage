@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useMemo } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -25,12 +26,24 @@ import { BookingDetailSheet } from '@/components/admin/booking-detail-sheet'
 import { useAdminMetrics } from '@/components/admin/admin-metrics-provider'
 import { BookingGroupListCard } from '@/components/booking/booking-group-list-card'
 import { InvoiceSyncPanel } from '@/components/admin/invoice-sync-panel'
+import { SpringerPanel } from '@/components/admin/springer-panel'
 import {
   categorizeBookingGroups,
   groupBookingsForDisplay,
 } from '@/lib/booking-request-groups'
 
+function resolveBookingsTab(tab: string | null): string {
+  if (tab === 'springer' || tab === 'billing' || tab === 'capacity' || tab === 'bookings') {
+    return tab
+  }
+  return 'bookings'
+}
+
 export default function AdminBookingsPage() {
+  const searchParams = useSearchParams()
+  const [activeTab, setActiveTab] = useState(() =>
+    resolveBookingsTab(searchParams.get('tab'))
+  )
   const [bookings, setBookings] = useState<BookingRequest[]>([])
   const [capacitySettings, setCapacitySettings] = useState<CapacitySetting[]>([])
   const [capacityOverrides, setCapacityOverrides] = useState<CapacityOverride[]>([])
@@ -49,6 +62,10 @@ export default function AdminBookingsPage() {
   })
   const { toast } = useToast()
   const { refreshMetrics } = useAdminMetrics()
+
+  useEffect(() => {
+    setActiveTab(resolveBookingsTab(searchParams.get('tab')))
+  }, [searchParams])
 
   useEffect(() => {
     loadData()
@@ -446,11 +463,12 @@ export default function AdminBookingsPage() {
         )}
       </div>
 
-      <Tabs defaultValue="bookings" className="space-y-6">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
         <TabsList>
           <TabsTrigger value="bookings">Buchungen</TabsTrigger>
           <TabsTrigger value="billing">Abrechnung</TabsTrigger>
           <TabsTrigger value="capacity">Kapazitäten</TabsTrigger>
+          <TabsTrigger value="springer">Springer</TabsTrigger>
         </TabsList>
 
         <TabsContent value="bookings" className="space-y-6">
@@ -886,6 +904,10 @@ export default function AdminBookingsPage() {
               )}
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="springer" className="space-y-6">
+          <SpringerPanel />
         </TabsContent>
       </Tabs>
     </div>

@@ -405,7 +405,10 @@ export default function BookingsPage() {
                           className="border-red-200 text-red-700 hover:bg-red-50"
                           onClick={() => setCancellationBooking(booking)}
                         >
-                          Stornieren
+                          {booking.service_type === 'tagesbetreuung' &&
+                          booking.day_care_mode === 'recurring'
+                            ? 'Urlaub / Platz freigeben'
+                            : 'Stornieren'}
                         </Button>
                       ) : (
                         <Badge className={getStatusColor(booking.status)}>
@@ -421,7 +424,10 @@ export default function BookingsPage() {
                   className="border-red-200 text-red-700 hover:bg-red-50"
                   onClick={() => setCancellationBooking(selectedBooking)}
                 >
-                  Buchung stornieren
+                  {selectedBooking.service_type === 'tagesbetreuung' &&
+                  selectedBooking.day_care_mode === 'recurring'
+                    ? 'Urlaub / Platz freigeben'
+                    : 'Buchung stornieren'}
                 </Button>
               ) : null}
             </div>

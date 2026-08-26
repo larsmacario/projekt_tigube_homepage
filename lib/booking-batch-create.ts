@@ -1,10 +1,11 @@
-import type { ServiceType, DayCareMode } from '@/lib/types'
+import type { ServiceType, DayCareMode, DayCareIntervalWeeks } from '@/lib/types'
 import {
   isRangeService,
   minMaxIsoDates,
   validateDayCarePetPayload,
   type DayCarePetPayload,
 } from '@/lib/day-care-booking'
+import { normalizeDayCareIntervalWeeks } from '@/lib/day-care-interval'
 
 export interface PortalPetBookingLine extends DayCarePetPayload {
   pet_id: string
@@ -17,6 +18,7 @@ export function parsePortalPetLines(raw: unknown[]): PortalPetBookingLine[] {
     service_type: line.service_type as ServiceType,
     day_care_mode: line.day_care_mode as DayCareMode | undefined,
     day_care_weekdays: line.day_care_weekdays as number[] | undefined,
+    day_care_interval_weeks: line.day_care_interval_weeks as DayCareIntervalWeeks | undefined,
     selected_dates: line.selected_dates as string[] | undefined,
     start_date: line.start_date as string | undefined,
     end_date: line.end_date as string | undefined | null,
@@ -47,6 +49,7 @@ export function buildBookingInsertRow(
         day_care_mode: 'once',
         selected_dates: line.selected_dates,
         day_care_weekdays: null,
+        day_care_interval_weeks: null,
         start_date: bounds.start,
         end_date: bounds.end,
       }
@@ -57,6 +60,7 @@ export function buildBookingInsertRow(
         ...base,
         day_care_mode: 'recurring',
         day_care_weekdays: line.day_care_weekdays,
+        day_care_interval_weeks: normalizeDayCareIntervalWeeks(line.day_care_interval_weeks),
         selected_dates: null,
         start_date: line.start_date,
         end_date: null,
@@ -72,6 +76,7 @@ export function buildBookingInsertRow(
     ...base,
     day_care_mode: null,
     day_care_weekdays: null,
+    day_care_interval_weeks: null,
     selected_dates: null,
     start_date: groupRange.start_date,
     end_date: groupRange.end_date,

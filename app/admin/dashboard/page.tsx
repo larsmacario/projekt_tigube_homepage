@@ -31,6 +31,7 @@ export default function AdminDashboard() {
   const [vaccinationSummary, setVaccinationSummary] = useState<UpcomingVaccinationSummary>(
     EMPTY_VACCINATION_SUMMARY
   )
+  const [springerSummary, setSpringerSummary] = useState({ openOffers: 0, pendingBookings: 0 })
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -87,6 +88,18 @@ export default function AdminDashboard() {
         if (vaccinationData) {
           setVaccinationRows(vaccinationData.rows || [])
           setVaccinationSummary(vaccinationData.summary || EMPTY_VACCINATION_SUMMARY)
+        }
+
+        const springerResponse = await authenticatedFetch('/api/admin/springer/summary')
+        const { data: springerData } = await readApiResponse<{
+          openOffers?: number
+          pendingBookings?: number
+        }>(springerResponse)
+        if (springerData && !cancelled) {
+          setSpringerSummary({
+            openOffers: springerData.openOffers || 0,
+            pendingBookings: springerData.pendingBookings || 0,
+          })
         }
       } catch (error) {
         console.error('Error loading dashboard data:', error)
@@ -162,13 +175,43 @@ export default function AdminDashboard() {
         </Card>
       </div>
 
+      <Card>
+        <CardHeader>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <CardTitle>Springerliste</CardTitle>
+              <CardDescription>
+                Offene Angebote und ausstehende Springer-Buchungen
+              </CardDescription>
+            </div>
+            <Link href="/admin/bookings?tab=springer">
+              <Button variant="outline" className="border-sage-300 text-sage-700 hover:bg-sage-50">
+                Zur Springerliste
+              </Button>
+            </Link>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="rounded-lg border border-sage-200 bg-sage-50 px-4 py-3">
+              <p className="text-sm text-sage-600">Offene Angebote</p>
+              <p className="text-2xl font-bold text-sage-900">{springerSummary.openOffers}</p>
+            </div>
+            <div className="rounded-lg border border-sage-200 bg-sage-50 px-4 py-3">
+              <p className="text-sm text-sage-600">Ausstehende Springer-Buchungen</p>
+              <p className="text-2xl font-bold text-sage-900">{springerSummary.pendingBookings}</p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Neue Anfragen */}
       <Card>
         <CardHeader>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <CardTitle>Neue Anfragen</CardTitle>
-              <CardDescription>Alle Anfragen mit Status "Neu"</CardDescription>
+              <CardDescription>Alle Anfragen mit Status &quot;Neu&quot;</CardDescription>
             </div>
             <Link href="/admin/leads">
               <Button variant="outline" className="border-sage-300 text-sage-700 hover:bg-sage-50">
@@ -245,5 +288,3 @@ export default function AdminDashboard() {
     </div>
   )
 }
-
-

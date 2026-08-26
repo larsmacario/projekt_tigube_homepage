@@ -1,10 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerClient } from '@/lib/admin-auth'
+import { getAdminDbClient, getServerClient } from '@/lib/admin-auth'
 import {
   pickAllowedFields,
   PORTAL_ONBOARDING_STATUS_FIELDS,
   PORTAL_PROFILE_EDITABLE_FIELDS,
 } from '@/lib/contact-editable-fields'
+import { CustomerEmailError, normalizeCustomerEmail } from '@/lib/customer-email'
+import {
+  createCustomerEmailChangeRequest,
+  getCustomerEmailChangeRequest,
+  reconcileConfirmedCustomerEmail,
+  deleteCustomerEmailChangeRequest,
+  setCustomerEmailChangeRequestStatus,
+} from '@/lib/customer-email-change'
+import { resolveRequestBaseUrl } from '@/lib/onboarding-invite'
 
 export async function GET(request: NextRequest) {
   try {
@@ -80,7 +89,25 @@ export async function GET(request: NextRequest) {
       throw error
     }
 
+    let emailChange = null
     if (data) {
+      const adminDb = getAdminDbClient()
+      const confirmed = await reconcileConfirmedCustomerEmail({
+        db: adminDb,
+        customerId: data.id,
+        authEmail: authUser.email,
+      })
+      if (confirmed) {
+        const { data: refreshed, error: refreshedError } = await adminDb
+          .from('contacts')
+          .select('*')
+          .eq('id', data.id)
+          .eq('contact_type', 'customer')
+          .single()
+        if (refreshedError) throw refreshedError
+        data = refreshed
+      }
+      emailChange = await getCustomerEmailChangeRequest(adminDb, data.id)
       console.log('Customer data loaded:', {
         id: data.id,
         nachname: data.nachname,
@@ -93,7 +120,7 @@ export async function GET(request: NextRequest) {
       console.warn('No customer data found')
     }
 
-    return NextResponse.json({ customer: data || null })
+    return NextResponse.json({ customer: data || null, emailChange })
   } catch (error: any) {
     console.error('Error fetching profile:', error)
     return NextResponse.json(
@@ -148,7 +175,12 @@ export async function PUT(request: NextRequest) {
       allowedKeys
     )
 
-    if (Object.keys(updates).length === 0) {
+    const requestedEmail = Object.prototype.hasOwnProperty.call(updates, 'email')
+      ? normalizeCustomerEmail(updates.email)
+      : null
+    delete updates.email
+
+    if (Object.keys(updates).length === 0 && !requestedEmail) {
       return NextResponse.json(
         { error: 'Keine gültigen Felder zum Aktualisieren' },
         { status: 400 }
@@ -165,22 +197,33 @@ export async function PUT(request: NextRequest) {
 
     let result
     if (existing) {
-      const { data, error } = await supabase
-        .from('contacts')
-        .update(updates)
-        .eq('user_id', userData.id)
-        .eq('contact_type', 'customer')
-        .select()
-        .single()
+      if (Object.keys(updates).length > 0) {
+        const { data, error } = await supabase
+          .from('contacts')
+          .update(updates)
+          .eq('user_id', userData.id)
+          .eq('contact_type', 'customer')
+          .select()
+          .single()
 
-      if (error) throw error
-      result = data
+        if (error) throw error
+        result = data
+      } else {
+        const { data, error } = await supabase
+          .from('contacts')
+          .select('*')
+          .eq('user_id', userData.id)
+          .eq('contact_type', 'customer')
+          .single()
+        if (error) throw error
+        result = data
+      }
     } else {
       const { data, error } = await supabase
         .from('contacts')
         .insert({
           user_id: userData.id,
-          email: authUser.email,
+          email: normalizeCustomerEmail(authUser.email),
           contact_type: 'customer',
           status: 'active',
           service: 'portal',
@@ -192,13 +235,54 @@ export async function PUT(request: NextRequest) {
           datenschutz: false,
           onboarding_completed: false,
           ...updates,
-          contact_type: 'customer',
         })
         .select()
         .single()
 
       if (error) throw error
       result = data
+    }
+
+    const adminDb = getAdminDbClient()
+    let emailChange = null
+    if (requestedEmail && requestedEmail !== result.email) {
+      const existingChange = await getCustomerEmailChangeRequest(adminDb, result.id)
+      const acceptingAdminRequest =
+        existingChange?.source === 'admin' &&
+        existingChange.status === 'awaiting_customer_confirmation' &&
+        existingChange.requested_email === requestedEmail
+
+      emailChange = await createCustomerEmailChangeRequest({
+        db: adminDb,
+        customerId: result.id,
+        authUserId: authUser.id,
+        email: requestedEmail,
+        requestedBy: authUser.id,
+        source: acceptingAdminRequest ? 'admin' : 'customer',
+        status: 'awaiting_auth_confirmation',
+      })
+
+      const { error: authUpdateError } = await supabase.auth.updateUser({
+        email: requestedEmail,
+      }, {
+        emailRedirectTo: `${resolveRequestBaseUrl(request)}/portal/profile?email-change=confirmed`,
+      })
+      if (authUpdateError) {
+        if (acceptingAdminRequest) {
+          await setCustomerEmailChangeRequestStatus({
+            db: adminDb,
+            customerId: result.id,
+            status: 'awaiting_customer_confirmation',
+          })
+        } else {
+          await deleteCustomerEmailChangeRequest({ db: adminDb, customerId: result.id })
+        }
+        throw new CustomerEmailError(authUpdateError.message)
+      }
+    } else {
+      // Auch ohne E-Mail-Änderung den aktuellen Status zurückgeben,
+      // damit Oberflächen eine ausstehende Adresse nicht verlieren.
+      emailChange = await getCustomerEmailChangeRequest(adminDb, result.id)
     }
 
     if (rawUpdates.onboarding_completed === true && result?.id) {
@@ -222,14 +306,12 @@ export async function PUT(request: NextRequest) {
       }
     }
 
-    return NextResponse.json({ customer: result })
+    return NextResponse.json({ customer: result, emailChange })
   } catch (error: any) {
     console.error('Error updating profile:', error)
     return NextResponse.json(
       { error: error.message || 'Fehler beim Aktualisieren des Profils' },
-      { status: 500 }
+      { status: error instanceof CustomerEmailError ? 400 : 500 }
     )
   }
 }
-
-

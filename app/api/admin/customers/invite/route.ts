@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getServerClient } from '@/lib/admin-auth'
+import { getAdminDbClient, getServerClient } from '@/lib/admin-auth'
+import { CustomerEmailError, assertCustomerEmailAvailable, normalizeCustomerEmail } from '@/lib/customer-email'
 import {
   resolveRequestBaseUrl,
   sendOnboardingInviteForCustomer,
@@ -51,22 +52,20 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const cleanEmail = email.toLowerCase().trim()
+    const cleanEmail = normalizeCustomerEmail(email)
     const cleanVorname = vorname.trim()
     const cleanNachname = nachname.trim()
 
-    const { data: existingCustomer } = await supabase
-      .from('contacts')
-      .select('id')
-      .eq('email', cleanEmail)
-      .eq('contact_type', 'customer')
-      .maybeSingle()
-
-    if (existingCustomer) {
-      return NextResponse.json(
-        { error: 'Ein Kunde mit dieser E-Mail existiert bereits' },
-        { status: 400 }
-      )
+    try {
+      await assertCustomerEmailAvailable({
+        db: getAdminDbClient(),
+        email: cleanEmail,
+      })
+    } catch (error) {
+      if (error instanceof CustomerEmailError) {
+        return NextResponse.json({ error: error.message }, { status: 400 })
+      }
+      throw error
     }
 
     let customerId: string
@@ -74,7 +73,7 @@ export async function POST(request: NextRequest) {
     const { data: existingLead } = await supabase
       .from('contacts')
       .select('*')
-      .eq('email', cleanEmail)
+      .ilike('email', cleanEmail)
       .in('contact_type', ['lead', 'lost', 'waitlist'])
       .maybeSingle()
 
@@ -152,7 +151,7 @@ export async function POST(request: NextRequest) {
     console.error('Error inviting customer:', error)
     return NextResponse.json(
       { error: error.message || 'Fehler beim Einladen des Kunden' },
-      { status: 500 }
+      { status: error instanceof CustomerEmailError ? 400 : 500 }
     )
   }
 }

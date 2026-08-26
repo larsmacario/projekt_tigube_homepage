@@ -1,7 +1,6 @@
 import { unstable_cache } from 'next/cache'
 
-import { iterateIsoDateRange } from '@/lib/booking-availability'
-import { startOfDay, toIsoDate } from '@/lib/vacation-dates'
+export { expandRecurringDayCareDates } from '@/lib/day-care-interval'
 
 export type SchoolHolidayPeriod = {
   start: string
@@ -73,26 +72,3 @@ export function datesOverlapSchoolHolidaysBw(
   return false
 }
 
-export function expandRecurringDayCareDates(
-  startDate: string,
-  endDate: string | null,
-  weekdays: number[] | null,
-  horizonDays = 365
-): string[] {
-  if (!weekdays?.length) return [startDate]
-
-  const start = startOfDay(new Date(startDate))
-  const end = endDate
-    ? startOfDay(new Date(endDate))
-    : startOfDay(new Date(start.getTime() + horizonDays * 24 * 60 * 60 * 1000))
-
-  const fromIso = toIsoDate(start)
-  const toIso = toIsoDate(end)
-  const weekdaySet = new Set(weekdays)
-
-  return iterateIsoDateRange(fromIso, toIso).filter((iso) => {
-    const day = startOfDay(new Date(iso)).getDay()
-    const isoWeekday = day === 0 ? 7 : day
-    return weekdaySet.has(isoWeekday)
-  })
-}

@@ -77,7 +77,7 @@ export interface BookingEstimateInput {
   petLines: PetServiceLineInput[]
   dateRange?: DateRange
   dayCareOnceDates: Record<string, Date[]>
-  dayCareRecurring: Record<string, { weekdays: number[]; startDate?: Date }>
+  dayCareRecurring: Record<string, { weekdays: number[]; startDate?: Date; intervalWeeks?: 1 | 2 }>
   /** pet_id → price_id → quantity */
   selectedExtrasByPet: Record<string, Record<string, number>>
   prices: BookingExtraPrice[]
@@ -218,10 +218,11 @@ export function estimateBookingCosts(input: BookingEstimateInput): BookingEstima
       const weekdays = cfg?.weekdays ?? []
       if (weekdays.length > 0 && basePriceForPet) {
         const up = unitPrice(basePriceForPet)!
+        const intervalLabel = cfg?.intervalWeeks === 2 ? 'alle 14 Tage' : 'wöchentlich'
         lines.push({
           kind: 'note',
-          label: `${petName}: Feste Tage (${formatWeekdayList(weekdays)})`,
-          detail: `${formatEuro(up)} pro Tag × ${weekdays.length} Wochentage/Woche – laufend, ohne Enddatum (kein Gesamtbetrag).`,
+          label: `${petName}: Feste Tage (${formatWeekdayList(weekdays)}, ${intervalLabel})`,
+          detail: `${formatEuro(up)} pro Tag – laufend, ohne Enddatum (kein Gesamtbetrag).`,
         })
         lines.push({
           kind: 'note',

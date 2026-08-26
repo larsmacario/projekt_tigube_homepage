@@ -1,5 +1,6 @@
 import type { BookingRequest } from '@/lib/types'
 import { expandBookingOccupiedDates, isRangeService } from '@/lib/day-care-booking'
+import { recurringDayCareAppliesOnDate } from '@/lib/day-care-interval'
 import { parseTimeHHmm } from '@/lib/pickup-time-surcharge'
 import { toIsoDate } from '@/lib/vacation-dates'
 
@@ -47,12 +48,18 @@ export function getWeekIsoDates(weekMonday: Date): string[] {
 export function isBookingActiveOnIsoDate(booking: BookingRequest, isoDate: string): boolean {
   if (booking.service_type === 'tagesbetreuung') {
     if (booking.day_care_mode === 'once' && booking.selected_dates?.length) {
+      if ((booking.cancelled_dates ?? []).includes(isoDate)) return false
       return booking.selected_dates.includes(isoDate)
     }
     if (booking.day_care_mode === 'recurring' && booking.day_care_weekdays?.length) {
-      if (isoDate < booking.start_date) return false
-      const weekday = isoWeekdayFromIsoDate(isoDate)
-      return booking.day_care_weekdays.includes(weekday)
+      return recurringDayCareAppliesOnDate({
+        startDate: booking.start_date,
+        endDate: booking.end_date,
+        weekdays: booking.day_care_weekdays,
+        intervalWeeks: booking.day_care_interval_weeks,
+        cancelledDates: booking.cancelled_dates,
+        date: isoDate,
+      })
     }
   }
 

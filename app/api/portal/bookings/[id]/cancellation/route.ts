@@ -2,14 +2,17 @@ import { NextRequest, NextResponse } from 'next/server'
 
 import { getAdminDbClient, getServerClient } from '@/lib/admin-auth'
 import {
+  getActiveBookingDates,
   getBookingFinancialTotal,
   isBookingFullyCancelled,
   resolveCancellationCheckInDate,
 } from '@/lib/cancellation-booking-total'
+import { resolveScopeTotalForCancelledDates } from '@/lib/cancellation-day-price'
 import { loadActiveCancellationPolicy } from '@/lib/cancellation-policy-loader'
 import { calculateCancellationAmounts } from '@/lib/cancellation-resolver'
 import { buildBookingCancellationEmailContent } from '@/lib/booking-cancellation-email'
 import { sendBookingCancellationEmails } from '@/lib/email'
+import { getPublicHolidaysInRange } from '@/lib/public-holidays-de'
 import { fetchSchoolHolidaysBw } from '@/lib/school-holidays-bw'
 import type { BookingLineItem, BookingRequest } from '@/lib/types'
 
@@ -78,27 +81,6 @@ async function loadBookingContext(bookingId: string, customerId: string) {
   return { booking: typedBooking, lineItems, admin }
 }
 
-function buildPreview(
-  booking: BookingRequest,
-  lineItems: BookingLineItem[],
-  datesToCancel: string[] | undefined,
-  cancellationAt: Date
-) {
-  const bookingTotal = getBookingFinancialTotal(booking.id, lineItems)
-  const mergedCancelledDates = [
-    ...(booking.cancelled_dates ?? []),
-    ...(datesToCancel ?? []),
-  ]
-
-  return {
-    bookingTotal,
-    checkInDate: resolveCancellationCheckInDate(booking, datesToCancel),
-    mergedCancelledDates,
-    fullyCancelled: isBookingFullyCancelled(booking, datesToCancel ?? []),
-    cancellationAt,
-  }
-}
-
 async function computeCancellationPreview(
   booking: BookingRequest,
   lineItems: BookingLineItem[],
@@ -107,26 +89,68 @@ async function computeCancellationPreview(
 ) {
   const { config } = await loadActiveCancellationPolicy(getAdminDbClient())
   const schoolHolidays = await fetchSchoolHolidaysBw().catch(() => [])
-  const preview = buildPreview(booking, lineItems, datesToCancel, cancellationAt)
+  const bookingTotal = getBookingFinancialTotal(booking.id, lineItems)
+  const activeDates = getActiveBookingDates(booking)
 
+  if (datesToCancel?.length) {
+    const activeSet = new Set(activeDates)
+    const invalid = datesToCancel.filter((d) => !activeSet.has(d))
+    if (invalid.length > 0) {
+      throw new Error('Ein oder mehrere Tage gehören nicht zu dieser Buchung.')
+    }
+  }
+
+  const mergedCancelledDates = [
+    ...(booking.cancelled_dates ?? []),
+    ...(datesToCancel ?? []),
+  ]
+
+  let holidayDates: string[] = []
+  if (datesToCancel?.length) {
+    const sorted = [...datesToCancel].sort()
+    try {
+      holidayDates = (
+        await getPublicHolidaysInRange(sorted[0], sorted[sorted.length - 1])
+      ).map((h) => h.date)
+    } catch {
+      holidayDates = []
+    }
+  }
+
+  const scope = datesToCancel?.length
+    ? resolveScopeTotalForCancelledDates({
+        booking,
+        lineItems,
+        datesToCancel,
+        bookingTotal,
+        holidayDates,
+      })
+    : {
+        scopeTotal: bookingTotal,
+        priceSnapshot: { perDay: [], dayCount: 0, method: 'full' as const },
+      }
+
+  const checkInDate = resolveCancellationCheckInDate(booking, datesToCancel)
   const calculation = calculateCancellationAmounts({
-    checkInDate: preview.checkInDate,
+    checkInDate,
     bookingStartDate: booking.start_date,
     bookingEndDate: booking.end_date,
     selectedDates: booking.selected_dates,
-    cancelledDates: preview.mergedCancelledDates,
+    cancelledDates: mergedCancelledDates,
     cancellationAt,
-    bookingTotal: preview.bookingTotal,
+    bookingTotal,
+    scopeTotalOverride: datesToCancel?.length ? scope.scopeTotal : undefined,
     policy: config,
     schoolHolidays,
   })
 
   return {
     ...calculation,
-    bookingTotal: preview.bookingTotal,
-    fullyCancelled: preview.fullyCancelled,
+    bookingTotal,
+    fullyCancelled: isBookingFullyCancelled(booking, datesToCancel ?? []),
     datesToCancel: datesToCancel ?? [],
-    canCancel: preview.bookingTotal > 0 || preview.fullyCancelled || booking.status !== 'pending',
+    priceSnapshot: scope.priceSnapshot,
+    canCancel: scope.scopeTotal > 0 || bookingTotal > 0 || booking.status !== 'pending',
   }
 }
 
@@ -233,6 +257,24 @@ export async function POST(request: NextRequest, context: RouteContext) {
 
     if (updateError || !updatedBooking) {
       throw updateError ?? new Error('Storno konnte nicht gespeichert werden')
+    }
+
+    if (datesToCancel?.length) {
+      const { error: eventError } = await admin.from('booking_cancellation_events').insert({
+        booking_id: booking.id,
+        customer_id: booking.customer_id,
+        cancelled_dates: datesToCancel,
+        booking_total: preview.bookingTotal,
+        cancellation_charge_amount: preview.cancellationChargeAmount,
+        cancellation_refund_amount: preview.cancellationRefundAmount,
+        cancellation_rule_set_id: preview.ruleSetId,
+        cancellation_tier_label: preview.tierLabel,
+        cancellation_policy_snapshot: preview.policySnapshot,
+        price_snapshot: preview.priceSnapshot,
+      })
+      if (eventError) {
+        console.error('Cancellation event insert failed:', eventError)
+      }
     }
 
     const customer = booking.customer

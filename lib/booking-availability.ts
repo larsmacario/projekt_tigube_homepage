@@ -7,6 +7,7 @@ import {
   type VacationDate,
 } from '@/lib/vacation-dates'
 import type { CapacityOverride, CapacitySetting, ServiceType, DayCareMode } from '@/lib/types'
+import { recurringDayCareAppliesOnDate } from '@/lib/day-care-interval'
 
 export type AvailabilityConflictReason =
   | 'vacation'
@@ -20,7 +21,10 @@ export interface ApprovedBookingSlice {
   start_date: string
   end_date: string | null
   day_care_mode?: DayCareMode | null
+  day_care_weekdays?: number[] | null
+  day_care_interval_weeks?: number | null
   selected_dates?: string[] | null
+  cancelled_dates?: string[] | null
 }
 
 export interface AvailabilityContext {
@@ -130,12 +134,23 @@ export function bookingAppliesOnDate(
     return false
   }
 
+  if ((booking.cancelled_dates ?? []).includes(date)) {
+    return false
+  }
+
   if (booking.selected_dates?.length) {
     return booking.selected_dates.includes(date)
   }
 
-  if (booking.day_care_mode === 'recurring' && booking.end_date === null) {
-    return date === booking.start_date
+  if (booking.day_care_mode === 'recurring') {
+    return recurringDayCareAppliesOnDate({
+      startDate: booking.start_date,
+      endDate: booking.end_date,
+      weekdays: booking.day_care_weekdays,
+      intervalWeeks: booking.day_care_interval_weeks,
+      cancelledDates: booking.cancelled_dates,
+      date,
+    })
   }
 
   if (!booking.end_date) {

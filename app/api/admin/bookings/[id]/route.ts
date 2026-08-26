@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerClient } from '@/lib/admin-auth'
 import { validateBookingAvailabilityForRange, validateBookingAvailabilityForDateListServer } from '@/lib/booking-availability-server'
+import { expandRecurringDayCareDates } from '@/lib/day-care-interval'
 import type { ServiceType } from '@/lib/types'
 
 async function checkAdminAuth(supabase: any, accessToken: string | undefined) {
@@ -86,7 +87,7 @@ export async function PATCH(
     const { data: existingBooking, error: existingError } = await supabase
       .from('bookings')
       .select(
-        'id, service_type, start_date, end_date, status, day_care_mode, selected_dates, day_care_weekdays'
+        'id, service_type, start_date, end_date, status, day_care_mode, selected_dates, day_care_weekdays, day_care_interval_weeks, cancelled_dates'
       )
       .eq('id', bookingId)
       .single()
@@ -106,9 +107,11 @@ export async function PATCH(
         existingBooking.day_care_mode === 'once' &&
         existingBooking.selected_dates?.length
       ) {
+        const cancelled = new Set(existingBooking.cancelled_dates ?? [])
+        const dates = existingBooking.selected_dates.filter((d: string) => !cancelled.has(d))
         availability = await validateBookingAvailabilityForDateListServer(
           'tagesbetreuung',
-          existingBooking.selected_dates,
+          dates,
           true,
           existingBooking.id
         )
@@ -116,13 +119,19 @@ export async function PATCH(
         existingBooking.service_type === 'tagesbetreuung' &&
         existingBooking.day_care_mode === 'recurring'
       ) {
-        availability = await validateBookingAvailabilityForRange({
-          serviceType: 'tagesbetreuung',
-          startDate: existingBooking.start_date,
-          endDate: existingBooking.start_date,
-          excludeBookingId: existingBooking.id,
-          checkCapacity: true,
-        })
+        const cancelled = new Set(existingBooking.cancelled_dates ?? [])
+        const dates = expandRecurringDayCareDates(
+          existingBooking.start_date,
+          existingBooking.end_date,
+          existingBooking.day_care_weekdays,
+          existingBooking.day_care_interval_weeks
+        ).filter((d) => !cancelled.has(d))
+        availability = await validateBookingAvailabilityForDateListServer(
+          'tagesbetreuung',
+          dates,
+          true,
+          existingBooking.id
+        )
       } else {
         availability = await validateBookingAvailabilityForRange({
           serviceType: existingBooking.service_type as ServiceType,

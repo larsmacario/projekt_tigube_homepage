@@ -11,6 +11,7 @@ import {
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
+import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useToast } from '@/hooks/use-toast'
 import { authenticatedFetch } from '@/lib/authenticated-fetch'
@@ -47,29 +48,58 @@ export function BookingCancellationDialog({
   const [submitting, setSubmitting] = useState(false)
   const [preview, setPreview] = useState<CancellationPreview | null>(null)
   const [selectedDates, setSelectedDates] = useState<string[]>([])
+  const [vacationFrom, setVacationFrom] = useState('')
+  const [vacationTo, setVacationTo] = useState('')
+
+  const isRecurringDayCare =
+    booking?.service_type === 'tagesbetreuung' && booking.day_care_mode === 'recurring'
+
+  const isOnceDayCareMulti =
+    booking?.service_type === 'tagesbetreuung' &&
+    booking.day_care_mode === 'once' &&
+    (booking.selected_dates?.length ?? 0) > 1
 
   const cancellableDates = useMemo(() => {
     if (!booking) return []
+    if (isRecurringDayCare) {
+      if (!vacationFrom || !vacationTo || vacationTo < vacationFrom) return []
+      return getActiveBookingDates(booking, {
+        rangeStart: vacationFrom,
+        rangeEnd: vacationTo,
+      })
+    }
     return getActiveBookingDates(booking)
-  }, [booking])
+  }, [booking, isRecurringDayCare, vacationFrom, vacationTo])
 
-  const supportsPartialDates =
-    booking?.service_type === 'tagesbetreuung' && cancellableDates.length > 1
+  const supportsPartialDates = isRecurringDayCare || isOnceDayCareMulti
 
   useEffect(() => {
     if (!open || !booking) {
       setPreview(null)
       setSelectedDates([])
+      setVacationFrom('')
+      setVacationTo('')
       return
     }
 
     if (supportsPartialDates) {
       setSelectedDates([])
+      setPreview(null)
       return
     }
 
     void loadPreview(booking.id)
   }, [open, booking, supportsPartialDates])
+
+  useEffect(() => {
+    if (!isRecurringDayCare) return
+    setSelectedDates(cancellableDates)
+    if (booking && cancellableDates.length > 0) {
+      void loadPreview(booking.id, cancellableDates)
+    } else {
+      setPreview(null)
+    }
+  }, [cancellableDates, isRecurringDayCare, booking])
 
   async function loadPreview(bookingId: string, dates?: string[]) {
     setLoadingPreview(true)
@@ -117,8 +147,10 @@ export function BookingCancellationDialog({
       if (!data?.booking) throw new Error('Storno konnte nicht abgeschlossen werden')
 
       toast({
-        title: 'Stornierung bestätigt',
-        description: 'Wir haben deine Stornierung erhalten.',
+        title: isRecurringDayCare ? 'Urlaubstage freigegeben' : 'Stornierung bestätigt',
+        description: isRecurringDayCare
+          ? 'Die ausgewählten Betreuungstage wurden freigegeben.'
+          : 'Wir haben deine Stornierung erhalten.',
       })
       onCancelled(data.booking)
       onOpenChange(false)
@@ -151,14 +183,70 @@ export function BookingCancellationDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle>Buchung stornieren</DialogTitle>
+          <DialogTitle>
+            {isRecurringDayCare ? 'Urlaub / Platz freigeben' : 'Buchung stornieren'}
+          </DialogTitle>
           <DialogDescription>
             {booking.pet?.name || 'Tier'} ·{' '}
             {new Date(booking.start_date).toLocaleDateString('de-DE')}
           </DialogDescription>
         </DialogHeader>
 
-        {supportsPartialDates ? (
+        {isRecurringDayCare ? (
+          <div className="space-y-3">
+            <p className="text-sm text-sage-600">
+              Wähle den Zeitraum – angezeigt werden nur deine Rhythmustage darin.
+            </p>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label htmlFor="vacation-from">Von</Label>
+                <Input
+                  id="vacation-from"
+                  type="date"
+                  value={vacationFrom}
+                  onChange={(e) => setVacationFrom(e.target.value)}
+                  className="mt-1"
+                />
+              </div>
+              <div>
+                <Label htmlFor="vacation-to">Bis</Label>
+                <Input
+                  id="vacation-to"
+                  type="date"
+                  value={vacationTo}
+                  onChange={(e) => setVacationTo(e.target.value)}
+                  className="mt-1"
+                />
+              </div>
+            </div>
+            {vacationFrom && vacationTo && vacationTo >= vacationFrom ? (
+              cancellableDates.length > 0 ? (
+                <div className="max-h-48 space-y-2 overflow-y-auto rounded-lg border border-sage-200 p-3">
+                  {cancellableDates.map((date) => (
+                    <label key={date} className="flex items-center gap-2 text-sm text-sage-800">
+                      <Checkbox
+                        checked={selectedDates.includes(date)}
+                        onCheckedChange={(checked) => toggleDate(date, checked === true)}
+                      />
+                      {new Date(date).toLocaleDateString('de-DE', {
+                        weekday: 'short',
+                        day: '2-digit',
+                        month: '2-digit',
+                        year: 'numeric',
+                      })}
+                    </label>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-sage-600">
+                  In diesem Zeitraum liegen keine Betreuungstage.
+                </p>
+              )
+            ) : (
+              <p className="text-sm text-sage-600">Bitte einen gültigen Zeitraum wählen.</p>
+            )}
+          </div>
+        ) : supportsPartialDates ? (
           <div className="space-y-3">
             <Label>Welche Betreuungstage möchtest du stornieren?</Label>
             <div className="max-h-48 space-y-2 overflow-y-auto rounded-lg border border-sage-200 p-3">
@@ -225,7 +313,11 @@ export function BookingCancellationDialog({
             }
             onClick={handleConfirm}
           >
-            {submitting ? 'Wird storniert…' : 'Stornierung bestätigen'}
+            {submitting
+              ? 'Wird storniert…'
+              : isRecurringDayCare
+                ? 'Urlaubstage freigeben'
+                : 'Stornierung bestätigen'}
           </Button>
         </DialogFooter>
       </DialogContent>

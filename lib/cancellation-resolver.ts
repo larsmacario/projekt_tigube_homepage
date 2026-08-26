@@ -14,6 +14,8 @@ export interface CancellationCalculationInput {
   cancelledDates?: string[] | null
   cancellationAt: Date
   bookingTotal: number
+  /** Wenn gesetzt, wird diese Summe statt Ratio/Gesamt genutzt (z. B. Tagespreis × Tage). */
+  scopeTotalOverride?: number
   policy: CancellationPolicyConfig
   schoolHolidays: SchoolHolidayPeriod[]
 }
@@ -106,11 +108,17 @@ function resolveScopeTotal(input: CancellationCalculationInput): {
   scopeTotal: number
   checkInDate: string
 } {
+  if (input.scopeTotalOverride != null) {
+    return {
+      scopeTotal: roundMoney(input.scopeTotalOverride),
+      checkInDate: input.checkInDate,
+    }
+  }
+
   const cancelled = new Set(input.cancelledDates ?? [])
   const selected = input.selectedDates ?? []
 
   if (selected.length > 0 && cancelled.size > 0) {
-    const activeCount = selected.filter((date) => !cancelled.has(date)).length
     const cancelCount = selected.filter((date) => cancelled.has(date)).length
     if (cancelCount === 0) {
       return { scopeTotal: input.bookingTotal, checkInDate: input.checkInDate }

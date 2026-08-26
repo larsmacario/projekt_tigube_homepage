@@ -10,7 +10,7 @@ import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { ArrowLeft, Trash2, Pencil, Check, X } from 'lucide-react'
 import Link from 'next/link'
-import type { Customer, Pet, Document, BookingRequest, ContactNote } from '@/lib/types'
+import type { Customer, Pet, Document, BookingRequest, ContactNote, CustomerEmailChangeRequest } from '@/lib/types'
 import { PropertyEditor } from '@/components/admin/property-editor'
 import { NotesEditor } from '@/components/admin/notes-editor'
 import { PetManager } from '@/components/admin/pet-manager'
@@ -83,6 +83,7 @@ export default function CustomerDetailPage() {
   const [savingContact, setSavingContact] = useState(false)
   const [resendingContractEmail, setResendingContractEmail] = useState(false)
   const [sendingOnboardingInvite, setSendingOnboardingInvite] = useState(false)
+  const [emailChange, setEmailChange] = useState<CustomerEmailChangeRequest | null>(null)
 
   const [groups, setGroups] = useState<any[]>([])
 
@@ -237,6 +238,7 @@ export default function CustomerDetailPage() {
       if (data.customer) {
         setCustomer(data.customer)
         setFormData(customerToFormData(data.customer))
+        setEmailChange(data.emailChange || null)
         if (data.onboardingToken) {
           setOnboardingToken(data.onboardingToken)
         }
@@ -307,8 +309,16 @@ export default function CustomerDetailPage() {
         const data = await response.json()
         setCustomer((prev) => prev ? { ...prev, ...data.customer } : data.customer)
         setFormData(customerToFormData(data.customer))
+        setEmailChange(data.emailChange || null)
         setIsEditing(false)
-        toast({ title: 'Erfolg', description: 'Kontaktdaten gespeichert' })
+        if (data.emailChange && formData.email !== data.customer.email) {
+          toast({
+            title: 'E-Mail-Änderung angefordert',
+            description: 'Der Kunde muss die Änderung im Kundenportal bestätigen.',
+          })
+        } else {
+          toast({ title: 'Erfolg', description: 'Kontaktdaten gespeichert' })
+        }
       } else {
         const error = await response.json()
         toast({ title: 'Fehler', description: error.error || 'Fehler beim Speichern', variant: 'destructive' })
@@ -463,6 +473,11 @@ export default function CustomerDetailPage() {
                   <div>
                     <Label>E-Mail</Label>
                     <Input type="email" value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} />
+                    {customer.user_id && formData.email !== customer.email && (
+                      <p className="mt-1 text-xs text-sage-600">
+                        Bei Portal-Kunden wird die neue Adresse erst nach Bestätigung durch den Kunden aktiv.
+                      </p>
+                    )}
                   </div>
                   <div>
                     <Label>Telefon</Label>
@@ -581,6 +596,14 @@ export default function CustomerDetailPage() {
                   <div>
                     <p className="text-sm text-sage-500">E-Mail</p>
                     <p className="font-medium">{formData.email}</p>
+                    {emailChange && (
+                      <p className="mt-1 text-xs text-amber-700">
+                        Ausstehend: {emailChange.requested_email}
+                        {emailChange.status === 'awaiting_customer_confirmation'
+                          ? ' – wartet auf Bestätigung im Kundenportal.'
+                          : ' – E-Mail-Bestätigung läuft.'}
+                      </p>
+                    )}
                   </div>
                   <div>
                     <p className="text-sm text-sage-500">Telefon</p>

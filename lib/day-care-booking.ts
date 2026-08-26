@@ -1,7 +1,12 @@
 import { format, parseISO } from 'date-fns'
 import { de } from 'date-fns/locale'
-import type { BookingRequest, ServiceType, DayCareMode } from '@/lib/types'
+import type { BookingRequest, ServiceType, DayCareMode, DayCareIntervalWeeks } from '@/lib/types'
 import { iterateIsoDateRange } from '@/lib/booking-availability'
+import {
+  expandRecurringDayCareDates,
+  isDayCareIntervalWeeks,
+  normalizeDayCareIntervalWeeks,
+} from '@/lib/day-care-interval'
 
 export const DAY_CARE_WEEKDAY_OPTIONS: Array<{ iso: number; label: string }> = [
   { iso: 1, label: 'Mo' },
@@ -17,6 +22,14 @@ export function dayCareModeLabel(mode: DayCareMode | null | undefined): string {
   if (mode === 'once') return 'Einmalig'
   if (mode === 'recurring') return 'Feste Wochentage'
   return ''
+}
+
+export function dayCareIntervalLabel(
+  intervalWeeks: number | null | undefined
+): string {
+  return normalizeDayCareIntervalWeeks(intervalWeeks) === 2
+    ? 'alle 14 Tage'
+    : 'wöchentlich'
 }
 
 export function formatWeekdayList(weekdays: number[] | null | undefined): string {
@@ -65,6 +78,7 @@ export function formatDayCareBookingSummary(booking: Pick<
   | 'service_type'
   | 'day_care_mode'
   | 'day_care_weekdays'
+  | 'day_care_interval_weeks'
   | 'selected_dates'
   | 'start_date'
   | 'end_date'
@@ -80,7 +94,8 @@ export function formatDayCareBookingSummary(booking: Pick<
   if (booking.day_care_mode === 'recurring') {
     const days = formatWeekdayList(booking.day_care_weekdays)
     const start = format(parseISO(booking.start_date), 'd. MMMM yyyy', { locale: de })
-    return `Feste Tage: ${days} ab ${start}`
+    const interval = dayCareIntervalLabel(booking.day_care_interval_weeks)
+    return `Feste Tage: ${days} (${interval}) ab ${start}`
   }
 
   return null
@@ -91,6 +106,7 @@ export interface DayCarePetPayload {
   service_type: ServiceType
   day_care_mode?: DayCareMode
   day_care_weekdays?: number[]
+  day_care_interval_weeks?: DayCareIntervalWeeks
   selected_dates?: string[]
   start_date?: string
   end_date?: string | null
@@ -127,6 +143,13 @@ export function validateDayCarePetPayload(
     return { valid: false, error: 'Ungültige Wochentage.' }
   }
 
+  if (
+    line.day_care_interval_weeks != null &&
+    !isDayCareIntervalWeeks(line.day_care_interval_weeks)
+  ) {
+    return { valid: false, error: 'Ungültiger Betreuungsrhythmus.' }
+  }
+
   return { valid: true }
 }
 
@@ -137,14 +160,27 @@ export function isRangeService(serviceType: ServiceType): boolean {
 export function expandBookingOccupiedDates(
   booking: Pick<
     BookingRequest,
-    'start_date' | 'end_date' | 'selected_dates' | 'day_care_mode'
+    | 'start_date'
+    | 'end_date'
+    | 'selected_dates'
+    | 'day_care_mode'
+    | 'day_care_weekdays'
+    | 'day_care_interval_weeks'
+    | 'cancelled_dates'
   >
 ): string[] {
   if (booking.selected_dates?.length) {
-    return sortIsoDates(booking.selected_dates)
+    const cancelled = new Set(booking.cancelled_dates ?? [])
+    return sortIsoDates(booking.selected_dates.filter((d) => !cancelled.has(d)))
   }
-  if (booking.day_care_mode === 'recurring' && booking.end_date === null) {
-    return [booking.start_date]
+  if (booking.day_care_mode === 'recurring') {
+    const cancelled = new Set(booking.cancelled_dates ?? [])
+    return expandRecurringDayCareDates(
+      booking.start_date,
+      booking.end_date,
+      booking.day_care_weekdays,
+      booking.day_care_interval_weeks
+    ).filter((d) => !cancelled.has(d))
   }
   if (!booking.end_date) {
     return [booking.start_date]

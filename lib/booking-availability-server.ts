@@ -63,7 +63,7 @@ export async function loadAvailabilityContextForRange(
     adminClient
       .from('bookings')
       .select(
-        'id, service_type, start_date, end_date, day_care_mode, selected_dates, day_care_weekdays'
+        'id, service_type, start_date, end_date, day_care_mode, selected_dates, day_care_weekdays, day_care_interval_weeks, cancelled_dates'
       )
       .eq('status', 'approved')
       .lte('start_date', endDate)

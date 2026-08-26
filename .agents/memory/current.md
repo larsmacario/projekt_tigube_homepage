@@ -1,21 +1,18 @@
 # Aktueller Stand
 
 ## Letzte Änderungen
-- Button Klick-Feedback & Loading-States: Zentrale Button-Komponente um taktiles Feedback (`active:scale-[0.98]`) und `loading`-Prop mit rotierendem Spinner erweitert.
-- Admin- & Kundenportal: Alle asynchronen Aktionen (Lead zum Kunden konvertieren, Leads/Kunden löschen, Notizen speichern, Onboarding-Einladungen senden, Preise/CMS speichern, Tier anlegen/löschen, Dokumentenupload, Buchungen absenden, Signatur übermitteln) mit Lade-Zuständen und Spinnern ausgestattet.
-- CMS Stornierungsbedingungen: Button „Abschnitt hinzufügen“ funktioniert wieder in Hundepension, Katzenbetreuung und Kundenportal.
-- Ursache: `normalizeCancellationSections` hat leere Editor-Platzhalter beim Re-Render entfernt; Fix via `getCancellationSectionsForEditor` in `lib/cms/cancellation-policy.ts`.
-- `mergeKundenportalData` re-normalisiert vorhandene `cancellationSections` nicht mehr; Regressionstests in `lib/cms/cancellation-policy.test.ts`.
+- Springer-Liste, 14-Tage-Rhythmus und Urlaubs-Teilstornos umgesetzt.
+- `day_care_interval_weeks` (1|2) inkl. Kalender-/Kapazitätslogik über 12 Monate; Migration `20260826092036_springer_list_and_daycare_interval.sql`.
+- Portal: Interval-Auswahl, Springer-Seite, Urlaub/Platz freigeben für Regeltermine.
+- Admin: Buchungen-Tab Springer, Dashboard-Link; Teilstorno-Events mit Preis-Snapshot.
 
 ## Fokus
-- CMS Storno-Abschnitte manuell testen (`/admin/cms` → Abschnitt hinzufügen, speichern, neu laden).
-- SevDesk-Kundenimport und Rechnungsentwürfe weiter testen (Tag `aktiv`, Artikel-IDs in Preisverwaltung).
+- Migration remote anwenden und End-to-End testen (Rhythmus, Teilstorno, Springer-Einladung/Annahme).
 
 ## Nächste Schritte
-- Optional: separater SevDesk-Entwurfsprozess für Storno-Gebühren/Gutschriften (`cancellation_financial_status`).
-- Buchungs-Wizard: Medikamenten-Warnung bei Extra ohne Plan.
+- Manuell: Regeltermin 14-Tage anlegen, genehmigen (12-Monats-Kapazität), Urlaubstage freigeben, Springer einladen und annehmen.
+- Optional: SevDesk-Storno-Abrechnung für Teilstornos.
 
 ## Offene Punkte
-- Storno-Abrechnung bewusst noch nicht im regulären Rechnungs-Sync (nur manuell markiert).
+- Storno-Abrechnung bewusst noch nicht im regulären Rechnungs-Sync.
 - Rechnungsentwürfe erfordern gepflegte `booking_line_items` und SevDesk-Kundenverknüpfung.
-- Bei HTTP 431 in Dev: localhost-Cookies löschen und neu einloggen.

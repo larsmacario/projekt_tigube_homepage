@@ -18,8 +18,17 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog'
 import { authenticatedFetch } from '@/lib/authenticated-fetch'
+import { readApiResponse } from '@/lib/read-api-response'
 import { Label } from '@/components/ui/label'
-import { UserPlus, Loader2, Mail } from 'lucide-react'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
+import type { SevdeskCustomerImportSummary } from '@/lib/types'
+import Link from 'next/link'
+import { UserPlus, Loader2, Mail, RefreshCw } from 'lucide-react'
 import { Checkbox } from '@/components/ui/checkbox'
 
 export default function CustomersPage() {
@@ -39,10 +48,58 @@ export default function CustomersPage() {
   const [isBulkInviteOpen, setIsBulkInviteOpen] = useState(false)
   const [selectedCustomerIds, setSelectedCustomerIds] = useState<string[]>([])
   const [isSendingBulkInvites, setIsSendingBulkInvites] = useState(false)
+  const [sevdeskConnected, setSevdeskConnected] = useState(false)
+  const [importingFromSevdesk, setImportingFromSevdesk] = useState(false)
 
   useEffect(() => {
-    loadData()
+    void loadData()
+    void loadSevdeskStatus()
   }, [])
+
+  async function loadSevdeskStatus() {
+    try {
+      const response = await authenticatedFetch('/api/admin/integrations/sevdesk')
+      const { data, error } = await readApiResponse<{ settings?: { is_connected?: boolean } }>(response)
+      if (error) return
+      setSevdeskConnected(Boolean(data?.settings?.is_connected))
+    } catch {
+      setSevdeskConnected(false)
+    }
+  }
+
+  async function handleImportFromSevdesk() {
+    setImportingFromSevdesk(true)
+    try {
+      const response = await authenticatedFetch('/api/admin/integrations/sevdesk/import-customers', {
+        method: 'POST',
+      })
+      const { data, error } = await readApiResponse<{ summary?: SevdeskCustomerImportSummary }>(response)
+      if (error) throw new Error(error)
+
+      const summary = data?.summary
+      const failureHint =
+        summary?.failed && summary.failures?.[0]?.reason
+          ? ` ${summary.failures[0].reason}`
+          : ''
+
+      toast({
+        title: 'SevDesk-Import abgeschlossen',
+        description: summary
+          ? `${summary.created} neu · ${summary.updated} aktualisiert · ${summary.skipped} übersprungen · ${summary.failed} Fehler.${failureHint}`
+          : 'Import abgeschlossen.',
+      })
+
+      await loadData()
+    } catch (error) {
+      toast({
+        title: 'Fehler',
+        description: error instanceof Error ? error.message : 'SevDesk-Import fehlgeschlagen',
+        variant: 'destructive',
+      })
+    } finally {
+      setImportingFromSevdesk(false)
+    }
+  }
 
   async function loadData() {
     setLoading(true)
@@ -269,6 +326,38 @@ export default function CustomersPage() {
             className="w-full"
           />
           <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:justify-end">
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="inline-flex w-full sm:w-auto">
+                  <Button
+                    variant="outline"
+                    className="w-full sm:w-auto whitespace-normal sm:whitespace-nowrap"
+                    disabled={!sevdeskConnected || importingFromSevdesk}
+                    onClick={() => void handleImportFromSevdesk()}
+                  >
+                    {importingFromSevdesk ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <RefreshCw className="mr-2 h-4 w-4" />
+                    )}
+                    Aus SevDesk aktualisieren
+                  </Button>
+                </span>
+              </TooltipTrigger>
+              {!sevdeskConnected && (
+                <TooltipContent>
+                  <p>
+                    Zuerst SevDesk in den{' '}
+                    <Link href="/admin/einstellungen" className="underline">
+                      Einstellungen
+                    </Link>{' '}
+                    verbinden.
+                  </p>
+                </TooltipContent>
+              )}
+            </Tooltip>
+          </TooltipProvider>
           <Button
             variant="outline"
             className="w-full sm:w-auto whitespace-normal sm:whitespace-nowrap"

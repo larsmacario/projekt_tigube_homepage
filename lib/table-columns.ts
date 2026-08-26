@@ -345,7 +345,7 @@ export function getCustomerColumns(
       filterable: true,
       width: 180,
       optionsMap: groupOptionsMap,
-      clearOptionLabel: 'Keine Gruppe',
+      clearOptionLabel: 'Standard-Preisliste',
     },
     {
       id: 'vorname',

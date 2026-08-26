@@ -452,10 +452,10 @@ export default function CustomerDetailPage() {
                     <Label>Kundengruppe</Label>
                     <Select value={customer.customer_group_id || 'none'} onValueChange={handleGroupChange}>
                       <SelectTrigger className="mt-1 h-9 bg-white">
-                        <SelectValue placeholder="Keine Gruppe" />
+                        <SelectValue placeholder="Standard-Preisliste" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="none">Keine Gruppe</SelectItem>
+                        <SelectItem value="none">Standard-Preisliste</SelectItem>
                         {groups.map((group) => (
                           <SelectItem key={group.id} value={group.id}>{group.name}</SelectItem>
                         ))}
@@ -575,10 +575,10 @@ export default function CustomerDetailPage() {
                     <p className="text-sm text-sage-500">Kundengruppe</p>
                     <Select value={customer.customer_group_id || 'none'} onValueChange={handleGroupChange}>
                       <SelectTrigger className="mt-1 h-9 bg-white">
-                        <SelectValue placeholder="Keine Gruppe" />
+                        <SelectValue placeholder="Standard-Preisliste" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="none">Keine Gruppe</SelectItem>
+                        <SelectItem value="none">Standard-Preisliste</SelectItem>
                         {groups.map((group) => (
                           <SelectItem key={group.id} value={group.id}>{group.name}</SelectItem>
                         ))}

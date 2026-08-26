@@ -148,6 +148,113 @@ const CMS_SECTION_LABELS: Record<string, string> = {
   agb: 'AGB',
 }
 
+function StringList({
+  label,
+  list,
+  onChange,
+}: {
+  label: string
+  list: string[]
+  onChange: (val: string[]) => void
+}) {
+  const items = list || []
+  return (
+    <div className="space-y-2">
+      <Label>{label}</Label>
+      {items.map((item, idx) => (
+        <div key={idx} className="flex gap-2 items-center">
+          <Input
+            value={item}
+            onChange={(e) => {
+              const next = [...items]
+              next[idx] = e.target.value
+              onChange(next)
+            }}
+          />
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => {
+              onChange(items.filter((_, i) => i !== idx))
+            }}
+            className="text-red-500 hover:text-red-700"
+          >
+            <Trash2 className="h-4 w-4" />
+          </Button>
+        </div>
+      ))}
+      <Button variant="outline" size="sm" onClick={() => onChange([...items, ''])}>
+        <Plus className="h-4 w-4 mr-1" /> Eintrag hinzufügen
+      </Button>
+    </div>
+  )
+}
+
+function StructuredList({
+  label,
+  list,
+  fields,
+  onChange,
+  defaultObj,
+}: {
+  label: string
+  list: Record<string, string>[]
+  fields: { key: string; label: string; type?: 'text' | 'textarea' }[]
+  onChange: (val: Record<string, string>[]) => void
+  defaultObj: Record<string, string>
+}) {
+  const items = list || []
+  return (
+    <div className="space-y-4">
+      <Label className="text-lg font-bold">{label}</Label>
+      {items.map((item, idx) => (
+        <div
+          key={idx}
+          className="border border-sage-200 p-4 rounded-lg relative space-y-3 bg-sage-50/50"
+        >
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => {
+              onChange(items.filter((_, i) => i !== idx))
+            }}
+            className="absolute top-2 right-2 text-red-500 hover:text-red-700"
+          >
+            <Trash2 className="h-4 w-4" />
+          </Button>
+          {fields.map((f) => (
+            <div key={f.key} className="space-y-1">
+              <Label>{f.label}</Label>
+              {f.type === 'textarea' ? (
+                <Textarea
+                  value={item[f.key] || ''}
+                  onChange={(e) => {
+                    const next = [...items]
+                    next[idx] = { ...next[idx], [f.key]: e.target.value }
+                    onChange(next)
+                  }}
+                />
+              ) : (
+                <Input
+                  value={item[f.key] || ''}
+                  onChange={(e) => {
+                    const next = [...items]
+                    next[idx] = { ...next[idx], [f.key]: e.target.value }
+                    onChange(next)
+                  }}
+                />
+              )}
+            </div>
+          ))}
+        </div>
+      ))}
+      <Button variant="outline" size="sm" onClick={() => onChange([...items, { ...defaultObj }])}>
+        <Plus className="h-4 w-4 mr-1" /> {label} hinzufügen
+      </Button>
+    </div>
+  )
+}
+
 export default function CMSPage() {
   const { toast } = useToast()
   const [loading, setLoading] = useState(true)
@@ -290,84 +397,6 @@ export default function CMSPage() {
         variant: 'destructive',
       })
     }
-  }
-
-  // Reusable sub-editor components
-  const StringList = ({ label, list, onChange }: { label: string; list: string[]; onChange: (val: string[]) => void }) => {
-    const items = list || []
-    return (
-      <div className="space-y-2">
-        <Label>{label}</Label>
-        {items.map((item, idx) => (
-          <div key={idx} className="flex gap-2 items-center">
-            <Input value={item} onChange={(e) => {
-              const next = [...items]
-              next[idx] = e.target.value
-              onChange(next)
-            }} />
-            <Button variant="ghost" size="icon" onClick={() => {
-              onChange(items.filter((_, i) => i !== idx))
-            }} className="text-red-500 hover:text-red-700">
-              <Trash2 className="h-4 w-4" />
-            </Button>
-          </div>
-        ))}
-        <Button variant="outline" size="sm" onClick={() => onChange([...items, ''])}>
-          <Plus className="h-4 w-4 mr-1" /> Eintrag hinzufügen
-        </Button>
-      </div>
-    )
-  }
-
-  const StructuredList = ({
-    label,
-    list,
-    fields,
-    onChange,
-    defaultObj
-  }: {
-    label: string
-    list: any[]
-    fields: { key: string; label: string; type?: 'text' | 'textarea' }[]
-    onChange: (val: any[]) => void
-    defaultObj: any
-  }) => {
-    const items = list || []
-    return (
-      <div className="space-y-4">
-        <Label className="text-lg font-bold">{label}</Label>
-        {items.map((item, idx) => (
-          <div key={idx} className="border border-sage-200 p-4 rounded-lg relative space-y-3 bg-sage-50/50">
-            <Button variant="ghost" size="icon" onClick={() => {
-              onChange(items.filter((_, i) => i !== idx))
-            }} className="absolute top-2 right-2 text-red-500 hover:text-red-700">
-              <Trash2 className="h-4 w-4" />
-            </Button>
-            {fields.map((f) => (
-              <div key={f.key} className="space-y-1">
-                <Label>{f.label}</Label>
-                {f.type === 'textarea' ? (
-                  <Textarea value={item[f.key] || ''} onChange={(e) => {
-                    const next = [...items]
-                    next[idx] = { ...next[idx], [f.key]: e.target.value }
-                    onChange(next)
-                  }} />
-                ) : (
-                  <Input value={item[f.key] || ''} onChange={(e) => {
-                    const next = [...items]
-                    next[idx] = { ...next[idx], [f.key]: e.target.value }
-                    onChange(next)
-                  }} />
-                )}
-              </div>
-            ))}
-          </div>
-        ))}
-        <Button variant="outline" size="sm" onClick={() => onChange([...items, defaultObj])}>
-          <Plus className="h-4 w-4 mr-1" /> {label} hinzufügen
-        </Button>
-      </div>
-    )
   }
 
   if (loading) {

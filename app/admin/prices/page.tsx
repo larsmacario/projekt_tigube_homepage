@@ -63,6 +63,25 @@ interface CustomerGroup {
   updated_at: string
 }
 
+function formatPriceInputValue(price: number | null): string {
+  return price != null ? String(price) : ''
+}
+
+function parseCommittedPriceInput(raw: string): number | null {
+  const trimmed = raw.trim().replace(',', '.')
+  if (trimmed === '' || trimmed === '-' || trimmed === '.') return null
+  const parsed = parseFloat(trimmed)
+  return Number.isNaN(parsed) ? null : parsed
+}
+
+function parseLivePriceInput(raw: string): number | null | undefined {
+  const trimmed = raw.trim().replace(',', '.')
+  if (trimmed === '' || trimmed === '-') return null
+  if (trimmed.endsWith('.')) return undefined
+  const parsed = parseFloat(trimmed)
+  return Number.isNaN(parsed) ? undefined : parsed
+}
+
 export default function PricesPage() {
   const [prices, setPrices] = useState<Price[]>([])
   const [categories, setCategories] = useState<PriceCategory[]>([])
@@ -103,6 +122,7 @@ export default function PricesPage() {
   const [newPriceNote, setNewPriceNote] = useState('')
   const [newPriceUsage, setNewPriceUsage] = useState<'base' | 'extra' | 'surcharge' | 'info'>('extra')
   const [newPriceSortOrder, setNewPriceSortOrder] = useState<number>(0)
+  const [priceInputDrafts, setPriceInputDrafts] = useState<Record<string, string>>({})
 
   const { toast } = useToast()
 
@@ -138,6 +158,7 @@ export default function PricesPage() {
 
       setPrices(pricesData.prices || [])
       setCategories(pricesData.categories || [])
+      setPriceInputDrafts({})
       
       const groupsData = await groupsRes.json()
       const loadedGroups = groupsData.groups || []
@@ -190,13 +211,21 @@ export default function PricesPage() {
   async function handleSaveDefaultPrices() {
     setSaving(true)
     try {
+      const pricesToSave = prices.map((price) => {
+        const draft = priceInputDrafts[price.id]
+        if (draft === undefined) return price
+        return { ...price, price: parseCommittedPriceInput(draft) }
+      })
+
       const response = await authenticatedFetch('/api/admin/prices', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prices }),
+        body: JSON.stringify({ prices: pricesToSave }),
       })
 
       if (response.ok) {
+        setPrices(pricesToSave)
+        setPriceInputDrafts({})
         toast({
           title: 'Erfolg',
           description: 'Preise erfolgreich gespeichert!',
@@ -542,9 +571,35 @@ export default function PricesPage() {
   }
 
   function updatePrice(id: string, field: keyof Price, value: any) {
-    setPrices(prices.map(price => 
-      price.id === id ? { ...price, [field]: value } : price
-    ))
+    setPrices((prev) =>
+      prev.map((price) => (price.id === id ? { ...price, [field]: value } : price))
+    )
+  }
+
+  function getPriceInputValue(price: Price): string {
+    if (priceInputDrafts[price.id] !== undefined) {
+      return priceInputDrafts[price.id]
+    }
+    return formatPriceInputValue(price.price)
+  }
+
+  function handlePriceInputChange(priceId: string, raw: string) {
+    setPriceInputDrafts((prev) => ({ ...prev, [priceId]: raw }))
+    const parsed = parseLivePriceInput(raw)
+    if (parsed !== undefined) {
+      updatePrice(priceId, 'price', parsed)
+    }
+  }
+
+  function commitPriceInput(priceId: string) {
+    const draft = priceInputDrafts[priceId]
+    if (draft === undefined) return
+    updatePrice(priceId, 'price', parseCommittedPriceInput(draft))
+    setPriceInputDrafts((prev) => {
+      const next = { ...prev }
+      delete next[priceId]
+      return next
+    })
   }
 
   function updateCategoryState(id: string, field: keyof PriceCategory, value: any) {
@@ -870,16 +925,13 @@ export default function PricesPage() {
                                   <Label htmlFor={`price-${price.id}`}>Preis</Label>
                                   <Input
                                     id={`price-${price.id}`}
-                                    type="number"
-                                    step="0.01"
-                                    value={price.price || ''}
+                                    type="text"
+                                    inputMode="decimal"
+                                    value={getPriceInputValue(price)}
                                     onChange={(e) =>
-                                      updatePrice(
-                                        price.id,
-                                        'price',
-                                        e.target.value ? parseFloat(e.target.value) : null
-                                      )
+                                      handlePriceInputChange(price.id, e.target.value)
                                     }
+                                    onBlur={() => commitPriceInput(price.id)}
                                     className="bg-white"
                                   />
                                 </div>

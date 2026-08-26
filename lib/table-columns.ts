@@ -12,6 +12,8 @@ export interface TableColumn {
   propertyDefinitionId?: string
   options?: string[]
   optionsMap?: Record<string, string>
+  /** Option zum Entfernen des Werts (z. B. Kundengruppe aufheben) */
+  clearOptionLabel?: string
   readOnly?: boolean
 }
 
@@ -343,6 +345,7 @@ export function getCustomerColumns(
       filterable: true,
       width: 180,
       optionsMap: groupOptionsMap,
+      clearOptionLabel: 'Keine Gruppe',
     },
     {
       id: 'vorname',

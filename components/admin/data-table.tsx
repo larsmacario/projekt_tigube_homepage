@@ -284,19 +284,25 @@ export function DataTable({
             </PopoverContent>
           </Popover>
         )
-      case 'select':
+      case 'select': {
+        const clearValue = '__none__'
+        const selectValue = value || (column.clearOptionLabel ? clearValue : '')
         return (
           <Select
-            value={value || ''}
+            value={selectValue}
             onValueChange={(val) => {
-              setValue(val)
-              setTimeout(() => onSave(val), 100)
+              const nextValue = column.clearOptionLabel && val === clearValue ? null : val
+              setValue(nextValue)
+              setTimeout(() => onSave(nextValue), 100)
             }}
           >
             <SelectTrigger className="h-8">
               <SelectValue placeholder="Wählen" />
             </SelectTrigger>
             <SelectContent>
+              {column.clearOptionLabel && (
+                <SelectItem value={clearValue}>{column.clearOptionLabel}</SelectItem>
+              )}
               {column.optionsMap ? (
                 Object.entries(column.optionsMap).map(([optVal, optLabel]) => (
                   <SelectItem key={optVal} value={optVal}>
@@ -313,6 +319,7 @@ export function DataTable({
             </SelectContent>
           </Select>
         )
+      }
       case 'checkbox':
         return (
           <Checkbox

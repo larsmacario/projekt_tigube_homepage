@@ -12,7 +12,8 @@ export async function GET(request: NextRequest) {
 
   try {
     const db = getAdminDbClient()
-    const candidates = await listInvoiceSyncCandidates(db)
+    const month = request.nextUrl.searchParams.get('month')
+    const candidates = await listInvoiceSyncCandidates(db, { month })
     const ready = candidates.filter((candidate) => candidate.blockers.length === 0)
 
     return NextResponse.json({

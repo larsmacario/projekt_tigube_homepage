@@ -46,6 +46,7 @@ import {
   iterateIsoDateRange,
 } from '@/lib/booking-availability'
 import { formatEuro } from '@/lib/price-override'
+import { VatPriceDisplay } from '@/components/vat-price-display'
 import { cn } from '@/lib/utils'
 import { formatDateRangeDE } from '@/lib/format-date-range-de'
 import {
@@ -884,8 +885,8 @@ export function PortalBookingWizard({
     }
   }
 
-  function formatAddonAmount(service: AddonService): string {
-    return formatEuro(Number(service.amount))
+  function formatAddonAmount(service: AddonService) {
+    return <VatPriceDisplay net={Number(service.amount)} />
   }
 
   return (
@@ -1285,9 +1286,9 @@ export function PortalBookingWizard({
                       {service.description && (
                         <p className="text-sm text-sage-600">{service.description}</p>
                       )}
-                      <p className="text-sm font-semibold text-sage-800">
+                      <div className="text-sm">
                         {formatAddonAmount(service)}
-                      </p>
+                      </div>
                     </div>
                   </li>
                 )

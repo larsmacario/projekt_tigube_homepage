@@ -34,7 +34,7 @@ import { PetCarePlanSummary } from '@/components/portal/pet-care-plan-summary'
 import { buildPetSaveBody, carePlanFromPet } from '@/lib/pet-care-plan-form-state'
 import type { PetCarePlan } from '@/lib/pet-care-plan'
 import { readApiResponse } from '@/lib/read-api-response'
-import { uploadPortalDocument } from '@/lib/portal-document-upload'
+import { uploadPortalDocuments } from '@/lib/portal-document-upload'
 import {
   formatCustomerAddress,
   isCustomerProfileComplete,
@@ -132,7 +132,7 @@ function ProfileContent() {
   const [showPetForm, setShowPetForm] = useState(false)
   const [editingPetId, setEditingPetId] = useState<string | null>(null)
   const [uploadingDocuments, setUploadingDocuments] = useState(false)
-  const [wurmtestFile, setWurmtestFile] = useState<File | null>(null)
+  const [wurmtestFiles, setWurmtestFiles] = useState<File[]>([])
   const [formPhotoCount, setFormPhotoCount] = useState(0)
   const [formImpfpassCount, setFormImpfpassCount] = useState(0)
   const petPhotoGalleryRef = useRef<PetPhotoGalleryHandle>(null)
@@ -699,7 +699,7 @@ function ProfileContent() {
         documents,
         editingPetId,
         impfpassCount: formImpfpassCount,
-        wurmtestFile,
+        wurmtestFiles,
         photoCount: formPhotoCount,
       })
     )
@@ -747,18 +747,21 @@ function ProfileContent() {
       if (savedPetId) {
         const uploadPromises: Promise<void>[] = []
 
-        if (wurmtestFile) {
+        if (wurmtestFiles.length > 0) {
           uploadPromises.push(
-            uploadPortalDocument({
-              file: wurmtestFile,
+            uploadPortalDocuments({
+              files: wurmtestFiles,
               documentType: 'wurmtest',
               petId: savedPetId,
               description: 'Wurmtest-Befund',
-            }).then(({ error }) => {
-              if (error) {
+            }).then(({ documents: uploaded, errors }) => {
+              if (errors.length > 0) {
                 toast({
                   title: 'Warnung',
-                  description: error || 'Wurmtest konnte nicht hochgeladen werden',
+                  description:
+                    errors.length === wurmtestFiles.length
+                      ? errors[0]
+                      : `${uploaded.length} von ${wurmtestFiles.length} Wurmtest-Dateien hochgeladen.`,
                   variant: 'destructive',
                 })
               }
@@ -812,7 +815,7 @@ function ProfileContent() {
         naechste_stuhlprobe: '',
         deceased_at: '',
       })
-      setWurmtestFile(null)
+      setWurmtestFiles([])
       setShowPetForm(false)
       setEditingPetId(null)
       setFormPhotoCount(0)
@@ -888,7 +891,7 @@ function ProfileContent() {
       setCarePlan(carePlanFromPet())
     }
     // Dateien zurücksetzen beim Öffnen des Formulars
-    setWurmtestFile(null)
+    setWurmtestFiles([])
     setFormPhotoCount(pet?.photo_count ?? 0)
     setFormImpfpassCount(0)
     setPhotoGalleryKey(pet?.id ?? crypto.randomUUID())
@@ -1564,17 +1567,41 @@ function ProfileContent() {
                           <Input
                             id="pet-wurmtest"
                             type="file"
+                            multiple
                             accept="image/*,application/pdf"
                             className="h-9 text-sm"
                             onChange={(e) => {
-                              const file = e.target.files?.[0]
-                              setWurmtestFile(file || null)
+                              const files = Array.from(e.target.files ?? [])
+                              if (files.length > 0) {
+                                setWurmtestFiles((current) => [...current, ...files])
+                              }
+                              e.target.value = ''
                             }}
                           />
-                          {wurmtestFile && (
-                            <p className="text-sm text-sage-600 mt-1">
-                              Ausgewählt: {wurmtestFile.name}
-                            </p>
+                          {wurmtestFiles.length > 0 && (
+                            <ul className="mt-2 space-y-1">
+                              {wurmtestFiles.map((file, index) => (
+                                <li
+                                  key={`${file.name}-${file.size}-${index}`}
+                                  className="flex items-center justify-between gap-2 text-sm text-sage-600"
+                                >
+                                  <span className="truncate">{file.name}</span>
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-7 shrink-0 px-2 text-sage-600"
+                                    onClick={() =>
+                                      setWurmtestFiles((current) =>
+                                        current.filter((_, i) => i !== index)
+                                      )
+                                    }
+                                  >
+                                    Entfernen
+                                  </Button>
+                                </li>
+                              ))}
+                            </ul>
                           )}
                         </div>
                         <PetDewormingDateField
@@ -1630,7 +1657,7 @@ function ProfileContent() {
                           naechste_stuhlprobe: '',
                           deceased_at: '',
                         })
-                        setWurmtestFile(null)
+                        setWurmtestFiles([])
                         setFormPhotoCount(0)
                         setFormImpfpassCount(0)
                       }}

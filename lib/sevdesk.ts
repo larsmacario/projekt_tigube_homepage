@@ -3,10 +3,12 @@ import type {
   SevdeskContact,
   SevdeskContactDetail,
   SevdeskInvoiceDraftResult,
+  SevdeskInvoicePosition,
   SevdeskPart,
   SevdeskSettings,
   SevdeskTag,
 } from '@/lib/types'
+import { buildSevdeskPartUsageCounts } from '@/lib/sevdesk-part-usage'
 
 const SEVDESK_API_BASE = 'https://my.sevdesk.de/api/v1'
 const DEFAULT_PAGE_SIZE = 100
@@ -190,6 +192,17 @@ function mapSevdeskPart(raw: Record<string, unknown>): SevdeskPart {
   }
 }
 
+function mapSevdeskInvoicePosition(raw: Record<string, unknown>): SevdeskInvoicePosition {
+  const partRaw = raw.part as Record<string, unknown> | undefined
+  const partId =
+    partRaw?.id != null && String(partRaw.id).length > 0 ? String(partRaw.id) : null
+
+  return {
+    id: String(raw.id ?? ''),
+    partId,
+  }
+}
+
 function mapSevdeskTag(raw: Record<string, unknown>): SevdeskTag {
   return {
     id: String(raw.id ?? ''),
@@ -245,6 +258,78 @@ export async function listSevdeskParts(limit = 50): Promise<SevdeskPart[]> {
     `/Part?limit=${limit}`
   )
   return (data.objects ?? []).map(mapSevdeskPart)
+}
+
+export async function listAllSevdeskParts(): Promise<SevdeskPart[]> {
+  return fetchAllPages(
+    (offset, limit) => `/Part?limit=${limit}&offset=${offset}`,
+    mapSevdeskPart
+  )
+}
+
+export async function listAllSevdeskInvoicePositions(): Promise<SevdeskInvoicePosition[]> {
+  return fetchAllPages(
+    (offset, limit) => `/InvoicePos?limit=${limit}&offset=${offset}`,
+    mapSevdeskInvoicePosition
+  )
+}
+
+export async function fetchSevdeskPartUsageCounts(): Promise<Map<string, number>> {
+  const positions = await listAllSevdeskInvoicePositions()
+  return buildSevdeskPartUsageCounts(positions)
+}
+
+export async function findSevdeskPartByName(name: string): Promise<SevdeskPart | null> {
+  const normalized = name.trim().toLowerCase()
+  if (!normalized) return null
+
+  const parts = await listAllSevdeskParts()
+  return parts.find((part) => (part.name ?? '').trim().toLowerCase() === normalized) ?? null
+}
+
+export interface CreateSevdeskPartInput {
+  name: string
+  partNumber: string
+  price: number
+  text?: string | null
+}
+
+export async function createSevdeskPart(
+  input: CreateSevdeskPartInput
+): Promise<{ partId: string; partNumber: string }> {
+  const payload = {
+    name: input.name.trim(),
+    partNumber: input.partNumber.trim(),
+    price: input.price,
+    taxRate: DEFAULT_TAX_RATE,
+    stock: 0,
+    stockEnabled: false,
+    status: '100',
+    text: input.text?.trim() || undefined,
+    unity: {
+      id: '1',
+      objectName: 'Unity',
+    },
+  }
+
+  const created = await sevdeskRequest<SevdeskApiEnvelope<Record<string, unknown>>>('/Part', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+
+  const partRaw = (created.objects ?? [])[0] ?? created.object
+  if (!partRaw?.id) {
+    throw new Error('SevDesk-Artikel konnte nicht angelegt werden')
+  }
+
+  return {
+    partId: String(partRaw.id),
+    partNumber:
+      typeof partRaw.partNumber === 'string'
+        ? partRaw.partNumber
+        : input.partNumber.trim(),
+  }
 }
 
 export async function findSevdeskTagByName(name: string): Promise<SevdeskTag | null> {
@@ -534,5 +619,21 @@ export async function updateSevdeskCustomerImportSummary(summary: Record<string,
 
   if (error) {
     throw new Error(error.message || 'Import-Zusammenfassung konnte nicht gespeichert werden')
+  }
+}
+
+export async function updateSevdeskArticleImportSummary(summary: Record<string, unknown>): Promise<void> {
+  const db = getAdminDbClient()
+  const { error } = await db
+    .from('sevdesk_settings')
+    .update({
+      last_article_import_at: new Date().toISOString(),
+      last_article_import_summary: summary,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', 'sevdesk')
+
+  if (error) {
+    throw new Error(error.message || 'Artikel-Import-Zusammenfassung konnte nicht gespeichert werden')
   }
 }

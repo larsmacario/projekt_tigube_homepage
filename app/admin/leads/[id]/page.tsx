@@ -18,6 +18,7 @@ import { TransactionalEmailPanel } from '@/components/admin/transactional-email-
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { authenticatedFetch } from '@/lib/authenticated-fetch'
+import { AdjacentRecordNavControls } from '@/components/admin/adjacent-record-nav-controls'
 
 type LeadFormData = {
   vorname: string
@@ -382,13 +383,18 @@ export default function LeadDetailPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-4">
+      <div className="flex flex-wrap items-center gap-4">
         <Link href="/admin/leads">
           <Button variant="outline" size="sm">
             <ArrowLeft className="h-4 w-4 mr-2" />
             Zurück
           </Button>
         </Link>
+        <AdjacentRecordNavControls
+          entityType="lead"
+          currentId={leadId}
+          label="Lead"
+        />
         <div>
           <h1 className="text-3xl font-bold text-sage-900">
             Lead: {lead.vorname} {lead.nachname}

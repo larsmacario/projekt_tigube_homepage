@@ -28,7 +28,9 @@ import {
   type AdminLineDiscountType,
 } from '@/lib/admin-booking-line-pricing'
 import { formatEuro } from '@/lib/price-override'
-import type { BookingLineItem, ServiceType } from '@/lib/types'
+import { formatNetGrossInline } from '@/lib/vat-amount'
+import { VatPriceDisplay } from '@/components/vat-price-display'
+import type { AddonService, BookingLineItem, ServiceType } from '@/lib/types'
 
 interface BookingLineItemsPanelProps {
   bookingId: string
@@ -56,9 +58,12 @@ export function BookingLineItemsPanel({ bookingId }: BookingLineItemsPanelProps)
   const [lineItems, setLineItems] = useState<BookingLineItem[]>([])
   const [extraCategories, setExtraCategories] = useState<BookingExtraCategory[]>([])
   const [extraPrices, setExtraPrices] = useState<BookingExtraPrice[]>([])
+  const [addonServices, setAddonServices] = useState<AddonService[]>([])
   const [selectedSiblingId, setSelectedSiblingId] = useState('')
   const [selectedPriceId, setSelectedPriceId] = useState('')
+  const [selectedAddonId, setSelectedAddonId] = useState('')
   const [extraQuantity, setExtraQuantity] = useState('1')
+  const [addonQuantity, setAddonQuantity] = useState('1')
   const [extraUnitPrice, setExtraUnitPrice] = useState('')
   const [extraDiscountType, setExtraDiscountType] = useState<AdminLineDiscountType>('none')
   const [extraDiscountValue, setExtraDiscountValue] = useState('')
@@ -70,6 +75,7 @@ export function BookingLineItemsPanel({ bookingId }: BookingLineItemsPanelProps)
   const [saving, setSaving] = useState(false)
 
   const selectedCatalogPrice = extraPrices.find((p) => p.id === selectedPriceId)
+  const selectedAddonService = addonServices.find((service) => service.id === selectedAddonId)
 
   const selectedSibling = siblings.find((s) => s.id === selectedSiblingId) ?? siblings[0]
 
@@ -84,6 +90,14 @@ export function BookingLineItemsPanel({ bookingId }: BookingLineItemsPanelProps)
       (item) => item.price_id === selectedPriceId && item.booking_id === selectedSibling.id
     )
   }, [lineItems, selectedPriceId, selectedSibling])
+
+  const duplicateAddonEntry = useMemo(() => {
+    if (!selectedAddonId || !selectedSibling) return false
+    return lineItems.some(
+      (item) =>
+        item.addon_service_id === selectedAddonId && item.booking_id === selectedSibling.id
+    )
+  }, [lineItems, selectedAddonId, selectedSibling])
 
   async function loadLineItems() {
     setLoading(true)
@@ -111,6 +125,7 @@ export function BookingLineItemsPanel({ bookingId }: BookingLineItemsPanelProps)
         | undefined
       setExtraCategories(catalog?.categories || [])
       setExtraPrices(catalog?.prices || [])
+      setAddonServices((data.addon_catalog as AddonService[]) || [])
       if (loadedSiblings.length > 0) {
         setSelectedSiblingId((prev) =>
           prev && loadedSiblings.some((s) => s.id === prev) ? prev : loadedSiblings[0].id
@@ -134,6 +149,7 @@ export function BookingLineItemsPanel({ bookingId }: BookingLineItemsPanelProps)
 
   useEffect(() => {
     setSelectedPriceId('')
+    setSelectedAddonId('')
   }, [selectedSiblingId])
 
   useEffect(() => {
@@ -267,6 +283,71 @@ export function BookingLineItemsPanel({ bookingId }: BookingLineItemsPanelProps)
       setExtraUnitPrice('')
       setExtraDiscountType('none')
       setExtraDiscountValue('')
+      toast({ title: 'Gespeichert', description: 'Zusatzleistung hinzugefügt' })
+    } catch (error) {
+      toast({
+        title: 'Fehler',
+        description: error instanceof Error ? error.message : 'Speichern fehlgeschlagen',
+        variant: 'destructive',
+      })
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function addCatalogAddon() {
+    if (!selectedSibling || !selectedAddonId) {
+      toast({
+        title: 'Fehler',
+        description: 'Bitte Tier und Zusatzleistung wählen',
+        variant: 'destructive',
+      })
+      return
+    }
+
+    if (duplicateAddonEntry) {
+      toast({
+        title: 'Hinweis',
+        description: 'Diese Zusatzleistung ist für dieses Tier bereits vorhanden.',
+        variant: 'destructive',
+      })
+      return
+    }
+
+    const service = addonServices.find((entry) => entry.id === selectedAddonId)
+    if (!service) {
+      toast({ title: 'Fehler', description: 'Zusatzleistung nicht gefunden', variant: 'destructive' })
+      return
+    }
+
+    const quantity = Math.max(1, parseInt(addonQuantity, 10) || 1)
+    const unitPrice = Number(service.amount)
+    const lineTotal = unitPrice * quantity
+    const petName = selectedSibling.pet?.name || 'Tier'
+    const label = `${petName}: ${service.title}`
+
+    setSaving(true)
+    try {
+      const response = await authenticatedFetch(`/api/admin/bookings/${bookingId}/line-items`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          addon_service_id: service.id,
+          label,
+          description: service.description,
+          price_type: 'fixed',
+          quantity,
+          unit_price: unitPrice,
+          line_total: lineTotal,
+          booking_id: selectedSibling.id,
+        }),
+      })
+      const data = await response.json()
+      if (!response.ok) throw new Error(data.error || 'Fehler beim Speichern')
+
+      setLineItems((prev) => [...prev, data.line_item])
+      setSelectedAddonId('')
+      setAddonQuantity('1')
       toast({ title: 'Gespeichert', description: 'Zusatzleistung hinzugefügt' })
     } catch (error) {
       toast({
@@ -425,6 +506,91 @@ export function BookingLineItemsPanel({ bookingId }: BookingLineItemsPanelProps)
           </ul>
         )}
       </div>
+
+      {addonServices.length > 0 && (
+        <div className="rounded-lg border border-sage-200 bg-white p-3 space-y-3">
+          <Label>Zusatzleistung aus Katalog</Label>
+          <p className="text-xs text-sage-600">
+            Abrechenbare Katalog-Leistungen (auch ohne Buchungs-Freigabe). Preise netto, 19 % USt. auf
+            der Rechnung.
+          </p>
+          <div className="space-y-2">
+            <div>
+              <Label className="text-xs">Tier</Label>
+              <Select
+                value={siblingSelectValue}
+                onValueChange={setSelectedSiblingId}
+                disabled={siblings.length <= 1}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Tier wählen" />
+                </SelectTrigger>
+                <SelectContent>
+                  {siblings.map((s) => (
+                    <SelectItem key={s.id} value={s.id}>
+                      {s.pet?.name || 'Unbekannt'}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-xs">Zusatzleistung</Label>
+              <Select value={selectedAddonId} onValueChange={setSelectedAddonId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Zusatzleistung wählen" />
+                </SelectTrigger>
+                <SelectContent>
+                  {addonServices.map((service) => (
+                    <SelectItem key={service.id} value={service.id}>
+                      {service.title} ({formatNetGrossInline(Number(service.amount))})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-xs">Menge</Label>
+              <Input
+                type="number"
+                min={1}
+                value={addonQuantity}
+                onChange={(e) => setAddonQuantity(e.target.value)}
+              />
+            </div>
+            {selectedAddonService && (
+              <div className="text-xs text-sage-600 space-y-2">
+                <div>
+                  <p className="text-sage-500">Einzelpreis</p>
+                  <VatPriceDisplay net={Number(selectedAddonService.amount)} />
+                </div>
+                <div>
+                  <p className="text-sage-500">Gesamt</p>
+                  <VatPriceDisplay
+                    net={
+                      Number(selectedAddonService.amount) *
+                      Math.max(1, parseInt(addonQuantity, 10) || 1)
+                    }
+                  />
+                </div>
+              </div>
+            )}
+            {duplicateAddonEntry && (
+              <p className="text-xs text-amber-700">
+                Für dieses Tier ist diese Zusatzleistung bereits als Position hinterlegt.
+              </p>
+            )}
+            <Button
+              type="button"
+              size="sm"
+              disabled={saving || !selectedAddonId || duplicateAddonEntry}
+              onClick={addCatalogAddon}
+            >
+              Hinzufügen
+            </Button>
+          </div>
+        </div>
+      )}
 
       {extrasForSelectedPet.length > 0 && (
         <div className="rounded-lg border border-sage-200 bg-white p-3 space-y-3">

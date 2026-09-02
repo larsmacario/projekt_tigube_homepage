@@ -40,6 +40,10 @@ export interface CatalogPriceRecord {
   usage: 'base' | 'extra' | 'surcharge' | 'info'
   archived_at: string | null
   sevdesk_article_id: string | null
+  sevdesk_part_number?: string | null
+  sevdesk_sync_status?: SevdeskSyncStatus | null
+  sevdesk_synced_at?: string | null
+  sevdesk_sync_error?: string | null
 }
 
 export interface ResolvedCatalogPrice extends CatalogPriceRecord, ResolvedPriceItem {}

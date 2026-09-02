@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { requireAdmin } from '@/lib/admin-auth'
+import { requireAdmin, getAdminDbClient } from '@/lib/admin-auth'
+import { coerceAddonServiceFlags } from '@/lib/booking-addon-services'
 import { loadAllAddonServices } from '@/lib/booking-addon-services-server'
+import { ensureSevdeskArticleLink } from '@/lib/sevdesk-article-sync'
 
 export async function GET(request: NextRequest) {
   try {
@@ -34,7 +36,13 @@ export async function POST(request: NextRequest) {
         : null
     const amount = Number(body.amount)
     const sort_order = Number.isFinite(Number(body.sort_order)) ? Number(body.sort_order) : 0
-    const is_active = Boolean(body.is_active)
+    const flags = coerceAddonServiceFlags({
+      is_active: body.is_active,
+      is_billable: body.is_billable !== undefined ? body.is_billable : true,
+    })
+    if (flags.error) {
+      return NextResponse.json({ error: flags.error }, { status: 400 })
+    }
 
     if (!title) {
       return NextResponse.json({ error: 'Titel ist erforderlich' }, { status: 400 })
@@ -50,13 +58,35 @@ export async function POST(request: NextRequest) {
         description,
         amount,
         sort_order,
-        is_active,
+        is_active: flags.is_active,
+        is_billable: flags.is_billable,
       })
       .select('*')
       .single()
 
     if (error) throw error
-    return NextResponse.json({ addonService: data })
+
+    const adminDb = getAdminDbClient()
+    await ensureSevdeskArticleLink(adminDb, {
+      table: 'addon_services',
+      row: data as {
+        id: string
+        title: string
+        description: string | null
+        amount: number
+        sevdesk_article_id: string | null
+        sevdesk_part_number: string | null
+        sevdesk_sync_status: 'none' | 'pending' | 'synced' | 'failed' | null
+      },
+    })
+
+    const { data: refreshed } = await adminDb
+      .from('addon_services')
+      .select('*')
+      .eq('id', data.id)
+      .single()
+
+    return NextResponse.json({ addonService: refreshed ?? data })
   } catch (error: unknown) {
     console.error('Error creating addon service:', error)
     const message =

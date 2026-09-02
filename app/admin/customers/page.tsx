@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useToast } from '@/hooks/use-toast'
@@ -28,8 +28,11 @@ import {
 } from '@/components/ui/tooltip'
 import type { SevdeskCustomerImportSummary } from '@/lib/types'
 import Link from 'next/link'
-import { UserPlus, Loader2, Mail, RefreshCw } from 'lucide-react'
+import { UserPlus, Loader2, Mail, RefreshCw, Download } from 'lucide-react'
 import { Checkbox } from '@/components/ui/checkbox'
+import { BULK_EXPORT_MAX_CUSTOMERS } from '@/lib/admin-bulk-export'
+import { downloadResponseAsFile } from '@/lib/admin-bulk-export-download'
+import { saveListOrder } from '@/hooks/use-adjacent-record-nav'
 
 export default function CustomersPage() {
   const [customers, setCustomers] = useState<Record<string, any>[]>([])
@@ -48,6 +51,9 @@ export default function CustomersPage() {
   const [isBulkInviteOpen, setIsBulkInviteOpen] = useState(false)
   const [selectedCustomerIds, setSelectedCustomerIds] = useState<string[]>([])
   const [isSendingBulkInvites, setIsSendingBulkInvites] = useState(false)
+  const [isBulkExportOpen, setIsBulkExportOpen] = useState(false)
+  const [selectedExportCustomerIds, setSelectedExportCustomerIds] = useState<string[]>([])
+  const [isExportingBulk, setIsExportingBulk] = useState(false)
   const [sevdeskConnected, setSevdeskConnected] = useState(false)
   const [importingFromSevdesk, setImportingFromSevdesk] = useState(false)
 
@@ -152,6 +158,58 @@ export default function CustomersPage() {
         ? [...new Set([...current, customerId])]
         : current.filter((id) => id !== customerId)
     )
+  }
+
+  function openBulkExportDialog() {
+    setSelectedExportCustomerIds([])
+    setIsBulkExportOpen(true)
+  }
+
+  function toggleExportCustomerSelection(customerId: string, checked: boolean) {
+    setSelectedExportCustomerIds((current) => {
+      if (!checked) {
+        return current.filter((id) => id !== customerId)
+      }
+      if (current.includes(customerId)) return current
+      if (current.length >= BULK_EXPORT_MAX_CUSTOMERS) return current
+      return [...current, customerId]
+    })
+  }
+
+  async function handleBulkExport() {
+    if (selectedExportCustomerIds.length === 0) {
+      toast({
+        title: 'Keine Auswahl',
+        description: 'Bitte mindestens einen Kunden auswählen.',
+        variant: 'destructive',
+      })
+      return
+    }
+
+    setIsExportingBulk(true)
+    try {
+      const response = await authenticatedFetch('/api/admin/customers/bulk-export', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ customerIds: selectedExportCustomerIds }),
+      })
+      await downloadResponseAsFile(response, 'Tierhalter-Berichte.zip')
+      toast({
+        title: 'ZIP-Export heruntergeladen',
+        description: `${selectedExportCustomerIds.length} Kunde(n) exportiert.`,
+      })
+      setIsBulkExportOpen(false)
+      setSelectedExportCustomerIds([])
+    } catch (error) {
+      toast({
+        title: 'Fehler',
+        description: error instanceof Error ? error.message : 'Export fehlgeschlagen',
+        variant: 'destructive',
+      })
+    } finally {
+      setIsExportingBulk(false)
+    }
   }
 
   async function handleSendBulkInvites() {
@@ -301,16 +359,29 @@ export default function CustomersPage() {
     loadData()
   }
 
-  const filteredCustomers = customers.filter((customer) => {
-    if (!search) return true
-    const searchLower = search.toLowerCase()
-    return (
-      customer.nachname?.toLowerCase().includes(searchLower) ||
-      customer.vorname?.toLowerCase().includes(searchLower) ||
-      customer.email?.toLowerCase().includes(searchLower) ||
-      customer.kundennummer?.toLowerCase().includes(searchLower)
-    )
-  })
+  const filteredCustomers = useMemo(
+    () =>
+      customers.filter((customer) => {
+        if (!search) return true
+        const searchLower = search.toLowerCase()
+        return (
+          customer.nachname?.toLowerCase().includes(searchLower) ||
+          customer.vorname?.toLowerCase().includes(searchLower) ||
+          customer.email?.toLowerCase().includes(searchLower) ||
+          customer.kundennummer?.toLowerCase().includes(searchLower)
+        )
+      }),
+    [customers, search]
+  )
+
+  function selectAllVisibleExportCustomers() {
+    const visibleIds = filteredCustomers.map((customer) => String(customer.id))
+    setSelectedExportCustomerIds(visibleIds.slice(0, BULK_EXPORT_MAX_CUSTOMERS))
+  }
+
+  useEffect(() => {
+    saveListOrder('customer', filteredCustomers.map((customer) => String(customer.id)))
+  }, [filteredCustomers])
 
   return (
     <div className="space-y-6">
@@ -362,12 +433,104 @@ export default function CustomersPage() {
           <Button
             variant="outline"
             className="w-full sm:w-auto whitespace-normal sm:whitespace-nowrap"
+            disabled={customers.length === 0}
+            onClick={openBulkExportDialog}
+          >
+            <Download className="mr-2 h-4 w-4" />
+            Mehrere Kunden exportieren
+          </Button>
+          <Button
+            variant="outline"
+            className="w-full sm:w-auto whitespace-normal sm:whitespace-nowrap"
             disabled={pendingOnboardingCustomers.length === 0}
             onClick={openBulkInviteDialog}
           >
             <Mail className="mr-2 h-4 w-4" />
             Onboarding-Einladungen
           </Button>
+          <Dialog open={isBulkExportOpen} onOpenChange={setIsBulkExportOpen}>
+            <DialogContent className="sm:max-w-[520px]">
+              <DialogHeader>
+                <DialogTitle>Tierhalter-Berichte exportieren</DialogTitle>
+                <DialogDescription>
+                  Wähle Kunden für einen ZIP-Export mit Übersichts-PDF und allen Dokumenten
+                  (z. B. für das Veterinäramt). Maximal {BULK_EXPORT_MAX_CUSTOMERS} Kunden pro Export.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-sm text-sage-600">
+                  {selectedExportCustomerIds.length} ausgewählt
+                </p>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  disabled={filteredCustomers.length === 0}
+                  onClick={selectAllVisibleExportCustomers}
+                >
+                  Sichtbare auswählen
+                </Button>
+              </div>
+              <div className="max-h-72 overflow-y-auto space-y-2 py-2">
+                {filteredCustomers.length === 0 ? (
+                  <p className="text-sm text-sage-600">Keine Kunden gefunden.</p>
+                ) : (
+                  filteredCustomers.map((customer) => {
+                    const customerId = String(customer.id)
+                    const label = [customer.vorname, customer.nachname].filter(Boolean).join(' ')
+                    const limitReached =
+                      selectedExportCustomerIds.length >= BULK_EXPORT_MAX_CUSTOMERS &&
+                      !selectedExportCustomerIds.includes(customerId)
+                    return (
+                      <label
+                        key={customerId}
+                        className={`flex items-start gap-3 rounded-md border border-sage-200 p-3 ${
+                          limitReached ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'
+                        }`}
+                      >
+                        <Checkbox
+                          checked={selectedExportCustomerIds.includes(customerId)}
+                          disabled={limitReached}
+                          onCheckedChange={(checked) =>
+                            toggleExportCustomerSelection(customerId, checked === true)
+                          }
+                        />
+                        <span className="text-sm">
+                          <span className="font-medium text-sage-900">
+                            {label || customer.email}
+                          </span>
+                          <span className="block text-sage-500">{customer.email}</span>
+                        </span>
+                      </label>
+                    )
+                  })
+                )}
+              </div>
+              <DialogFooter>
+                <Button
+                  variant="outline"
+                  onClick={() => setIsBulkExportOpen(false)}
+                  disabled={isExportingBulk}
+                >
+                  Abbrechen
+                </Button>
+                <Button
+                  onClick={() => void handleBulkExport()}
+                  disabled={isExportingBulk || selectedExportCustomerIds.length === 0}
+                  className="bg-sage-600 hover:bg-sage-700 text-white"
+                >
+                  {isExportingBulk ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Export wird erstellt…
+                    </>
+                  ) : (
+                    `${selectedExportCustomerIds.length} Kunde(n) exportieren`
+                  )}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
           <Dialog open={isBulkInviteOpen} onOpenChange={setIsBulkInviteOpen}>
             <DialogContent className="sm:max-w-[520px]">
               <DialogHeader>

@@ -28,6 +28,7 @@ import {
   formatFixedPercentageLabel,
 } from '@/lib/price-catalog-policy'
 import { CancellationPolicyEditor } from '@/components/admin/cancellation-policy-editor'
+import { SevdeskArticleSyncBadge } from '@/components/admin/sevdesk-article-sync-badge'
 import {
   DEFAULT_CANCELLATION_POLICY_CONFIG,
   normalizeCancellationPolicyConfig,
@@ -55,6 +56,10 @@ interface Price {
   usage: 'base' | 'extra' | 'surcharge' | 'info'
   archived_at?: string | null
   sevdesk_article_id?: string | null
+  sevdesk_part_number?: string | null
+  sevdesk_sync_status?: 'none' | 'pending' | 'synced' | 'failed' | null
+  sevdesk_synced_at?: string | null
+  sevdesk_sync_error?: string | null
 }
 
 interface PriceCategory {
@@ -1145,16 +1150,15 @@ export default function PricesPage() {
                               />
                             </div>
                             <div>
-                              <Label htmlFor={`sevdesk-${price.id}`}>SevDesk-Artikel-ID</Label>
-                              <Input
-                                id={`sevdesk-${price.id}`}
-                                value={price.sevdesk_article_id || ''}
-                                onChange={(e) =>
-                                  updatePrice(price.id, 'sevdesk_article_id', e.target.value || null)
-                                }
-                                placeholder="Optional"
-                                className="bg-white font-mono text-xs"
-                              />
+                              <Label>SevDesk</Label>
+                              <div className="pt-2">
+                                <SevdeskArticleSyncBadge
+                                  status={price.sevdesk_sync_status}
+                                  articleId={price.sevdesk_article_id}
+                                  partNumber={price.sevdesk_part_number}
+                                  error={price.sevdesk_sync_error}
+                                />
+                              </div>
                             </div>
                           </div>
 

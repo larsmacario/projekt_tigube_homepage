@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { ArrowLeft, Trash2, Pencil, Check, X } from 'lucide-react'
+import { ArrowLeft, Trash2, Pencil, Check, X, Download, Loader2 } from 'lucide-react'
 import Link from 'next/link'
 import type { Customer, Pet, Document, BookingRequest, ContactNote, CustomerEmailChangeRequest } from '@/lib/types'
 import { PropertyEditor } from '@/components/admin/property-editor'
@@ -21,8 +21,10 @@ import { useToast } from '@/hooks/use-toast'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { authenticatedFetch } from '@/lib/authenticated-fetch'
+import { downloadResponseAsFile } from '@/lib/admin-bulk-export-download'
 import { CustomerPricingPanel } from '@/components/admin/customer-pricing-panel'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { AdjacentRecordNavControls } from '@/components/admin/adjacent-record-nav-controls'
 
 type CustomerFormData = {
   vorname: string
@@ -78,6 +80,7 @@ export default function CustomerDetailPage() {
   const [onboardingToken, setOnboardingToken] = useState<{ token: string; url: string } | null>(null)
   const [bookings, setBookings] = useState<BookingRequest[]>([])
   const [isDeleting, setIsDeleting] = useState(false)
+  const [isExportingZip, setIsExportingZip] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
   const [formData, setFormData] = useState<CustomerFormData | null>(null)
   const [savingContact, setSavingContact] = useState(false)
@@ -363,6 +366,31 @@ export default function CustomerDetailPage() {
     }
   }
 
+  async function handleDownloadZipReport() {
+    if (!customer) return
+
+    setIsExportingZip(true)
+    try {
+      const response = await authenticatedFetch(
+        `/api/admin/customers/${customerId}/bulk-export`,
+        { credentials: 'include' }
+      )
+      await downloadResponseAsFile(response, `${customer.nachname}_Bericht.zip`)
+      toast({
+        title: 'ZIP-Bericht heruntergeladen',
+        description: 'Die Übersicht und alle Dokumente wurden exportiert.',
+      })
+    } catch (error) {
+      toast({
+        title: 'Fehler',
+        description: error instanceof Error ? error.message : 'Export fehlgeschlagen',
+        variant: 'destructive',
+      })
+    } finally {
+      setIsExportingZip(false)
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
@@ -388,19 +416,43 @@ export default function CustomerDetailPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-4">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-wrap items-center gap-4">
         <Link href="/admin/customers">
           <Button variant="outline" size="sm">
             <ArrowLeft className="h-4 w-4 mr-2" />
             Zurück
           </Button>
         </Link>
+        <AdjacentRecordNavControls
+          entityType="customer"
+          currentId={customerId}
+          label="Kunde"
+        />
         <div>
-          <h1 className="text-3xl font-bold text-sage-900">
-            {customer.vorname} {customer.nachname}
-          </h1>
-          <p className="mt-2 text-sage-600">Kundendetails</p>
+            <h1 className="text-3xl font-bold text-sage-900">
+              {customer.vorname} {customer.nachname}
+            </h1>
+            <p className="mt-2 text-sage-600">Kundendetails</p>
+          </div>
         </div>
+        <Button
+          variant="outline"
+          disabled={isExportingZip}
+          onClick={() => void handleDownloadZipReport()}
+        >
+          {isExportingZip ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Export wird erstellt…
+            </>
+          ) : (
+            <>
+              <Download className="mr-2 h-4 w-4" />
+              ZIP-Bericht herunterladen
+            </>
+          )}
+        </Button>
       </div>
 
       <Tabs defaultValue="info" className="w-full">

@@ -116,7 +116,10 @@ function buildCandidate(context: RequestGroupContext): InvoiceSyncCandidate {
   }
 }
 
-export async function listInvoiceSyncCandidates(db: SupabaseClient): Promise<InvoiceSyncCandidate[]> {
+export async function listInvoiceSyncCandidates(
+  db: SupabaseClient,
+  options?: { month?: string | null }
+): Promise<InvoiceSyncCandidate[]> {
   const { data: bookings, error } = await db
     .from('bookings')
     .select('id, request_group_id, customer_id, start_date, end_date, status')
@@ -141,7 +144,13 @@ export async function listInvoiceSyncCandidates(db: SupabaseClient): Promise<Inv
     candidates.push(buildCandidate(context))
   }
 
-  return candidates.sort((a, b) => b.startDate.localeCompare(a.startDate))
+  const month = options?.month?.trim()
+  const filtered =
+    month && /^\d{4}-\d{2}$/.test(month)
+      ? candidates.filter((candidate) => candidate.startDate.startsWith(month))
+      : candidates
+
+  return filtered.sort((a, b) => b.startDate.localeCompare(a.startDate))
 }
 
 async function loadArticleMappings(

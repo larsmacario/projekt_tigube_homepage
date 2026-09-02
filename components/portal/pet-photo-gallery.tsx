@@ -164,44 +164,84 @@ export const PetPhotoGallery = forwardRef<PetPhotoGalleryHandle, PetPhotoGallery
 
     useImperativeHandle(ref, () => ({ flushPendingUploads }), [flushPendingUploads])
 
-    async function handleUpload(file: File) {
-      if (readOnly) return
+    async function handleFilesSelected(files: File[]) {
+      if (readOnly || files.length === 0) return
 
-      const validationError = validatePetPhotoFile(file)
-      if (validationError) {
-        toast({ title: 'Fehler', description: validationError, variant: 'destructive' })
-        return
-      }
-
-      if (totalCount >= MAX_PET_PHOTOS) {
+      const remainingSlots = MAX_PET_PHOTOS - totalCount
+      if (remainingSlots <= 0) {
         toast({
           title: 'Limit erreicht',
           description: `Maximal ${MAX_PET_PHOTOS} Fotos pro Tier.`,
           variant: 'destructive',
         })
+        if (fileInputRef.current) fileInputRef.current.value = ''
         return
       }
 
+      const validFiles: File[] = []
+      let skippedInvalid = 0
+
+      for (const file of files) {
+        if (validFiles.length >= remainingSlots) break
+        const validationError = validatePetPhotoFile(file)
+        if (validationError) {
+          skippedInvalid++
+          continue
+        }
+        validFiles.push(file)
+      }
+
+      const skippedOverLimit = files.length - skippedInvalid - validFiles.length
+
+      if (validFiles.length === 0) {
+        if (skippedInvalid > 0) {
+          toast({
+            title: 'Fehler',
+            description: 'Keine gültigen Dateien ausgewählt.',
+            variant: 'destructive',
+          })
+        }
+        if (fileInputRef.current) fileInputRef.current.value = ''
+        return
+      }
+
+      if (skippedOverLimit > 0) {
+        toast({
+          title: 'Limit erreicht',
+          description: `Nur noch ${remainingSlots} Plätze frei – ${skippedOverLimit} Datei(en) übersprungen.`,
+        })
+      } else if (skippedInvalid > 0) {
+        toast({
+          title: 'Hinweis',
+          description: `${skippedInvalid} ungültige Datei(en) übersprungen.`,
+        })
+      }
+
       if (!petId) {
-        const pending: PendingPhoto = {
+        const newPending = validFiles.map((file) => ({
           id: crypto.randomUUID(),
           file,
           previewUrl: URL.createObjectURL(file),
-        }
-        setPendingPhotos((current) => [...current, pending])
+        }))
+        setPendingPhotos((current) => [...current, ...newPending])
         if (fileInputRef.current) fileInputRef.current.value = ''
         return
       }
 
       setUploading(true)
+      let uploadedCount = 0
       try {
-        const photo =
-          apiBase === 'portal'
-            ? await uploadPetPhotoDirect(petId, file)
-            : await uploadPetPhotoViaApi(petId, file, apiBase)
-
-        setPhotos((current) => [...current, photo])
-        toast({ title: 'Foto hochgeladen' })
+        for (const file of validFiles) {
+          const photo =
+            apiBase === 'portal'
+              ? await uploadPetPhotoDirect(petId, file)
+              : await uploadPetPhotoViaApi(petId, file, apiBase)
+          setPhotos((current) => [...current, photo])
+          uploadedCount++
+        }
+        toast({
+          title: uploadedCount === 1 ? 'Foto hochgeladen' : `${uploadedCount} Fotos hochgeladen`,
+        })
       } catch (error) {
         toast({
           title: 'Fehler',
@@ -267,11 +307,12 @@ export const PetPhotoGallery = forwardRef<PetPhotoGalleryHandle, PetPhotoGallery
               <Input
                 ref={fileInputRef}
                 type="file"
+                multiple
                 accept="image/jpeg,image/png,image/webp,image/*"
                 className="hidden"
                 onChange={(event) => {
-                  const file = event.target.files?.[0]
-                  if (file) void handleUpload(file)
+                  const files = Array.from(event.target.files ?? [])
+                  if (files.length > 0) void handleFilesSelected(files)
                 }}
               />
               <Button
@@ -286,7 +327,7 @@ export const PetPhotoGallery = forwardRef<PetPhotoGalleryHandle, PetPhotoGallery
                 ) : (
                   <ImagePlus className="h-4 w-4 mr-2" />
                 )}
-                Foto hinzufügen
+                Fotos hinzufügen
               </Button>
             </>
           )}

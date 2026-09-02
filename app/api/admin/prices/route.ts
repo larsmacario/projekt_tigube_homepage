@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import type { SupabaseClient } from '@supabase/supabase-js'
-import { requireAdmin } from '@/lib/admin-auth'
+import { requireAdmin, getAdminDbClient } from '@/lib/admin-auth'
 import { isMissingDbObject, normalizeCatalogPriceRow } from '@/lib/price-legacy-compat'
+import { ensureSevdeskArticleLink } from '@/lib/sevdesk-article-sync'
 
 export async function GET(request: NextRequest) {
   try {
@@ -155,8 +156,29 @@ export async function POST(request: NextRequest) {
       throw result.error
     }
 
+    const adminDb = getAdminDbClient()
+    await ensureSevdeskArticleLink(adminDb, {
+      table: 'prices',
+      row: result.data as {
+        id: string
+        name: string
+        description: string | null
+        price: number | null
+        price_type: string
+        sevdesk_article_id: string | null
+        sevdesk_part_number: string | null
+        sevdesk_sync_status: 'none' | 'pending' | 'synced' | 'failed' | null
+      },
+    })
+
+    const { data: refreshed } = await adminDb
+      .from('prices')
+      .select('*')
+      .eq('id', result.data.id)
+      .single()
+
     return NextResponse.json({
-      price: normalizeCatalogPriceRow(result.data),
+      price: normalizeCatalogPriceRow(refreshed ?? result.data),
     })
   } catch (error: unknown) {
     console.error('Error creating price:', error)

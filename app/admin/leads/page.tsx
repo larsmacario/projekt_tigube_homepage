@@ -17,6 +17,7 @@ import {
 } from '@/lib/table-view-utils'
 import { authenticatedFetch } from '@/lib/authenticated-fetch'
 import { readApiResponse } from '@/lib/read-api-response'
+import { saveListOrder } from '@/hooks/use-adjacent-record-nav'
 
 const ACTIVE_VIEW_STORAGE_KEY = 'lead-table-active-view-id'
 
@@ -217,6 +218,10 @@ export default function LeadsPage() {
     if (catalog.length === 0) return
     setViewConfig((current) => mergeViewConfigWithCatalog(catalog, current))
   }, [catalog, propertyDefinitions])
+
+  useEffect(() => {
+    saveListOrder('lead', leads.map((lead) => String(lead.id)))
+  }, [leads])
 
   return (
     <div className="space-y-6">

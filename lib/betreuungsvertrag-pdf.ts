@@ -142,11 +142,12 @@ function renderPartySection(doc: jsPDF, y: number, options: BetreuungsvertragPdf
     const careSummary = carePlan
       ? formatCarePlanSummary(carePlan)
       : [pet.futtermenge, pet.medikamente, pet.besonderheiten].filter(Boolean).join(' | ') || 'Keine'
-    const lines = [
+    const petInfo = [
       `Tierart: ${pet.tierart || '-'} | Rasse: ${pet.rasse || '-'} | Farbe: ${pet.farbe || '-'}`,
       `Geschlecht: ${formatPetGeschlecht(pet.geschlecht) || '-'}`,
       `Futter / Medikamente / Besonderheiten: ${careSummary}`,
-    ]
+    ].join('\n')
+    const lines = doc.splitTextToSize(petInfo, CONTENT_WIDTH)
     y = writeLines(doc, lines, MARGIN_LEFT, y, 5, pageNumber)
     y += 3
   })

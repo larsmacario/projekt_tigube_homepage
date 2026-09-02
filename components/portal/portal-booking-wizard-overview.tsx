@@ -20,6 +20,7 @@ import {
 } from '@/lib/day-care-booking'
 import { formatDateRangeDE } from '@/lib/format-date-range-de'
 import { formatEuro } from '@/lib/price-override'
+import { VatPriceDisplay } from '@/components/vat-price-display'
 import type { AddonService, DayCareMode, Pet, ServiceType } from '@/lib/types'
 import { startOfDay, toIsoDate } from '@/lib/vacation-dates'
 
@@ -211,11 +212,12 @@ export function PortalBookingWizardOverview({
       {selectedAddons.length > 0 && (
         <div className="rounded-lg border border-sage-200 bg-white p-3">
           <p className="font-medium text-sage-900">Zusatzleistungen</p>
+          <p className="mt-1 text-xs text-sage-600">Alle Beträge netto · 19 % USt. auf der Rechnung</p>
           <ul className="mt-2 space-y-2 text-sm text-sage-800">
             {selectedAddons.map((service) => (
               <li key={service.id} className="flex flex-wrap justify-between gap-2">
                 <span>{service.title}</span>
-                <span className="font-medium tabular-nums">{formatEuro(Number(service.amount))}</span>
+                <VatPriceDisplay net={Number(service.amount)} className="text-right" />
               </li>
             ))}
           </ul>

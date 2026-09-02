@@ -4,6 +4,8 @@ import { useCallback, useEffect, useState } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import {
   Table,
   TableBody,
@@ -30,18 +32,32 @@ function formatDate(iso: string | null): string {
   return new Date(iso).toLocaleDateString('de-DE')
 }
 
+function getDefaultInvoiceMonth(): string {
+  const now = new Date()
+  const previousMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1)
+  const month = String(previousMonth.getMonth() + 1).padStart(2, '0')
+  return `${previousMonth.getFullYear()}-${month}`
+}
+
+function formatMonthLabel(month: string): string {
+  const [year, monthPart] = month.split('-')
+  const date = new Date(Number(year), Number(monthPart) - 1, 1)
+  return date.toLocaleDateString('de-DE', { month: 'long', year: 'numeric' })
+}
+
 export function InvoiceSyncPanel() {
   const { toast } = useToast()
   const [loading, setLoading] = useState(true)
   const [syncing, setSyncing] = useState(false)
   const [candidates, setCandidates] = useState<InvoiceSyncCandidate[]>([])
   const [selectedIds, setSelectedIds] = useState<string[]>([])
+  const [month, setMonth] = useState(getDefaultInvoiceMonth)
 
   const loadCandidates = useCallback(async () => {
     setLoading(true)
     try {
       const response = await authenticatedFetch(
-        '/api/admin/integrations/sevdesk/invoice-candidates'
+        `/api/admin/integrations/sevdesk/invoice-candidates?month=${encodeURIComponent(month)}`
       )
       const data = await response.json()
       if (!response.ok) {
@@ -61,7 +77,7 @@ export function InvoiceSyncPanel() {
     } finally {
       setLoading(false)
     }
-  }, [toast])
+  }, [month, toast])
 
   useEffect(() => {
     void loadCandidates()
@@ -141,17 +157,36 @@ export function InvoiceSyncPanel() {
         </div>
       </CardHeader>
       <CardContent>
+        <div className="mb-4 flex flex-wrap items-end gap-4">
+          <div className="space-y-2">
+            <Label htmlFor="invoice-sync-month">Abrechnungsmonat</Label>
+            <Input
+              id="invoice-sync-month"
+              type="month"
+              value={month}
+              onChange={(event) => setMonth(event.target.value)}
+              className="w-[220px]"
+            />
+          </div>
+          <p className="text-sm text-sage-600 pb-2">
+            Zeigt Kandidaten mit Startdatum im {formatMonthLabel(month)}.
+          </p>
+        </div>
+
         {loading ? (
           <div className="flex items-center gap-2 text-sage-600 py-8 justify-center">
             <Loader2 className="h-5 w-5 animate-spin" />
             Lade Rechnungskandidaten…
           </div>
         ) : candidates.length === 0 ? (
-          <p className="text-sm text-sage-600">Keine offenen Rechnungskandidaten gefunden.</p>
+          <p className="text-sm text-sage-600">
+            Keine offenen Rechnungskandidaten für {formatMonthLabel(month)} gefunden.
+          </p>
         ) : (
           <div className="space-y-3">
             <p className="text-sm text-sage-600">
-              {readyCount} von {candidates.length} Anfragen sind bereit für den Export.
+              {readyCount} von {candidates.length} Anfragen in {formatMonthLabel(month)} sind bereit
+              für den Export.
             </p>
             <Table>
               <TableHeader>

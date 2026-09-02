@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerClient, getAdminDbClient } from '@/lib/admin-auth'
+import { validateAdminAddonServiceSelection } from '@/lib/booking-addon-services'
+import { loadBillableAddonServices } from '@/lib/booking-addon-services-server'
 import { loadBookingExtraCatalogForAdmin } from '@/lib/booking-extras-server'
 import { uniqueServiceTypesFromPetLines } from '@/lib/booking-extras'
 import type { ServiceType } from '@/lib/types'
@@ -124,11 +126,14 @@ export async function GET(
         )
       : { categories: [], prices: [] }
 
+    const addon_catalog = await loadBillableAddonServices(admin)
+
     return NextResponse.json({
       request_group_id: ctx.requestGroupId,
       siblings: ctx.siblings,
       line_items: ctx.lineItems,
       extra_catalog,
+      addon_catalog,
     })
   } catch (error: any) {
     console.error('Error loading line items:', error)
@@ -160,6 +165,7 @@ export async function POST(
     const body = await request.json()
     const {
       price_id,
+      addon_service_id,
       label,
       description,
       price_type = 'fixed',
@@ -170,8 +176,11 @@ export async function POST(
       booking_id,
     } = body
 
-    if (!label && !price_id) {
-      return NextResponse.json({ error: 'Bezeichnung oder Preis erforderlich' }, { status: 400 })
+    if (!label && !price_id && !addon_service_id) {
+      return NextResponse.json(
+        { error: 'Bezeichnung, Preis oder Zusatzleistung erforderlich' },
+        { status: 400 }
+      )
     }
 
     const admin = getAdminDbClient()
@@ -179,6 +188,7 @@ export async function POST(
       request_group_id: ctx.requestGroupId,
       booking_id: booking_id || null,
       price_id: price_id || null,
+      addon_service_id: addon_service_id || null,
       label: label || 'Position',
       description: description || null,
       price_type,
@@ -190,7 +200,36 @@ export async function POST(
       created_by: authResult.userData!.id,
     }
 
-    if (price_id) {
+    if (addon_service_id) {
+      const billableAddons = await loadBillableAddonServices(admin)
+      const validation = validateAdminAddonServiceSelection(String(addon_service_id), billableAddons)
+      if (!validation.valid) {
+        return NextResponse.json({ error: validation.error }, { status: 400 })
+      }
+
+      const service = validation.service
+      const qty = Math.max(1, Number(quantity) || 1)
+      const unitAmount = Number(service.amount)
+      const resolvedUnitPrice =
+        unit_price != null && Number.isFinite(Number(unit_price)) ? Number(unit_price) : unitAmount
+      const resolvedLineTotal =
+        line_total != null && Number.isFinite(Number(line_total))
+          ? Number(line_total)
+          : resolvedUnitPrice * qty
+
+      insertRow = {
+        ...insertRow,
+        price_id: null,
+        addon_service_id: service.id,
+        label: label || service.title,
+        description: description ?? service.description,
+        price_type: 'fixed',
+        unit: null,
+        quantity: qty,
+        unit_price: resolvedUnitPrice,
+        line_total: resolvedLineTotal,
+      }
+    } else if (price_id) {
       const { data: priceRow } = await admin.from('prices').select('*').eq('id', price_id).single()
       if (priceRow) {
         insertRow = {

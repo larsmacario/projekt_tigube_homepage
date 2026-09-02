@@ -5,10 +5,7 @@ import {
   CUSTOMER_DOCUMENT_SIGNED_URL_TTL,
   normalizeCustomerDocumentStoragePath,
 } from '@/lib/customer-documents'
-import {
-  isImpfpassPageCategory,
-  normalizeImpfpassPageCategory,
-} from '@/lib/impfpass-photo-categories'
+import { applyDocumentMetadataPatch } from '@/lib/document-metadata-api'
 
 export async function GET(
   request: NextRequest,
@@ -81,19 +78,20 @@ export async function PATCH(
       return NextResponse.json({ error: 'Nicht autorisiert' }, { status: 401 })
     }
 
-    const body = await request.json()
-    const pageCategoryRaw =
-      typeof body.page_category === 'string' ? body.page_category : undefined
-    const descriptionRaw =
-      typeof body.description === 'string' ? body.description : undefined
+    const { data: customer } = await supabase
+      .from('contacts')
+      .select('id')
+      .eq('user_id', user.id)
+      .eq('contact_type', 'customer')
+      .single()
 
-    if (pageCategoryRaw !== undefined && !isImpfpassPageCategory(pageCategoryRaw)) {
-      return NextResponse.json({ error: 'Ungültige Impfpass-Kategorie' }, { status: 400 })
+    if (!customer) {
+      return NextResponse.json({ error: 'Kundenprofil nicht gefunden' }, { status: 404 })
     }
 
     const { data: document, error: docError } = await supabase
       .from('documents')
-      .select('*, customer:contacts!documents_customer_id_fkey(user_id)')
+      .select('id, customer_id, document_type, pet_id, description, page_category')
       .eq('id', documentId)
       .single()
 
@@ -101,39 +99,28 @@ export async function PATCH(
       return NextResponse.json({ error: 'Dokument nicht gefunden' }, { status: 404 })
     }
 
-    if (document.customer.user_id !== user.id) {
+    if (document.customer_id !== customer.id) {
       return NextResponse.json({ error: 'Nicht autorisiert' }, { status: 403 })
     }
 
-    if (document.document_type !== 'impfpass') {
-      return NextResponse.json(
-        { error: 'Metadaten können nur für Impfpass-Fotos bearbeitet werden.' },
-        { status: 400 }
-      )
+    const body = await request.json()
+    const patchResult = await applyDocumentMetadataPatch(supabase, document, body, {
+      verifyPetOwnership: async (petId) => {
+        const { data: pet } = await supabase
+          .from('pets')
+          .select('id')
+          .eq('id', petId)
+          .eq('customer_id', customer.id)
+          .maybeSingle()
+        return Boolean(pet)
+      },
+    })
+
+    if (!patchResult.ok) {
+      return NextResponse.json({ error: patchResult.error }, { status: patchResult.status })
     }
 
-    const updates: Record<string, string | null> = {}
-    if (pageCategoryRaw !== undefined) {
-      updates.page_category = normalizeImpfpassPageCategory(pageCategoryRaw)
-    }
-    if (descriptionRaw !== undefined) {
-      updates.description = descriptionRaw.trim() ? descriptionRaw.trim().slice(0, 500) : null
-    }
-
-    if (Object.keys(updates).length === 0) {
-      return NextResponse.json({ error: 'Keine Änderungen angegeben' }, { status: 400 })
-    }
-
-    const { data, error: updateError } = await supabase
-      .from('documents')
-      .update(updates)
-      .eq('id', documentId)
-      .select()
-      .single()
-
-    if (updateError) throw updateError
-
-    return NextResponse.json({ document: data })
+    return NextResponse.json({ document: patchResult.document })
   } catch (error: unknown) {
     console.error('Error updating document metadata:', error)
     const message =

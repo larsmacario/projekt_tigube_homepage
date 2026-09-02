@@ -42,7 +42,6 @@ import {
 import {
   deletePortalDocument,
   fetchPortalDocumentSignedUrl,
-  updatePortalDocumentMetadata,
   uploadPortalDocument,
 } from '@/lib/portal-document-upload'
 import {
@@ -50,7 +49,8 @@ import {
   getImpfpassUploadQrCodeUrl,
   type ImpfpassUploadSessionItem,
 } from '@/lib/impfpass-upload-session'
-import type { Document } from '@/lib/types'
+import { DocumentEditDialog } from '@/components/document-edit-dialog'
+import type { Document, Pet } from '@/lib/types'
 
 type PendingImpfpassPhoto = {
   id: string
@@ -68,6 +68,7 @@ export type PetImpfpassGalleryHandle = {
 type PetImpfpassGalleryProps = {
   petId: string | null
   documents: Document[]
+  pets?: Pet[]
   onDocumentsChange?: (documents: Document[]) => void
   onImpfpassCountChange?: (count: number) => void
   /** documents: Dokumente-Seite – Beispiele immer sichtbar, ohne Einführungsbox */
@@ -80,7 +81,7 @@ function isImageFile(file: File): boolean {
 
 export const PetImpfpassGallery = forwardRef<PetImpfpassGalleryHandle, PetImpfpassGalleryProps>(
   function PetImpfpassGallery(
-    { petId, documents, onDocumentsChange, onImpfpassCountChange, variant = 'pet-form' },
+    { petId, documents, pets, onDocumentsChange, onImpfpassCountChange, variant = 'pet-form' },
     ref
   ) {
     const { toast } = useToast()
@@ -102,13 +103,11 @@ export const PetImpfpassGallery = forwardRef<PetImpfpassGalleryHandle, PetImpfpa
     const [uploading, setUploading] = useState(false)
     const [deletingId, setDeletingId] = useState<string | null>(null)
     const [uploadDialogOpen, setUploadDialogOpen] = useState(false)
-    const [pendingFile, setPendingFile] = useState<File | null>(null)
+    const [pendingFiles, setPendingFiles] = useState<File[]>([])
     const [uploadCategory, setUploadCategory] = useState<ImpfpassPageCategory>('sonstiges')
     const [uploadDescription, setUploadDescription] = useState('')
     const [editDoc, setEditDoc] = useState<Document | null>(null)
-    const [editCategory, setEditCategory] = useState<ImpfpassPageCategory>('sonstiges')
-    const [editDescription, setEditDescription] = useState('')
-    const [savingEdit, setSavingEdit] = useState(false)
+    const [loadedPets, setLoadedPets] = useState<Pet[]>([])
     const [mobileSessionId, setMobileSessionId] = useState<string | null>(null)
     const [mobileSessionLoading, setMobileSessionLoading] = useState(false)
     const [isPollingMobile, setIsPollingMobile] = useState(false)
@@ -154,6 +153,20 @@ export const PetImpfpassGallery = forwardRef<PetImpfpassGalleryHandle, PetImpfpa
         cancelled = true
       }
     }, [savedImpfpassDocs])
+
+    useEffect(() => {
+      if (!editDoc || pets?.length) return
+
+      async function loadPets() {
+        const response = await authenticatedFetch('/api/portal/pets')
+        const result = await readApiResponse<{ pets?: Pet[] }>(response)
+        if (result.data?.pets) {
+          setLoadedPets(result.data.pets)
+        }
+      }
+
+      void loadPets()
+    }, [editDoc, pets])
 
     async function refreshDocumentsFromApi() {
       const docsResponse = await authenticatedFetch('/api/portal/documents')
@@ -334,52 +347,95 @@ export const PetImpfpassGallery = forwardRef<PetImpfpassGalleryHandle, PetImpfpa
     )
 
     function openUploadDialog(category?: ImpfpassPageCategory) {
-      setPendingFile(null)
+      setPendingFiles([])
       setUploadCategory(category ?? 'sonstiges')
       setUploadDescription('')
       setUploadDialogOpen(true)
     }
 
-    function handleFileSelected(file: File) {
-      if (totalCount >= MAX_IMPFASS_PHOTOS) {
+    function handleFilesSelected(files: File[]) {
+      if (files.length === 0) return
+
+      const remainingSlots = MAX_IMPFASS_PHOTOS - totalCount
+      if (remainingSlots <= 0) {
         toast({
           title: 'Limit erreicht',
           description: `Maximal ${MAX_IMPFASS_PHOTOS} Impfpass-Fotos pro Tier.`,
           variant: 'destructive',
         })
+        if (fileInputRef.current) fileInputRef.current.value = ''
         return
       }
 
-      setPendingFile(file)
+      const accepted = files.slice(0, remainingSlots)
+      const skipped = files.length - accepted.length
+
+      if (skipped > 0) {
+        toast({
+          title: 'Limit erreicht',
+          description: `Nur noch ${remainingSlots} Plätze frei – ${skipped} Datei(en) übersprungen.`,
+        })
+      }
+
+      setPendingFiles(accepted)
       setUploadDialogOpen(true)
+      if (fileInputRef.current) fileInputRef.current.value = ''
     }
 
     async function handleConfirmUpload() {
-      if (!pendingFile) return
+      if (pendingFiles.length === 0) return
 
-      const pending: PendingImpfpassPhoto = {
+      const description = uploadDescription.trim()
+      const newPendingItems: PendingImpfpassPhoto[] = pendingFiles.map((file) => ({
         id: crypto.randomUUID(),
-        file: pendingFile,
-        previewUrl: isImageFile(pendingFile) ? URL.createObjectURL(pendingFile) : null,
+        file,
+        previewUrl: isImageFile(file) ? URL.createObjectURL(file) : null,
         pageCategory: uploadCategory,
-        description: uploadDescription.trim(),
-      }
+        description,
+      }))
 
       if (petId) {
         setUploading(true)
+        const uploaded: Document[] = []
+        const errors: string[] = []
+
         try {
-          const { document, error } = await uploadPortalDocument({
-            file: pending.file,
-            documentType: 'impfpass',
-            petId,
-            pageCategory: pending.pageCategory,
-            description: pending.description,
-          })
-          if (error || !document) {
-            throw new Error(error || 'Upload fehlgeschlagen')
+          for (const pending of newPendingItems) {
+            const { document, error } = await uploadPortalDocument({
+              file: pending.file,
+              documentType: 'impfpass',
+              petId,
+              pageCategory: pending.pageCategory,
+              description: pending.description,
+            })
+            if (error || !document) {
+              errors.push(error || `${pending.file.name}: Upload fehlgeschlagen`)
+              if (pending.previewUrl) URL.revokeObjectURL(pending.previewUrl)
+            } else {
+              uploaded.push(document)
+            }
           }
-          onDocumentsChange?.([document, ...documents])
-          toast({ title: 'Impfpass-Seite hochgeladen' })
+
+          if (uploaded.length > 0) {
+            onDocumentsChange?.([...uploaded, ...documents])
+          }
+
+          if (errors.length === 0) {
+            toast({
+              title:
+                uploaded.length === 1
+                  ? 'Impfpass-Seite hochgeladen'
+                  : `${uploaded.length} Impfpass-Seiten hochgeladen`,
+            })
+          } else if (uploaded.length > 0) {
+            toast({
+              title: 'Teilweise hochgeladen',
+              description: `${uploaded.length} von ${newPendingItems.length} Dateien hochgeladen.`,
+              variant: 'destructive',
+            })
+          } else {
+            throw new Error(errors[0] || 'Upload fehlgeschlagen')
+          }
         } catch (error) {
           toast({
             title: 'Fehler',
@@ -390,11 +446,17 @@ export const PetImpfpassGallery = forwardRef<PetImpfpassGalleryHandle, PetImpfpa
           setUploading(false)
         }
       } else {
-        setPendingPhotos((current) => [...current, pending])
+        setPendingPhotos((current) => [...current, ...newPendingItems])
+        toast({
+          title:
+            newPendingItems.length === 1
+              ? 'Impfpass-Seite vorbereitet'
+              : `${newPendingItems.length} Impfpass-Seiten vorbereitet`,
+        })
       }
 
       setUploadDialogOpen(false)
-      setPendingFile(null)
+      setPendingFiles([])
       setUploadDescription('')
       if (fileInputRef.current) fileInputRef.current.value = ''
     }
@@ -431,42 +493,7 @@ export const PetImpfpassGallery = forwardRef<PetImpfpassGalleryHandle, PetImpfpa
       })
     }
 
-    function openEditDialog(doc: Document) {
-      setEditDoc(doc)
-      setEditCategory(doc.page_category ?? 'sonstiges')
-      setEditDescription(doc.description ?? '')
-    }
-
-    async function handleSaveEdit() {
-      if (!editDoc) return
-
-      setSavingEdit(true)
-      try {
-        const { document, error } = await updatePortalDocumentMetadata({
-          documentId: editDoc.id,
-          pageCategory: editCategory,
-          description: editDescription,
-        })
-        if (error || !document) {
-          throw new Error(error || 'Speichern fehlgeschlagen')
-        }
-
-        onDocumentsChange?.(
-          documents.map((doc) => (doc.id === document.id ? document : doc))
-        )
-        setEditDoc(null)
-        toast({ title: 'Beschreibung gespeichert' })
-      } catch (error) {
-        toast({
-          title: 'Fehler',
-          description: error instanceof Error ? error.message : 'Speichern fehlgeschlagen',
-          variant: 'destructive',
-        })
-      } finally {
-        setSavingEdit(false)
-      }
-    }
-
+    const editPets = pets?.length ? pets : loadedPets
     const canAdd = totalCount < MAX_IMPFASS_PHOTOS
 
     return (
@@ -475,11 +502,12 @@ export const PetImpfpassGallery = forwardRef<PetImpfpassGalleryHandle, PetImpfpa
           <Input
             ref={fileInputRef}
             type="file"
+            multiple
             accept="image/jpeg,image/png,image/webp,image/*,application/pdf"
             className="hidden"
             onChange={(event) => {
-              const file = event.target.files?.[0]
-              if (file) handleFileSelected(file)
+              const files = Array.from(event.target.files ?? [])
+              if (files.length > 0) handleFilesSelected(files)
             }}
           />
         )}
@@ -892,9 +920,9 @@ export const PetImpfpassGallery = forwardRef<PetImpfpassGalleryHandle, PetImpfpa
                     variant="ghost"
                     size="sm"
                     className="h-7 px-2 text-xs"
-                    onClick={() => openEditDialog(doc)}
+                    onClick={() => setEditDoc(doc)}
                   >
-                    Beschreibung bearbeiten
+                    Bearbeiten
                   </Button>
                 </div>
               </div>
@@ -965,28 +993,60 @@ export const PetImpfpassGallery = forwardRef<PetImpfpassGalleryHandle, PetImpfpa
           </DialogContent>
         </Dialog>
 
-        <Dialog open={uploadDialogOpen} onOpenChange={setUploadDialogOpen}>
+        <Dialog
+          open={uploadDialogOpen}
+          onOpenChange={(open) => {
+            setUploadDialogOpen(open)
+            if (!open) {
+              setPendingFiles([])
+              if (fileInputRef.current) fileInputRef.current.value = ''
+            }
+          }}
+        >
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>Impfpass-Seite hinzufügen</DialogTitle>
+              <DialogTitle>
+                {pendingFiles.length > 1
+                  ? `${pendingFiles.length} Impfpass-Seiten hinzufügen`
+                  : 'Impfpass-Seite hinzufügen'}
+              </DialogTitle>
             </DialogHeader>
             <div className="space-y-4">
-              {!pendingFile && (
+              {pendingFiles.length === 0 && (
                 <div>
-                  <Label htmlFor="impfpass-upload-file">Datei</Label>
+                  <Label htmlFor="impfpass-upload-file">Dateien</Label>
                   <Input
                     id="impfpass-upload-file"
                     type="file"
+                    multiple
                     accept="image/jpeg,image/png,image/webp,image/*,application/pdf"
                     onChange={(event) => {
-                      const file = event.target.files?.[0]
-                      if (file) setPendingFile(file)
+                      const files = Array.from(event.target.files ?? [])
+                      if (files.length > 0) handleFilesSelected(files)
                     }}
                   />
                 </div>
               )}
-              {pendingFile && (
-                <p className="text-sm text-sage-600">Ausgewählt: {pendingFile.name}</p>
+              {pendingFiles.length > 0 && (
+                <div className="space-y-1">
+                  <p className="text-sm font-medium text-sage-800">
+                    {pendingFiles.length === 1
+                      ? '1 Datei ausgewählt'
+                      : `${pendingFiles.length} Dateien ausgewählt`}
+                  </p>
+                  <ul className="max-h-32 overflow-y-auto text-sm text-sage-600 space-y-0.5">
+                    {pendingFiles.map((file) => (
+                      <li key={file.name + file.size} className="truncate">
+                        {file.name}
+                      </li>
+                    ))}
+                  </ul>
+                  {pendingFiles.length > 1 && (
+                    <p className="text-xs text-sage-500">
+                      Die gewählte Kategorie gilt für alle Dateien.
+                    </p>
+                  )}
+                </div>
               )}
               <div>
                 <Label>Kategorie</Label>
@@ -1023,7 +1083,7 @@ export const PetImpfpassGallery = forwardRef<PetImpfpassGalleryHandle, PetImpfpa
               </Button>
               <Button
                 type="button"
-                disabled={!pendingFile || uploading}
+                disabled={pendingFiles.length === 0 || uploading}
                 onClick={() => void handleConfirmUpload()}
               >
                 {uploading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
@@ -1033,51 +1093,18 @@ export const PetImpfpassGallery = forwardRef<PetImpfpassGalleryHandle, PetImpfpa
           </DialogContent>
         </Dialog>
 
-        <Dialog open={!!editDoc} onOpenChange={(open) => !open && setEditDoc(null)}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Beschreibung bearbeiten</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4">
-              <div>
-                <Label>Kategorie</Label>
-                <Select
-                  value={editCategory}
-                  onValueChange={(value) => setEditCategory(value as ImpfpassPageCategory)}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {IMPFPASS_PAGE_CATEGORIES.map((category) => (
-                      <SelectItem key={category} value={category}>
-                        {IMPFPASS_CATEGORY_LABELS[category]}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label htmlFor="impfpass-edit-description">Zusätzliche Beschreibung (optional)</Label>
-                <Textarea
-                  id="impfpass-edit-description"
-                  value={editDescription}
-                  onChange={(event) => setEditDescription(event.target.value)}
-                  rows={3}
-                />
-              </div>
-            </div>
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setEditDoc(null)}>
-                Abbrechen
-              </Button>
-              <Button type="button" disabled={savingEdit} onClick={() => void handleSaveEdit()}>
-                {savingEdit ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                Speichern
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+        <DocumentEditDialog
+          document={editDoc}
+          pets={editPets}
+          open={editDoc !== null}
+          onOpenChange={(open) => !open && setEditDoc(null)}
+          mode="portal"
+          onSaved={(updated) => {
+            onDocumentsChange?.(
+              documents.map((doc) => (doc.id === updated.id ? updated : doc))
+            )
+          }}
+        />
       </div>
     )
   }

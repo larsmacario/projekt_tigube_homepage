@@ -221,10 +221,10 @@ export function getPetSaveWarnings(input: {
   documents: Array<{ pet_id: string | null; document_type: string }>
   editingPetId?: string | null
   impfpassCount?: number
-  wurmtestFile?: File | null
+  wurmtestFiles?: File[]
   photoCount?: number
 }): string[] {
-  const { formData, documents, editingPetId, impfpassCount, wurmtestFile, photoCount } = input
+  const { formData, documents, editingPetId, impfpassCount, wurmtestFiles, photoCount } = input
   const missing: string[] = []
 
   const hasExistingImpfpass =
@@ -233,7 +233,7 @@ export function getPetSaveWarnings(input: {
     !!editingPetId && petHasWurmtest(editingPetId, documents)
 
   if ((impfpassCount ?? 0) === 0 && !hasExistingImpfpass) missing.push('Impfpass')
-  if (!wurmtestFile && !hasExistingWurmtest) missing.push('Wurmtest')
+  if ((wurmtestFiles?.length ?? 0) === 0 && !hasExistingWurmtest) missing.push('Wurmtest')
   if (!formData.letzte_stuhlprobe && !formData.naechste_stuhlprobe) missing.push('Entwurmungsdatum')
   if ((photoCount ?? 0) === 0) missing.push('Tierfoto')
   if (isDog(formData.tierart)) {

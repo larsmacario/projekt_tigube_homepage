@@ -383,6 +383,8 @@ export interface BookingRequestGroup {
 
 export type SevdeskInvoiceSyncStatus = 'none' | 'pending' | 'synced' | 'failed'
 
+export type SevdeskSyncStatus = 'none' | 'pending' | 'synced' | 'failed'
+
 export type BookingLineItemSource = 'customer' | 'admin'
 
 export interface AddonService {
@@ -392,7 +394,15 @@ export interface AddonService {
   amount: number
   sort_order: number
   is_active: boolean
+  is_billable?: boolean
+  archived_at?: string | null
   sevdesk_article_id?: string | null
+  sevdesk_part_number?: string | null
+  sevdesk_sync_status?: SevdeskSyncStatus
+  sevdesk_synced_at?: string | null
+  sevdesk_sync_error?: string | null
+  sevdesk_usage_count?: number
+  sevdesk_usage_synced_at?: string | null
   created_at: string
   updated_at: string
 }
@@ -664,7 +674,19 @@ export interface SevdeskSettings {
   connected_at: string | null
   last_customer_import_at?: string | null
   last_customer_import_summary?: SevdeskCustomerImportSummary | null
+  last_article_import_at?: string | null
+  last_article_import_summary?: SevdeskArticleImportSummary | null
   updated_at: string
+}
+
+export interface SevdeskArticleImportSummary {
+  linked: number
+  created: number
+  skipped: number
+  failed: number
+  usageUpdated: number
+  usageFetchFailed?: boolean
+  failures?: Array<{ partId: string | null; partName: string | null; reason: string }>
 }
 
 export interface SevdeskCustomerImportSummary {
@@ -729,4 +751,9 @@ export interface SevdeskPart {
   partNumber: string | null
   price: number | null
   taxRate: number | null
+}
+
+export interface SevdeskInvoicePosition {
+  id: string
+  partId: string | null
 }

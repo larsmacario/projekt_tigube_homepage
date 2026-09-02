@@ -11,6 +11,7 @@ import { useToast } from '@/hooks/use-toast'
 import type { Document, Pet } from '@/lib/types'
 import { authenticatedFetch } from '@/lib/authenticated-fetch'
 import { PetImpfpassGallery } from '@/components/portal/pet-impfpass-gallery'
+import { DocumentEditDialog } from '@/components/document-edit-dialog'
 import { getImpfpassCategoryLabel } from '@/lib/impfpass-photo-categories'
 
 export default function DocumentsPage() {
@@ -18,6 +19,10 @@ export default function DocumentsPage() {
   const [pets, setPets] = useState<Pet[]>([])
   const [loading, setLoading] = useState(true)
   const [uploading, setUploading] = useState(false)
+  const [uploadProgress, setUploadProgress] = useState<{ current: number; total: number } | null>(
+    null
+  )
+  const [selectedFileNames, setSelectedFileNames] = useState<string[]>([])
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [impfpassPetId, setImpfpassPetId] = useState('')
   const [uploadForm, setUploadForm] = useState({
@@ -27,6 +32,7 @@ export default function DocumentsPage() {
   })
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [documentToDelete, setDocumentToDelete] = useState<Document | null>(null)
+  const [editDocument, setEditDocument] = useState<Document | null>(null)
   const [isDeleting, setIsDeleting] = useState(false)
   const { toast } = useToast()
 
@@ -93,16 +99,16 @@ export default function DocumentsPage() {
     }
 
     const fileInput = fileInputRef.current
-    if (!fileInput?.files?.[0]) {
+    const files = Array.from(fileInput?.files ?? [])
+    if (files.length === 0) {
       toast({
         title: 'Fehler',
-        description: 'Bitte wähle eine Datei aus',
+        description: 'Bitte wähle mindestens eine Datei aus',
         variant: 'destructive',
       })
       return
     }
 
-    const file = fileInput.files[0]
     const defaultDescription =
       uploadForm.document_type === 'vertrag'
         ? 'Betreuungsvertrag'
@@ -111,38 +117,69 @@ export default function DocumentsPage() {
         : ''
     const description = uploadForm.description.trim() || defaultDescription
 
-    const formData = new FormData()
-    formData.append('file', file)
-    formData.append('document_type', uploadForm.document_type)
-    if (description) {
-      formData.append('description', description)
-    }
-    if (uploadForm.pet_id) {
-      formData.append('pet_id', uploadForm.pet_id)
-    }
-
     setUploading(true)
-    try {
-      const response = await authenticatedFetch('/api/portal/documents', {
-        method: 'POST',
-        body: formData,
-      })
+    setUploadProgress({ current: 0, total: files.length })
 
-      if (response.ok) {
-        loadDocuments()
+    const uploadedDocuments: Document[] = []
+    const errors: string[] = []
+
+    try {
+      for (let index = 0; index < files.length; index++) {
+        setUploadProgress({ current: index + 1, total: files.length })
+
+        const formData = new FormData()
+        formData.append('file', files[index])
+        formData.append('document_type', uploadForm.document_type)
+        if (description) {
+          formData.append('description', description)
+        }
+        if (uploadForm.pet_id) {
+          formData.append('pet_id', uploadForm.pet_id)
+        }
+
+        const response = await authenticatedFetch('/api/portal/documents', {
+          method: 'POST',
+          body: formData,
+        })
+
+        if (response.ok) {
+          const data = await response.json()
+          if (data.document) {
+            uploadedDocuments.push(data.document)
+          }
+        } else {
+          const error = await response.json()
+          errors.push(error.error || `${files[index].name}: Fehler beim Hochladen`)
+        }
+      }
+
+      if (uploadedDocuments.length > 0) {
+        setDocuments((current) => [...uploadedDocuments, ...current])
         setUploadForm({ document_type: '', pet_id: '', description: '' })
+        setSelectedFileNames([])
         if (fileInputRef.current) {
           fileInputRef.current.value = ''
         }
+      }
+
+      if (errors.length === 0) {
         toast({
           title: 'Erfolg',
-          description: 'Dokument erfolgreich hochgeladen',
+          description:
+            uploadedDocuments.length === 1
+              ? 'Dokument erfolgreich hochgeladen'
+              : `${uploadedDocuments.length} Dokumente erfolgreich hochgeladen`,
+        })
+      } else if (uploadedDocuments.length > 0) {
+        toast({
+          title: 'Teilweise hochgeladen',
+          description: `${uploadedDocuments.length} von ${files.length} Dateien hochgeladen.`,
+          variant: 'destructive',
         })
       } else {
-        const error = await response.json()
         toast({
           title: 'Fehler',
-          description: error.error || 'Fehler beim Hochladen',
+          description: errors[0] || 'Fehler beim Hochladen',
           variant: 'destructive',
         })
       }
@@ -155,6 +192,7 @@ export default function DocumentsPage() {
       })
     } finally {
       setUploading(false)
+      setUploadProgress(null)
     }
   }
 
@@ -284,6 +322,7 @@ export default function DocumentsPage() {
               <PetImpfpassGallery
                 variant="documents"
                 petId={impfpassPetId}
+                pets={pets}
                 documents={documents}
                 onDocumentsChange={setDocuments}
               />
@@ -357,14 +396,26 @@ export default function DocumentsPage() {
           </div>
 
           <div>
-            <Label htmlFor="file">Datei *</Label>
+            <Label htmlFor="file">Dateien *</Label>
             <input
               ref={fileInputRef}
               id="file"
               type="file"
+              multiple
               accept=".pdf,.jpg,.jpeg,.png"
               className="mt-2 block w-full text-sm text-sage-600 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-sage-600 file:text-white hover:file:bg-sage-700"
+              onChange={(event) => {
+                const files = Array.from(event.target.files ?? [])
+                setSelectedFileNames(files.map((file) => file.name))
+              }}
             />
+            {selectedFileNames.length > 0 && (
+              <p className="mt-2 text-sm text-sage-600">
+                {selectedFileNames.length === 1
+                  ? `1 Datei ausgewählt: ${selectedFileNames[0]}`
+                  : `${selectedFileNames.length} Dateien ausgewählt`}
+              </p>
+            )}
           </div>
 
           <Button
@@ -372,7 +423,11 @@ export default function DocumentsPage() {
             loading={uploading}
             className="bg-sage-600 hover:bg-sage-700"
           >
-            {uploading ? 'Wird hochgeladen...' : 'Hochladen'}
+            {uploading && uploadProgress
+              ? `${uploadProgress.current}/${uploadProgress.total} hochgeladen…`
+              : uploading
+              ? 'Wird hochgeladen...'
+              : 'Hochladen'}
           </Button>
         </CardContent>
       </Card>
@@ -415,14 +470,23 @@ export default function DocumentsPage() {
                       Hochgeladen: {new Date(doc.uploaded_at).toLocaleDateString('de-DE')}
                     </p>
                   </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => openDeleteDialog(doc)}
-                    className="shrink-0 self-end sm:self-auto text-red-600 hover:text-red-700"
-                  >
-                    Löschen
-                  </Button>
+                  <div className="flex shrink-0 gap-2 self-end sm:self-auto">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setEditDocument(doc)}
+                    >
+                      Bearbeiten
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => openDeleteDialog(doc)}
+                      className="text-red-600 hover:text-red-700"
+                    >
+                      Löschen
+                    </Button>
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -431,6 +495,19 @@ export default function DocumentsPage() {
       )}
 
       {/* Delete Confirmation Dialog */}
+      <DocumentEditDialog
+        document={editDocument}
+        pets={pets}
+        open={editDocument !== null}
+        onOpenChange={(open) => !open && setEditDocument(null)}
+        mode="portal"
+        onSaved={(updated) => {
+          setDocuments((current) =>
+            current.map((doc) => (doc.id === updated.id ? updated : doc))
+          )
+        }}
+      />
+
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>

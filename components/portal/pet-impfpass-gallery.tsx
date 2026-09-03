@@ -498,13 +498,13 @@ export const PetImpfpassGallery = forwardRef<PetImpfpassGalleryHandle, PetImpfpa
 
     return (
       <div className="space-y-5">
-        {canAdd && petId && (
+        {canAdd && (
           <Input
             ref={fileInputRef}
             type="file"
             multiple
             accept="image/jpeg,image/png,image/webp,image/*,application/pdf"
-            className="hidden"
+            className="sr-only"
             onChange={(event) => {
               const files = Array.from(event.target.files ?? [])
               if (files.length > 0) handleFilesSelected(files)
@@ -577,7 +577,13 @@ export const PetImpfpassGallery = forwardRef<PetImpfpassGalleryHandle, PetImpfpa
                     disabled={uploading}
                     variant="outline"
                     className="mt-auto pt-4 w-full h-11 shrink-0 border-sage-400 hover:bg-sage-50"
-                    onClick={() => fileInputRef.current?.click()}
+                    onClick={() => {
+                      if (fileInputRef.current) {
+                        fileInputRef.current.click()
+                      } else {
+                        openUploadDialog()
+                      }
+                    }}
                   >
                     {uploading ? (
                       <Loader2 className="h-4 w-4 animate-spin mr-2" />
@@ -771,7 +777,13 @@ export const PetImpfpassGallery = forwardRef<PetImpfpassGalleryHandle, PetImpfpa
                 size="sm"
                 disabled={uploading}
                 className="shrink-0 bg-sage-600 hover:bg-sage-700"
-                onClick={() => fileInputRef.current?.click()}
+                onClick={() => {
+                  if (fileInputRef.current) {
+                    fileInputRef.current.click()
+                  } else {
+                    openUploadDialog()
+                  }
+                }}
               >
                 {uploading ? (
                   <Loader2 className="h-4 w-4 animate-spin mr-2" />

@@ -309,7 +309,7 @@ export const PetPhotoGallery = forwardRef<PetPhotoGalleryHandle, PetPhotoGallery
                 type="file"
                 multiple
                 accept="image/jpeg,image/png,image/webp,image/*"
-                className="hidden"
+                className="sr-only"
                 onChange={(event) => {
                   const files = Array.from(event.target.files ?? [])
                   if (files.length > 0) void handleFilesSelected(files)

@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 
 import { getAdminDbClient, getServerClient } from '@/lib/admin-auth'
+import { updateAuthUserEmailViaAdmin } from '@/lib/customer-email'
 import {
   deleteCustomerEmailChangeRequest,
   getCustomerEmailChangeRequest,
   setCustomerEmailChangeRequestStatus,
 } from '@/lib/customer-email-change'
-import { resolveRequestBaseUrl } from '@/lib/onboarding-invite'
+import { mapPortalApiError } from '@/lib/portal-api-errors'
 
 async function getCurrentCustomer(request: NextRequest) {
   const { client, accessToken } = await getServerClient(request)
@@ -42,24 +43,29 @@ export async function POST(request: NextRequest) {
       customerId: current.customer.id,
       status: 'awaiting_auth_confirmation',
     })
-    const { error } = await current.client.auth.updateUser(
-      { email: emailChange.requested_email },
-      { emailRedirectTo: `${resolveRequestBaseUrl(request)}/portal/profile?email-change=confirmed` }
-    )
-    if (error) {
+
+    try {
+      await updateAuthUserEmailViaAdmin({
+        db: adminDb,
+        authUserId: current.user.id,
+        email: emailChange.requested_email,
+      })
+    } catch (error) {
       await setCustomerEmailChangeRequestStatus({
         db: adminDb,
         customerId: current.customer.id,
         status: 'awaiting_customer_confirmation',
       })
-      return NextResponse.json({ error: error.message }, { status: 400 })
+      const message = error instanceof Error ? error.message : 'E-Mail-Änderung konnte nicht gestartet werden'
+      return NextResponse.json({ error: mapPortalApiError(message) }, { status: 400 })
     }
 
     return NextResponse.json({ emailChange: updatedChange })
   } catch (error) {
     console.error('Error confirming customer email change:', error)
+    const message = error instanceof Error ? error.message : 'E-Mail-Änderung konnte nicht gestartet werden'
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'E-Mail-Änderung konnte nicht gestartet werden' },
+      { error: mapPortalApiError(message) },
       { status: 500 }
     )
   }

@@ -5,7 +5,7 @@ import {
   PORTAL_ONBOARDING_STATUS_FIELDS,
   PORTAL_PROFILE_EDITABLE_FIELDS,
 } from '@/lib/contact-editable-fields'
-import { CustomerEmailError, normalizeCustomerEmail } from '@/lib/customer-email'
+import { CustomerEmailError, hasCustomerEmailChanged, normalizeCustomerEmail, updateAuthUserEmailViaAdmin } from '@/lib/customer-email'
 import {
   createCustomerEmailChangeRequest,
   getCustomerEmailChangeRequest,
@@ -13,7 +13,7 @@ import {
   deleteCustomerEmailChangeRequest,
   setCustomerEmailChangeRequestStatus,
 } from '@/lib/customer-email-change'
-import { resolveRequestBaseUrl } from '@/lib/onboarding-invite'
+import { mapPortalApiError } from '@/lib/portal-api-errors'
 
 export async function GET(request: NextRequest) {
   try {
@@ -124,7 +124,7 @@ export async function GET(request: NextRequest) {
   } catch (error: any) {
     console.error('Error fetching profile:', error)
     return NextResponse.json(
-      { error: error.message || 'Fehler beim Laden des Profils' },
+      { error: mapPortalApiError(error.message || 'Fehler beim Laden des Profils') },
       { status: 500 }
     )
   }
@@ -245,7 +245,7 @@ export async function PUT(request: NextRequest) {
 
     const adminDb = getAdminDbClient()
     let emailChange = null
-    if (requestedEmail && requestedEmail !== result.email) {
+    if (requestedEmail && hasCustomerEmailChanged(result.email, requestedEmail)) {
       const existingChange = await getCustomerEmailChangeRequest(adminDb, result.id)
       const acceptingAdminRequest =
         existingChange?.source === 'admin' &&
@@ -262,12 +262,13 @@ export async function PUT(request: NextRequest) {
         status: 'awaiting_auth_confirmation',
       })
 
-      const { error: authUpdateError } = await supabase.auth.updateUser({
-        email: requestedEmail,
-      }, {
-        emailRedirectTo: `${resolveRequestBaseUrl(request)}/portal/profile?email-change=confirmed`,
-      })
-      if (authUpdateError) {
+      try {
+        await updateAuthUserEmailViaAdmin({
+          db: adminDb,
+          authUserId: authUser.id,
+          email: requestedEmail,
+        })
+      } catch (authUpdateError) {
         if (acceptingAdminRequest) {
           await setCustomerEmailChangeRequestStatus({
             db: adminDb,
@@ -277,7 +278,7 @@ export async function PUT(request: NextRequest) {
         } else {
           await deleteCustomerEmailChangeRequest({ db: adminDb, customerId: result.id })
         }
-        throw new CustomerEmailError(authUpdateError.message)
+        throw authUpdateError
       }
     } else {
       // Auch ohne E-Mail-Änderung den aktuellen Status zurückgeben,
@@ -309,8 +310,9 @@ export async function PUT(request: NextRequest) {
     return NextResponse.json({ customer: result, emailChange })
   } catch (error: any) {
     console.error('Error updating profile:', error)
+    const message = mapPortalApiError(error.message || 'Fehler beim Aktualisieren des Profils')
     return NextResponse.json(
-      { error: error.message || 'Fehler beim Aktualisieren des Profils' },
+      { error: message },
       { status: error instanceof CustomerEmailError ? 400 : 500 }
     )
   }

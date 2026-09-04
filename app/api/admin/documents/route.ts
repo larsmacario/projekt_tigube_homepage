@@ -1,16 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAdmin } from '@/lib/admin-auth'
+import { registerCustomerDocument } from '@/lib/customer-document-register'
 import {
   ALLOWED_CUSTOMER_DOCUMENT_TYPES,
   buildCustomerDocumentStoragePath,
   CUSTOMER_DOCUMENTS_BUCKET,
+  formatCustomerDocumentStorageError,
+  getCustomerDocumentFileExtension,
+  getCustomerDocumentUploadMimeType,
+  type CustomerDocumentType,
+  validateCustomerDocumentFile,
 } from '@/lib/customer-documents'
-import {
-  DEFAULT_IMPFASS_PAGE_CATEGORY,
-  isImpfpassPageCategory,
-  MAX_IMPFASS_PHOTOS,
-  normalizeImpfpassPageCategory,
-} from '@/lib/impfpass-photo-categories'
 
 export async function GET(request: NextRequest) {
   try {
@@ -33,13 +33,23 @@ export async function GET(request: NextRequest) {
     if (error) throw error
 
     return NextResponse.json({ documents: data || [] })
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error fetching admin documents:', error)
-    return NextResponse.json(
-      { error: error.message || 'Fehler beim Laden der Dokumente' },
-      { status: 500 }
-    )
+    const message = error instanceof Error ? error.message : 'Fehler beim Laden der Dokumente'
+    return NextResponse.json({ error: message }, { status: 500 })
   }
+}
+
+type JsonAdminDocumentUploadBody = {
+  customer_id?: string
+  file_path?: string
+  file_name?: string
+  file_size?: number
+  mime_type?: string
+  document_type?: string
+  pet_id?: string | null
+  page_category?: string | null
+  description?: string | null
 }
 
 export async function POST(request: NextRequest) {
@@ -47,6 +57,64 @@ export async function POST(request: NextRequest) {
     const auth = await requireAdmin(request)
     if ('error' in auth) {
       return NextResponse.json({ error: auth.error }, { status: auth.status })
+    }
+
+    const contentType = request.headers.get('content-type') ?? ''
+
+    if (contentType.includes('application/json')) {
+      const body = (await request.json()) as JsonAdminDocumentUploadBody
+      const customerId = body.customer_id
+      const documentType = body.document_type
+
+      if (
+        !customerId ||
+        !body.file_path ||
+        !body.file_name ||
+        typeof body.file_size !== 'number' ||
+        !body.mime_type ||
+        !documentType
+      ) {
+        return NextResponse.json(
+          { error: 'Dateimetadaten, Dokumenttyp und customer_id sind erforderlich' },
+          { status: 400 }
+        )
+      }
+
+      if (
+        !ALLOWED_CUSTOMER_DOCUMENT_TYPES.includes(documentType as CustomerDocumentType)
+      ) {
+        return NextResponse.json({ error: 'Ungültiger Dokumenttyp' }, { status: 400 })
+      }
+
+      const { data: customer, error: customerError } = await auth.client
+        .from('contacts')
+        .select('id')
+        .eq('id', customerId)
+        .eq('contact_type', 'customer')
+        .maybeSingle()
+
+      if (customerError) throw customerError
+      if (!customer) {
+        return NextResponse.json({ error: 'Kunde nicht gefunden' }, { status: 404 })
+      }
+
+      const result = await registerCustomerDocument(auth.client, {
+        customerId,
+        documentType: documentType as CustomerDocumentType,
+        filePath: body.file_path,
+        fileName: body.file_name,
+        fileSize: body.file_size,
+        mimeType: body.mime_type,
+        petId: body.pet_id ?? null,
+        pageCategory: body.page_category ?? null,
+        description: body.description ?? null,
+      })
+
+      if ('error' in result) {
+        return NextResponse.json({ error: result.error }, { status: result.status })
+      }
+
+      return NextResponse.json({ document: result.document })
     }
 
     const formData = await request.formData()
@@ -64,29 +132,15 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    if (!ALLOWED_CUSTOMER_DOCUMENT_TYPES.includes(documentType as (typeof ALLOWED_CUSTOMER_DOCUMENT_TYPES)[number])) {
+    const validationError = validateCustomerDocumentFile(file)
+    if (validationError) {
+      return NextResponse.json({ error: validationError }, { status: 400 })
+    }
+
+    if (
+      !ALLOWED_CUSTOMER_DOCUMENT_TYPES.includes(documentType as CustomerDocumentType)
+    ) {
       return NextResponse.json({ error: 'Ungültiger Dokumenttyp' }, { status: 400 })
-    }
-
-    const requiresPet = documentType === 'impfpass' || documentType === 'wurmtest'
-    if (requiresPet && !petId) {
-      return NextResponse.json(
-        { error: 'Dieses Dokument muss einem Tier zugeordnet werden.' },
-        { status: 400 }
-      )
-    }
-
-    const descriptionRequired =
-      documentType !== 'impfpass' && documentType !== 'vertrag' && documentType !== 'wurmtest'
-    if (descriptionRequired && !descriptionRaw?.trim()) {
-      return NextResponse.json(
-        { error: 'Beschreibung ist erforderlich' },
-        { status: 400 }
-      )
-    }
-
-    if (pageCategoryRaw && !isImpfpassPageCategory(pageCategoryRaw)) {
-      return NextResponse.json({ error: 'Ungültige Impfpass-Kategorie' }, { status: 400 })
     }
 
     const { data: customer, error: customerError } = await auth.client
@@ -101,82 +155,42 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Kunde nicht gefunden' }, { status: 404 })
     }
 
-    if (requiresPet && petId) {
-      if (documentType === 'impfpass') {
-        const { count, error: countError } = await auth.client
-          .from('documents')
-          .select('*', { count: 'exact', head: true })
-          .eq('pet_id', petId)
-          .eq('document_type', 'impfpass')
-
-        if (countError) throw countError
-        if ((count ?? 0) >= MAX_IMPFASS_PHOTOS) {
-          return NextResponse.json(
-            { error: `Maximal ${MAX_IMPFASS_PHOTOS} Impfpass-Fotos pro Tier erlaubt.` },
-            { status: 400 }
-          )
-        }
-      }
-
-      const { data: pet, error: petError } = await auth.client
-        .from('pets')
-        .select('id')
-        .eq('id', petId)
-        .eq('customer_id', customerId)
-        .maybeSingle()
-
-      if (petError) throw petError
-      if (!pet) {
-        return NextResponse.json({ error: 'Tier nicht gefunden' }, { status: 404 })
-      }
-    }
-
-    const fileExt = file.name.split('.').pop() || 'bin'
+    const fileExt = getCustomerDocumentFileExtension(file.name)
     const filePath = buildCustomerDocumentStoragePath(customerId, documentType, fileExt, petId)
+    const mimeType = getCustomerDocumentUploadMimeType(file)
 
     const { error: uploadError } = await auth.client.storage
       .from(CUSTOMER_DOCUMENTS_BUCKET)
-      .upload(filePath, file)
+      .upload(filePath, file, { contentType: mimeType, upsert: false })
 
-    if (uploadError) throw uploadError
+    if (uploadError) {
+      return NextResponse.json(
+        { error: formatCustomerDocumentStorageError(uploadError.message) },
+        { status: 400 }
+      )
+    }
 
-    const pageCategory =
-      documentType === 'impfpass'
-        ? normalizeImpfpassPageCategory(pageCategoryRaw ?? DEFAULT_IMPFASS_PAGE_CATEGORY)
-        : null
-    const defaultDescription =
-      documentType === 'vertrag'
-        ? 'Betreuungsvertrag'
-        : documentType === 'wurmtest'
-        ? 'Wurmtest'
-        : null
-    const description =
-      descriptionRaw?.trim() ? descriptionRaw.trim().slice(0, 500) : defaultDescription
+    const result = await registerCustomerDocument(auth.client, {
+      customerId,
+      documentType: documentType as CustomerDocumentType,
+      filePath,
+      fileName: file.name,
+      fileSize: file.size,
+      mimeType,
+      petId,
+      pageCategory: pageCategoryRaw,
+      description: descriptionRaw,
+    })
 
-    const { data, error: dbError } = await auth.client
-      .from('documents')
-      .insert({
-        customer_id: customerId,
-        pet_id: petId || null,
-        document_type: documentType,
-        page_category: pageCategory,
-        description,
-        file_path: filePath,
-        file_name: file.name,
-        file_size: file.size,
-        mime_type: file.type,
-      })
-      .select()
-      .single()
+    if ('error' in result) {
+      await auth.client.storage.from(CUSTOMER_DOCUMENTS_BUCKET).remove([filePath])
+      return NextResponse.json({ error: result.error }, { status: result.status })
+    }
 
-    if (dbError) throw dbError
-
-    return NextResponse.json({ document: data })
-  } catch (error: any) {
+    return NextResponse.json({ document: result.document })
+  } catch (error: unknown) {
     console.error('Error uploading admin document:', error)
-    return NextResponse.json(
-      { error: error.message || 'Fehler beim Hochladen des Dokuments' },
-      { status: 500 }
-    )
+    const message = error instanceof Error ? error.message : 'Fehler beim Hochladen des Dokuments'
+    return NextResponse.json({ error: message }, { status: 500 })
   }
 }

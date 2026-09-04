@@ -10,6 +10,8 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { useToast } from '@/hooks/use-toast'
 import type { Document, Pet } from '@/lib/types'
 import { authenticatedFetch } from '@/lib/authenticated-fetch'
+import { uploadPortalDocuments } from '@/lib/portal-document-upload'
+import type { CustomerDocumentType } from '@/lib/customer-documents'
 import { PetImpfpassGallery } from '@/components/portal/pet-impfpass-gallery'
 import { DocumentEditDialog } from '@/components/document-edit-dialog'
 import { getImpfpassCategoryLabel } from '@/lib/impfpass-photo-categories'
@@ -120,38 +122,15 @@ export default function DocumentsPage() {
     setUploading(true)
     setUploadProgress({ current: 0, total: files.length })
 
-    const uploadedDocuments: Document[] = []
-    const errors: string[] = []
-
     try {
-      for (let index = 0; index < files.length; index++) {
-        setUploadProgress({ current: index + 1, total: files.length })
+      const { documents: uploadedDocuments, errors } = await uploadPortalDocuments({
+        files,
+        documentType: uploadForm.document_type as CustomerDocumentType,
+        petId: uploadForm.pet_id || undefined,
+        description,
+      })
 
-        const formData = new FormData()
-        formData.append('file', files[index])
-        formData.append('document_type', uploadForm.document_type)
-        if (description) {
-          formData.append('description', description)
-        }
-        if (uploadForm.pet_id) {
-          formData.append('pet_id', uploadForm.pet_id)
-        }
-
-        const response = await authenticatedFetch('/api/portal/documents', {
-          method: 'POST',
-          body: formData,
-        })
-
-        if (response.ok) {
-          const data = await response.json()
-          if (data.document) {
-            uploadedDocuments.push(data.document)
-          }
-        } else {
-          const error = await response.json()
-          errors.push(error.error || `${files[index].name}: Fehler beim Hochladen`)
-        }
-      }
+      setUploadProgress({ current: files.length, total: files.length })
 
       if (uploadedDocuments.length > 0) {
         setDocuments((current) => [...uploadedDocuments, ...current])
@@ -173,7 +152,7 @@ export default function DocumentsPage() {
       } else if (uploadedDocuments.length > 0) {
         toast({
           title: 'Teilweise hochgeladen',
-          description: `${uploadedDocuments.length} von ${files.length} Dateien hochgeladen.`,
+          description: `${uploadedDocuments.length} von ${files.length} Dateien hochgeladen. ${errors[0]}`,
           variant: 'destructive',
         })
       } else {

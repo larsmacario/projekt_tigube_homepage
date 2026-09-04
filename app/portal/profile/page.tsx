@@ -39,6 +39,7 @@ import {
   formatCustomerAddress,
   isCustomerProfileComplete,
 } from '@/lib/customer-profile-complete'
+import { mapPortalApiError } from '@/lib/portal-api-errors'
 import { LegalContent } from '@/components/legal-content'
 import { resolveBetreuungsvertragLegal } from '@/lib/betreuungsvertrag'
 import { buildBetreuungsvertragPdf } from '@/lib/betreuungsvertrag-pdf'
@@ -273,7 +274,7 @@ function ProfileContent() {
       console.error('Error loading profile:', error)
       toast({
         title: 'Fehler',
-        description: error.message || 'Profil konnte nicht geladen werden',
+        description: mapPortalApiError(error.message || 'Profil konnte nicht geladen werden'),
         variant: 'destructive',
       })
       setCustomer(null)
@@ -629,7 +630,7 @@ function ProfileContent() {
     } catch (error: any) {
       toast({
         title: 'Fehler',
-        description: error.message || 'Fehler beim Abschließen des Onboardings',
+        description: mapPortalApiError(error.message || 'Fehler beim Abschließen des Onboardings'),
         variant: 'destructive',
       })
     } finally {
@@ -666,7 +667,7 @@ function ProfileContent() {
         const error = await response.json()
         toast({
           title: 'Fehler',
-          description: error.error || 'Fehler beim Speichern',
+          description: mapPortalApiError(error.error || 'Fehler beim Speichern'),
           variant: 'destructive',
         })
       }
@@ -914,7 +915,7 @@ function ProfileContent() {
         const error = await response.json()
         toast({
           title: 'Fehler',
-          description: error.error || 'Fehler beim Löschen',
+          description: mapPortalApiError(error.error || 'Fehler beim Löschen'),
           variant: 'destructive',
         })
       }
@@ -976,7 +977,7 @@ function ProfileContent() {
         const error = await response.json()
         toast({
           title: 'Fehler',
-          description: error.error || 'Fehler beim Speichern',
+          description: mapPortalApiError(error.error || 'Fehler beim Speichern'),
           variant: 'destructive',
         })
       }
@@ -1020,7 +1021,7 @@ function ProfileContent() {
         const error = await response.json()
         toast({
           title: 'Fehler',
-          description: error.error || 'Fehler beim Speichern',
+          description: mapPortalApiError(error.error || 'Fehler beim Speichern'),
           variant: 'destructive',
         })
       }
@@ -1050,7 +1051,9 @@ function ProfileContent() {
     } catch (error) {
       toast({
         title: 'Fehler',
-        description: error instanceof Error ? error.message : 'E-Mail-Änderung konnte nicht gestartet werden',
+        description: mapPortalApiError(
+          error instanceof Error ? error.message : 'E-Mail-Änderung konnte nicht gestartet werden'
+        ),
         variant: 'destructive',
       })
     } finally {
@@ -1069,7 +1072,9 @@ function ProfileContent() {
     } catch (error) {
       toast({
         title: 'Fehler',
-        description: error instanceof Error ? error.message : 'E-Mail-Änderung konnte nicht abgelehnt werden',
+        description: mapPortalApiError(
+          error instanceof Error ? error.message : 'E-Mail-Änderung konnte nicht abgelehnt werden'
+        ),
         variant: 'destructive',
       })
     } finally {

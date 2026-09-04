@@ -18,6 +18,58 @@ export function normalizeCustomerEmail(value: unknown): string {
   return parsed.data
 }
 
+/** Vergleicht gespeicherte und angeforderte E-Mail case-insensitiv (inkl. Trim). */
+export function customerEmailsEqual(
+  stored: string | null | undefined,
+  requested: unknown
+): boolean {
+  if (stored == null || stored === '') {
+    return requested == null || requested === ''
+  }
+  if (requested == null || requested === '') {
+    return false
+  }
+
+  try {
+    return normalizeCustomerEmail(stored) === normalizeCustomerEmail(requested)
+  } catch {
+    return String(stored).trim() === String(requested).trim()
+  }
+}
+
+/** True, wenn sich die E-Mail inhaltlich geändert hat (nicht nur Groß-/Kleinschreibung). */
+export function hasCustomerEmailChanged(
+  stored: string | null | undefined,
+  requested: unknown
+): boolean {
+  if (requested == null || requested === '') {
+    return false
+  }
+
+  try {
+    normalizeCustomerEmail(requested)
+  } catch {
+    return false
+  }
+
+  return !customerEmailsEqual(stored, requested)
+}
+
+export async function updateAuthUserEmailViaAdmin(options: {
+  db: SupabaseClient
+  authUserId: string
+  email: string
+}): Promise<void> {
+  const normalizedEmail = normalizeCustomerEmail(options.email)
+  const { error } = await options.db.auth.admin.updateUserById(options.authUserId, {
+    email: normalizedEmail,
+  })
+
+  if (error) {
+    throw new CustomerEmailError(error.message)
+  }
+}
+
 export async function assertCustomerEmailAvailable(options: {
   db: SupabaseClient
   email: string

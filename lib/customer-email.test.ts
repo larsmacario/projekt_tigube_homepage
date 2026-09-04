@@ -3,6 +3,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   CustomerEmailError,
   assertCustomerEmailAvailable,
+  customerEmailsEqual,
+  hasCustomerEmailChanged,
   normalizeCustomerEmail,
 } from '@/lib/customer-email'
 
@@ -44,6 +46,43 @@ function createAvailabilityDb(results: {
     }),
   }
 }
+
+describe('customerEmailsEqual', () => {
+  it('erkennt gleiche Adressen trotz unterschiedlicher Schreibweise', () => {
+    expect(customerEmailsEqual('Anna.Muster@Example.DE', 'anna.muster@example.de')).toBe(true)
+    expect(customerEmailsEqual('kunde@example.com', '  kunde@example.com ')).toBe(true)
+  })
+
+  it('erkennt unterschiedliche Adressen', () => {
+    expect(customerEmailsEqual('a@example.com', 'b@example.com')).toBe(false)
+  })
+
+  it('behandelt leere gespeicherte Adresse', () => {
+    expect(customerEmailsEqual('', '')).toBe(true)
+    expect(customerEmailsEqual(null, null)).toBe(true)
+    expect(customerEmailsEqual('', 'kunde@example.com')).toBe(false)
+  })
+
+  it('fällt bei ungültiger DB-E-Mail auf String-Vergleich zurück', () => {
+    expect(customerEmailsEqual('keine-email', 'keine-email')).toBe(true)
+    expect(customerEmailsEqual('keine-email', 'andere@example.com')).toBe(false)
+  })
+})
+
+describe('hasCustomerEmailChanged', () => {
+  it('liefert false bei reiner Schreibweisen-Änderung', () => {
+    expect(hasCustomerEmailChanged('Name@Domain.de', 'name@domain.de')).toBe(false)
+  })
+
+  it('liefert true bei echter E-Mail-Änderung', () => {
+    expect(hasCustomerEmailChanged('alt@example.com', 'neu@example.com')).toBe(true)
+  })
+
+  it('liefert false bei leerer Anfrage oder ungültiger neuer Adresse', () => {
+    expect(hasCustomerEmailChanged('alt@example.com', '')).toBe(false)
+    expect(hasCustomerEmailChanged('alt@example.com', 'ungueltig')).toBe(false)
+  })
+})
 
 describe('assertCustomerEmailAvailable', () => {
   beforeEach(() => {

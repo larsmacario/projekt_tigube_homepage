@@ -8,7 +8,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Download, FileText, Pencil, Trash2, Upload } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
+import { uploadAdminDocuments } from '@/lib/admin-document-upload'
 import { authenticatedFetch } from '@/lib/authenticated-fetch'
+import type { CustomerDocumentType } from '@/lib/customer-documents'
 import type { Document, Pet } from '@/lib/types'
 import { DOCUMENT_TYPE_OPTIONS } from '@/lib/pet-form-options'
 import { getImpfpassCategoryLabel } from '@/lib/impfpass-photo-categories'
@@ -56,8 +58,11 @@ export function DocumentManager({
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [activeTab, setActiveTab] = useState('general')
   const [uploadForm, setUploadForm] = useState({ document_type: '', pet_id: '', description: '' })
-  const [selectedFileName, setSelectedFileName] = useState('')
+  const [selectedFileNames, setSelectedFileNames] = useState<string[]>([])
   const [uploading, setUploading] = useState(false)
+  const [uploadProgress, setUploadProgress] = useState<{ current: number; total: number } | null>(
+    null
+  )
   const [deleteId, setDeleteId] = useState<string | null>(null)
   const [previewUrls, setPreviewUrls] = useState<Record<string, string>>({})
   const [previewIndex, setPreviewIndex] = useState<number | null>(null)
@@ -131,8 +136,8 @@ export function DocumentManager({
   }
 
   async function handleUpload() {
-    const file = fileInputRef.current?.files?.[0]
-    if (!file || !uploadForm.document_type) {
+    const files = Array.from(fileInputRef.current?.files ?? [])
+    if (files.length === 0 || !uploadForm.document_type) {
       toast({ title: 'Fehler', description: 'Datei und Dokumenttyp sind erforderlich', variant: 'destructive' })
       return
     }
@@ -161,35 +166,48 @@ export function DocumentManager({
     const description = uploadForm.description.trim() || defaultDescription
 
     setUploading(true)
-    try {
-      const formData = new FormData()
-      formData.append('file', file)
-      formData.append('document_type', uploadForm.document_type)
-      formData.append('customer_id', customerId)
-      if (description) formData.append('description', description)
-      if (uploadForm.pet_id) formData.append('pet_id', uploadForm.pet_id)
+    setUploadProgress({ current: 0, total: files.length })
 
-      const response = await authenticatedFetch('/api/admin/documents', {
-        method: 'POST',
-        body: formData,
-        credentials: 'include',
+    try {
+      const { documents: uploadedDocuments, errors } = await uploadAdminDocuments({
+        files,
+        customerId,
+        documentType: uploadForm.document_type as CustomerDocumentType,
+        petId: uploadForm.pet_id || undefined,
+        description,
       })
 
-      if (response.ok) {
-        const data = await response.json()
-        onDocumentsChange([data.document, ...documents])
+      setUploadProgress({ current: files.length, total: files.length })
+
+      if (uploadedDocuments.length > 0) {
+        onDocumentsChange([...uploadedDocuments, ...documents])
         setUploadForm({ document_type: '', pet_id: '', description: '' })
-        setSelectedFileName('')
+        setSelectedFileNames([])
         if (fileInputRef.current) fileInputRef.current.value = ''
-        toast({ title: 'Erfolg', description: 'Dokument hochgeladen' })
+      }
+
+      if (errors.length === 0) {
+        toast({
+          title: 'Erfolg',
+          description:
+            uploadedDocuments.length === 1
+              ? 'Dokument hochgeladen'
+              : `${uploadedDocuments.length} Dokumente hochgeladen`,
+        })
+      } else if (uploadedDocuments.length > 0) {
+        toast({
+          title: 'Teilweise hochgeladen',
+          description: `${uploadedDocuments.length} von ${files.length} Dateien hochgeladen. ${errors[0]}`,
+          variant: 'destructive',
+        })
       } else {
-        const error = await response.json()
-        toast({ title: 'Fehler', description: error.error || 'Fehler beim Hochladen', variant: 'destructive' })
+        toast({ title: 'Fehler', description: errors[0] || 'Fehler beim Hochladen', variant: 'destructive' })
       }
     } catch {
       toast({ title: 'Fehler', description: 'Fehler beim Hochladen', variant: 'destructive' })
     } finally {
       setUploading(false)
+      setUploadProgress(null)
     }
   }
 
@@ -402,17 +420,25 @@ export function DocumentManager({
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="admin-doc-file">Datei</Label>
+              <Label htmlFor="admin-doc-file">Dateien</Label>
               <input
                 ref={fileInputRef}
                 id="admin-doc-file"
                 type="file"
+                multiple
                 accept=".pdf,.jpg,.jpeg,.png"
-                onChange={(e) => setSelectedFileName(e.target.files?.[0]?.name || '')}
+                onChange={(e) => {
+                  const files = Array.from(e.target.files ?? [])
+                  setSelectedFileNames(files.map((file) => file.name))
+                }}
                 className="block w-full text-sm text-sage-600 file:mr-4 file:rounded-md file:border-0 file:bg-sage-600 file:px-4 file:py-2 file:text-sm file:font-medium file:text-white hover:file:bg-sage-700"
               />
-              {selectedFileName && (
-                <p className="text-xs text-sage-500 truncate">Ausgewählt: {selectedFileName}</p>
+              {selectedFileNames.length > 0 && (
+                <p className="text-xs text-sage-500">
+                  {selectedFileNames.length === 1
+                    ? `Ausgewählt: ${selectedFileNames[0]}`
+                    : `${selectedFileNames.length} Dateien ausgewählt`}
+                </p>
               )}
             </div>
           </div>
@@ -424,7 +450,11 @@ export function DocumentManager({
               className="bg-sage-600 hover:bg-sage-700 min-w-[140px]"
             >
               <Upload className="h-4 w-4 mr-2" />
-              {uploading ? 'Wird hochgeladen…' : 'Hochladen'}
+              {uploading && uploadProgress
+                ? `${uploadProgress.current}/${uploadProgress.total} hochgeladen…`
+                : uploading
+                ? 'Wird hochgeladen…'
+                : 'Hochladen'}
             </Button>
           </div>
         </div>

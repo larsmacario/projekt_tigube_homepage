@@ -44,6 +44,7 @@ import {
   fetchPortalDocumentSignedUrl,
   uploadPortalDocument,
 } from '@/lib/portal-document-upload'
+import { validateCustomerDocumentFile } from '@/lib/customer-documents'
 import {
   getImpfpassUploadMobileUrl,
   getImpfpassUploadQrCodeUrl,
@@ -367,17 +368,46 @@ export const PetImpfpassGallery = forwardRef<PetImpfpassGalleryHandle, PetImpfpa
         return
       }
 
-      const accepted = files.slice(0, remainingSlots)
-      const skipped = files.length - accepted.length
+      const validFiles: File[] = []
+      let skippedInvalid = 0
 
-      if (skipped > 0) {
+      for (const file of files) {
+        if (validFiles.length >= remainingSlots) break
+        const validationError = validateCustomerDocumentFile(file)
+        if (validationError) {
+          skippedInvalid++
+          continue
+        }
+        validFiles.push(file)
+      }
+
+      const skippedOverLimit = files.length - skippedInvalid - validFiles.length
+
+      if (validFiles.length === 0) {
+        if (skippedInvalid > 0) {
+          toast({
+            title: 'Fehler',
+            description: 'Keine gültigen Dateien ausgewählt. PDF, JPEG oder PNG, max. 10 MB.',
+            variant: 'destructive',
+          })
+        }
+        if (fileInputRef.current) fileInputRef.current.value = ''
+        return
+      }
+
+      if (skippedOverLimit > 0) {
         toast({
           title: 'Limit erreicht',
-          description: `Nur noch ${remainingSlots} Plätze frei – ${skipped} Datei(en) übersprungen.`,
+          description: `Nur noch ${remainingSlots} Plätze frei – ${skippedOverLimit} Datei(en) übersprungen.`,
+        })
+      } else if (skippedInvalid > 0) {
+        toast({
+          title: 'Hinweis',
+          description: `${skippedInvalid} ungültige Datei(en) übersprungen.`,
         })
       }
 
-      setPendingFiles(accepted)
+      setPendingFiles(validFiles)
       setUploadDialogOpen(true)
       if (fileInputRef.current) fileInputRef.current.value = ''
     }
@@ -523,7 +553,7 @@ export const PetImpfpassGallery = forwardRef<PetImpfpassGalleryHandle, PetImpfpa
             </h4>
             <p className="text-sm text-sage-600">
               Für die Betreuung brauchen wir gut lesbare Fotos einzelner Impfpass-Seiten – nicht
-              den ganzen Ausweis auf einmal.
+              den ganzen Ausweis auf einmal. Gescannter Impfpass als PDF ist erlaubt (max. 10 MB).
             </p>
           </div>
 
@@ -568,7 +598,7 @@ export const PetImpfpassGallery = forwardRef<PetImpfpassGalleryHandle, PetImpfpa
                         Am Computer hochladen
                       </span>
                       <p className="mt-1 min-h-[2.5rem] text-sm text-sage-600">
-                        Datei vom PC oder Mac auswählen und hochladen.
+                        Datei vom PC oder Mac auswählen (PDF, JPEG oder PNG, max. 10 MB).
                       </p>
                     </div>
                   </div>

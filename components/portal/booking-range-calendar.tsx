@@ -22,8 +22,8 @@ export const bookingRangeCalendarClassName =
 export const bookingRangeCalendarClassNames = {
   today: '!bg-transparent',
   week: 'mt-2 flex w-full gap-0',
-  day: 'relative overflow-hidden p-0.5',
-  outside: 'pointer-events-none opacity-0',
+  day: 'relative flex-1 overflow-hidden p-0.5',
+  outside: 'invisible pointer-events-none',
   day_button:
     '!ring-0 !ring-offset-0 focus:!ring-0 focus-visible:!ring-0 data-[range-middle=true]:!bg-accent data-[range-start=true]:!bg-primary data-[range-end=true]:!bg-primary',
 }
@@ -151,7 +151,6 @@ export function BookingRangeCalendar({
         mode="range"
         locale={deDayPicker}
         weekStartsOn={1}
-        showOutsideDays={false}
         selected={selected}
         defaultMonth={defaultMonth ?? selected?.from}
         month={month}

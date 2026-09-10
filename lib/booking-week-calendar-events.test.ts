@@ -4,6 +4,7 @@ import {
   buildWeekCalendarEvents,
   getMondayOfWeek,
   getWeekIsoDates,
+  isoWeekdayFromIsoDate,
   isBookingActiveOnIsoDate,
 } from '@/lib/booking-week-calendar-events'
 
@@ -75,5 +76,28 @@ describe('booking-week-calendar-events', () => {
       '2026-07-07',
       '2026-07-09',
     ])
+  })
+
+  it('matches day care once booking only on selected ISO date (Simone Günther / Baghira)', () => {
+    const booking = baseBooking({
+      id: '8ab731bc-d7f5-4f81-9e88-54ea5ad0b913',
+      service_type: 'tagesbetreuung',
+      day_care_mode: 'once',
+      selected_dates: ['2026-10-02'],
+      start_date: '2026-10-02',
+      end_date: '2026-10-02',
+      request_group: null,
+      pet: { id: 'p-baghira', name: 'Baghira' } as BookingRequest['pet'],
+    })
+
+    expect(isBookingActiveOnIsoDate(booking, '2026-10-02')).toBe(true)
+    expect(isBookingActiveOnIsoDate(booking, '2026-10-01')).toBe(false)
+    expect(isBookingActiveOnIsoDate(booking, '2026-10-03')).toBe(false)
+  })
+
+  it('resolves October 2026 weekdays for calendar grid alignment', () => {
+    expect(isoWeekdayFromIsoDate('2026-10-01')).toBe(4) // Donnerstag
+    expect(isoWeekdayFromIsoDate('2026-10-02')).toBe(5) // Freitag
+    expect(isoWeekdayFromIsoDate('2026-10-03')).toBe(6) // Samstag (Tag der Deutschen Einheit)
   })
 })

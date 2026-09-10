@@ -81,7 +81,6 @@ export function BookingCalendar({
     const year = currentDate.getFullYear()
     const month = currentDate.getMonth()
     const firstDay = new Date(year, month, 1)
-    const lastDay = new Date(year, month + 1, 0)
     const startDate = new Date(firstDay)
     startDate.setDate(startDate.getDate() - startDate.getDay() + (startDate.getDay() === 0 ? -6 : 1)) // Montag als Start
     
@@ -90,12 +89,8 @@ export function BookingCalendar({
     
     // 6 Wochen = 42 Tage
     for (let i = 0; i < 42; i++) {
-      const dateStr = current.toISOString().split('T')[0]
-      const dayBookings = bookings.filter(b => {
-        const start = new Date(b.start_date)
-        const end = new Date(b.end_date)
-        return current >= start && current <= end
-      })
+      const dateStr = toIsoDate(current)
+      const dayBookings = bookings.filter((b) => isBookingActiveOnIsoDate(b, dateStr))
       
       const capacity = capacityData.find(c => c.date === dateStr)
       

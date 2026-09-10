@@ -57,7 +57,6 @@ export function BookingMultiDayCalendar({
         mode="multiple"
         locale={deDayPicker}
         weekStartsOn={1}
-        showOutsideDays={false}
         selected={selected}
         defaultMonth={defaultMonth ?? selected?.[0]}
         month={month}

@@ -2,11 +2,13 @@ import { describe, expect, it } from 'vitest'
 import type { BookingRequest } from '@/lib/types'
 import {
   buildWeekCalendarEvents,
+  getBookingsForCalendarIsoDate,
   getMondayOfWeek,
   getWeekIsoDates,
   isoWeekdayFromIsoDate,
   isBookingActiveOnIsoDate,
 } from '@/lib/booking-week-calendar-events'
+import { toIsoDate } from '@/lib/vacation-dates'
 
 function baseBooking(overrides: Partial<BookingRequest>): BookingRequest {
   return {
@@ -99,5 +101,42 @@ describe('booking-week-calendar-events', () => {
     expect(isoWeekdayFromIsoDate('2026-10-01')).toBe(4) // Donnerstag
     expect(isoWeekdayFromIsoDate('2026-10-02')).toBe(5) // Freitag
     expect(isoWeekdayFromIsoDate('2026-10-03')).toBe(6) // Samstag (Tag der Deutschen Einheit)
+  })
+
+  it('shows Luna hundepension from 2026-10-01 in month grid (not one day late)', () => {
+    const luna = baseBooking({
+      id: 'luna-oct-2026',
+      status: 'pending',
+      start_date: '2026-10-01',
+      end_date: '2026-10-11',
+      pet: { id: 'p-luna', name: 'Luna' } as BookingRequest['pet'],
+    })
+
+    expect(isBookingActiveOnIsoDate(luna, '2026-10-01')).toBe(true)
+    expect(isBookingActiveOnIsoDate(luna, '2026-10-11')).toBe(true)
+    expect(isBookingActiveOnIsoDate(luna, '2026-09-30')).toBe(false)
+    expect(isBookingActiveOnIsoDate(luna, '2026-10-12')).toBe(false)
+
+    const oct1Cell = getBookingsForCalendarIsoDate([luna], '2026-10-01')
+    const oct2Cell = getBookingsForCalendarIsoDate([luna], '2026-10-02')
+    expect(oct1Cell.map((b) => b.pet?.name)).toEqual(['Luna'])
+    expect(oct2Cell.map((b) => b.pet?.name)).toEqual(['Luna'])
+  })
+
+  it('assigns month grid cells with local ISO dates (timezone-safe)', () => {
+    const luna = baseBooking({
+      id: 'luna-oct-2026',
+      status: 'pending',
+      start_date: '2026-10-01',
+      end_date: '2026-10-11',
+      pet: { id: 'p-luna', name: 'Luna' } as BookingRequest['pet'],
+    })
+
+    const octoberFirst = new Date(2026, 9, 1)
+    const dateStr = toIsoDate(octoberFirst)
+    expect(dateStr).toBe('2026-10-01')
+
+    const dayBookings = getBookingsForCalendarIsoDate([luna], dateStr)
+    expect(dayBookings.some((b) => b.pet?.name === 'Luna')).toBe(true)
   })
 })

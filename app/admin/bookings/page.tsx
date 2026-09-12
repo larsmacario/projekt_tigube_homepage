@@ -22,6 +22,7 @@ import { de } from 'date-fns/locale'
 import type { BookingRequest, CapacitySetting, CapacityOverride, ServiceType } from '@/lib/types'
 import { authenticatedFetch } from '@/lib/authenticated-fetch'
 import { expandBookingOccupiedDates } from '@/lib/day-care-booking'
+import { toIsoDate } from '@/lib/vacation-dates'
 import { BookingDetailSheet } from '@/components/admin/booking-detail-sheet'
 import { useAdminMetrics } from '@/components/admin/admin-metrics-provider'
 import { BookingGroupListCard } from '@/components/booking/booking-group-list-card'
@@ -281,7 +282,7 @@ export default function AdminBookingsPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          date: overrideForm.date.toISOString().split('T')[0],
+          date: toIsoDate(overrideForm.date),
           service_type: overrideForm.service_type || null,
           capacity: parseInt(overrideForm.capacity),
           reason: overrideForm.reason || null,

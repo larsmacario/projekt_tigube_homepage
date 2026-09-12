@@ -11,9 +11,9 @@ import { cn } from '@/lib/utils'
 import { isDateInVacationPeriods } from '@/lib/booking-availability'
 import {
   buildWeekCalendarEvents,
+  getBookingsForCalendarIsoDate,
   getMondayOfWeek,
   getWeekIsoDates,
-  isBookingActiveOnIsoDate,
 } from '@/lib/booking-week-calendar-events'
 import { toIsoDate } from '@/lib/vacation-dates'
 
@@ -90,7 +90,7 @@ export function BookingCalendar({
     // 6 Wochen = 42 Tage
     for (let i = 0; i < 42; i++) {
       const dateStr = toIsoDate(current)
-      const dayBookings = bookings.filter((b) => isBookingActiveOnIsoDate(b, dateStr))
+      const dayBookings = getBookingsForCalendarIsoDate(bookings, dateStr)
       
       const capacity = capacityData.find(c => c.date === dateStr)
       
@@ -122,7 +122,7 @@ export function BookingCalendar({
       date.setDate(weekMonday.getDate() + i)
       const dateStr = weekIsoDates[i]
 
-      const dayBookings = bookings.filter((b) => isBookingActiveOnIsoDate(b, dateStr))
+      const dayBookings = getBookingsForCalendarIsoDate(bookings, dateStr)
 
       const capacity = capacityData.find((c) => c.date === dateStr)
 

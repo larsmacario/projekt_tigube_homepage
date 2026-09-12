@@ -45,6 +45,13 @@ export function getWeekIsoDates(weekMonday: Date): string[] {
   return dates
 }
 
+export function getBookingsForCalendarIsoDate(
+  bookings: BookingRequest[],
+  isoDate: string
+): BookingRequest[] {
+  return bookings.filter((booking) => isBookingActiveOnIsoDate(booking, isoDate))
+}
+
 export function isBookingActiveOnIsoDate(booking: BookingRequest, isoDate: string): boolean {
   if (booking.service_type === 'tagesbetreuung') {
     if (booking.day_care_mode === 'once' && booking.selected_dates?.length) {

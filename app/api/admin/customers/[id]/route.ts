@@ -8,10 +8,7 @@ import {
 } from '@/lib/customer-email-change'
 import { sendCustomerEmailChangeRequestEmail } from '@/lib/email'
 import { resolveRequestBaseUrl } from '@/lib/onboarding-invite'
-import {
-  CUSTOMER_DOCUMENTS_BUCKET,
-  normalizeCustomerDocumentStoragePath,
-} from '@/lib/customer-documents'
+import { CustomerDeletionError, deleteOrAnonymizeCustomerAccount } from '@/lib/customer-deletion'
 import { normalizePetsWithPhotos, PET_PHOTOS_SELECT } from '@/lib/pet-photos'
 
 export async function GET(
@@ -235,91 +232,25 @@ export async function DELETE(
     }
 
     const adminSupabase = getAdminDbClient()
-
     const customerId = params.id
-    const { data: customer, error: customerError } = await adminSupabase
-      .from('contacts')
-      .select('id')
-      .eq('id', customerId)
-      .eq('contact_type', 'customer')
-      .maybeSingle()
-    if (customerError) throw customerError
-    if (!customer) {
-      return NextResponse.json({ error: 'Kunde nicht gefunden' }, { status: 404 })
-    }
 
-    const { data: documents, error: documentsError } = await adminSupabase
-      .from('documents')
-      .select('file_path')
-      .eq('customer_id', customerId)
-    if (documentsError) throw documentsError
+    const result = await deleteOrAnonymizeCustomerAccount({
+      db: adminSupabase,
+      customerId,
+      performedBy: user.id,
+    })
 
-    const documentPaths = (documents || [])
-      .map((document) => document.file_path)
-      .filter(Boolean)
-      .map((filePath) => normalizeCustomerDocumentStoragePath(filePath))
-    if (documentPaths.length > 0) {
-      const { error: storageError } = await adminSupabase.storage
-        .from(CUSTOMER_DOCUMENTS_BUCKET)
-        .remove(documentPaths)
-      if (storageError) throw storageError
-    }
-
-    const { error: bookingsError } = await adminSupabase
-      .from('bookings')
-      .delete()
-      .eq('customer_id', customerId)
-    if (bookingsError) throw bookingsError
-
-    const { error: documentsDeleteError } = await adminSupabase
-      .from('documents')
-      .delete()
-      .eq('customer_id', customerId)
-    if (documentsDeleteError) throw documentsDeleteError
-
-    const { error: petsError } = await adminSupabase
-      .from('pets')
-      .delete()
-      .eq('customer_id', customerId)
-    if (petsError) throw petsError
-
-    const { error: tokensError } = await adminSupabase
-      .from('onboarding_tokens')
-      .delete()
-      .eq('customer_id', customerId)
-    if (tokensError) throw tokensError
-
-    const { error: notesError } = await adminSupabase
-      .from('notes')
-      .delete()
-      .eq('contact_id', customerId)
-    if (notesError) throw notesError
-
-    const { error: propertiesError } = await adminSupabase
-      .from('property_values')
-      .delete()
-      .eq('entity_type', 'customer')
-      .eq('entity_id', customerId)
-    if (propertiesError) throw propertiesError
-
-    const { data: deletedCustomer, error: deleteError } = await adminSupabase
-      .from('contacts')
-      .delete()
-      .eq('id', customerId)
-      .eq('contact_type', 'customer')
-      .select('id')
-      .maybeSingle()
-    if (deleteError) throw deleteError
-    if (!deletedCustomer) {
-      throw new Error('Kunde konnte nicht gelöscht werden')
-    }
-
-    return NextResponse.json({ success: true })
+    return NextResponse.json({ success: true, result })
   } catch (error: any) {
     console.error('Error deleting customer:', error)
     return NextResponse.json(
-      { error: error.message || 'Fehler beim Löschen des Kunden' },
-      { status: 500 }
+      {
+        error:
+          error instanceof CustomerDeletionError
+            ? error.message
+            : error.message || 'Fehler beim Löschen des Kunden',
+      },
+      { status: error instanceof CustomerDeletionError ? 400 : 500 }
     )
   }
 }

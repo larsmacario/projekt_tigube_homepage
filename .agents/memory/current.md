@@ -1,18 +1,19 @@
 # Aktueller Stand
 
 ## Letzte Änderungen
-- Springer-Liste, 14-Tage-Rhythmus und Urlaubs-Teilstornos umgesetzt.
-- `day_care_interval_weeks` (1|2) inkl. Kalender-/Kapazitätslogik über 12 Monate; Migration `20260826092036_springer_list_and_daycare_interval.sql`.
-- Portal: Interval-Auswahl, Springer-Seite, Urlaub/Platz freigeben für Regeltermine.
-- Admin: Buchungen-Tab Springer, Dashboard-Link; Teilstorno-Events mit Preis-Snapshot.
+- **Konto-Löschung (Portal + Admin):** `lib/customer-deletion.ts` mit zwei Pfaden – vollständige Löschung ohne Aufbewahrungspflicht, sonst Anonymisierung bis Fristablauf (Rechnungen 10 J. §147 AO, Vertrag 6 J. §257 HGB). Portal: Gefahrenzone auf `/portal/profile`, API `GET/DELETE /api/portal/account`, Bestätigung „LÖSCHEN“, Seite `/konto-geloescht`. Admin-DELETE nutzt dieselbe Logik. Migration `20260912140000_customer_account_deletion.sql` (remote angewendet): `deleted_at`, `anonymized_at`, `deletion_retention_until`, `status=deleted`, Audit `customer_deletion_log`.
+- **Stammdaten bearbeiten:** war bereits über `/portal/profile` + `PUT /api/portal/profile` möglich (Name, Adresse, E-Mail, Telefon, Notfallkontakt).
+- **Parallel uncommitted:** Pflegeplan-Versionen/Snapshots, Care-Plan-Admin, Bring-/Holzeiten-Referenz, Buchungswizard-Validierung.
 
 ## Fokus
-- Migration remote anwenden und End-to-End testen (Rhythmus, Teilstorno, Springer-Einladung/Annahme).
+- Konto-Löschung End-to-End auf Testkonto prüfen (Pfad A ohne Rechnung/Vertrag, Pfad B mit synced Rechnung oder unterschriebenem Vertrag).
+- Uncommitted Changes committen und deployen.
 
 ## Nächste Schritte
-- Manuell: Regeltermin 14-Tage anlegen, genehmigen (12-Monats-Kapazität), Urlaubstage freigeben, Springer einladen und annehmen.
-- Optional: SevDesk-Storno-Abrechnung für Teilstornos.
+- Manuell: Testkunde ohne Abrechnungsdaten → vollständige Löschung; Testkunde mit Rechnung/Vertrag → anonymisiert, Login sofort weg, Buchungshistorie bleibt.
+- Commit + Deploy aller offenen Änderungen (Konto-Löschung, ggf. Care-Plans).
 
 ## Offene Punkte
+- E2E-Löschtest auf echtem Testkonto noch ausstehend (kein Produktivkunde löschen).
 - Storno-Abrechnung bewusst noch nicht im regulären Rechnungs-Sync.
-- Rechnungsentwürfe erfordern gepflegte `booking_line_items` und SevDesk-Kundenverknüpfung.
+- SevDesk-Kontakte bei Löschung unangetastet (bewusste Entscheidung).

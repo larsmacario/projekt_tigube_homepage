@@ -61,6 +61,7 @@ export async function logCarePlanChange(input: {
     customer_id: input.customerId,
     changed_by: input.changedBy,
     summary,
+    care_plan_snapshot: input.after,
   })
 
   if (error) {

@@ -48,6 +48,7 @@ import {
   formatPetGeschlecht,
   normalizePetGeschlecht,
 } from '@/lib/pet-form-options'
+import { AccountDeletionSection } from '@/components/portal/account-deletion-section'
 
 function ProfileContent() {
   const searchParams = useSearchParams()
@@ -1395,6 +1396,8 @@ function ProfileContent() {
           </CardContent>
         </Card>
       )}
+
+      {!isOnboarding && step === 1 && <AccountDeletionSection />}
 
       {/* Schritt 2: Tier/e & Tierinformationen */}
       {step === 2 && (

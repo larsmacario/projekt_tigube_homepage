@@ -17,18 +17,22 @@ export async function GET(request: NextRequest) {
       throw bookingsError
     }
 
-    const { count: unseenCarePlanChanges, error: carePlanError } = await auth.client
+    const { data: unseenCarePlanRows, error: carePlanError } = await auth.client
       .from('pet_care_plan_changes')
-      .select('*', { count: 'exact', head: true })
+      .select('pet_id')
       .is('seen_at', null)
 
     if (carePlanError) {
       throw carePlanError
     }
 
+    const unseenCarePlanChanges = new Set(
+      (unseenCarePlanRows ?? []).map((row) => row.pet_id)
+    ).size
+
     return NextResponse.json({
       pendingBookings: pendingBookings ?? 0,
-      unseenCarePlanChanges: unseenCarePlanChanges ?? 0,
+      unseenCarePlanChanges,
     })
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Interner Serverfehler'

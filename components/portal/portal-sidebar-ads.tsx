@@ -1,8 +1,7 @@
 "use client"
 
-import Link from "next/link"
 import Image from "next/image"
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
 import {
@@ -19,23 +18,49 @@ type PortalAdsResponse = {
   settings: AdRotationSettings | null
 }
 
+type NaturalSize = { w: number; h: number }
+
+function computeSlotAspectRatio(
+  ads: PortalAd[],
+  naturalSizes: Record<string, NaturalSize>,
+  fallbackWidth: number,
+  fallbackHeight: number
+): number {
+  const measured = ads
+    .map((ad) => naturalSizes[ad.id])
+    .filter((size): size is NaturalSize => size != null && size.w > 0 && size.h > 0)
+
+  if (measured.length === 0) {
+    return fallbackWidth / fallbackHeight
+  }
+
+  // Tallest image (relative to width) sets the stable box height for rotation.
+  return Math.min(...measured.map((size) => size.w / size.h))
+}
+
 function AdBannerImage({
   ad,
-  format,
   visible,
+  onNaturalSize,
 }: {
   ad: PortalAd
-  format: AdFormat
   visible: boolean
+  onNaturalSize: (adId: string, width: number, height: number) => void
 }) {
   const image = (
     <Image
       src={ad.image_url}
       alt={ad.title}
-      width={format.width_px}
-      height={format.height_px}
-      className="h-auto w-full rounded-md object-cover"
+      fill
+      sizes="256px"
+      className="rounded-md object-contain"
       unoptimized
+      onLoad={(event) => {
+        const img = event.currentTarget
+        if (img.naturalWidth > 0 && img.naturalHeight > 0) {
+          onNaturalSize(ad.id, img.naturalWidth, img.naturalHeight)
+        }
+      }}
     />
   )
 
@@ -44,12 +69,12 @@ function AdBannerImage({
       href={ad.link_url}
       target={ad.link_target}
       rel={ad.link_target === "_blank" ? "noopener noreferrer" : undefined}
-      className="block overflow-hidden rounded-md ring-offset-background transition-opacity hover:opacity-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sage-500 focus-visible:ring-offset-2"
+      className="relative block h-full w-full overflow-hidden rounded-md ring-offset-background transition-opacity hover:opacity-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sage-500 focus-visible:ring-offset-2"
     >
       {image}
     </a>
   ) : (
-    <div className="overflow-hidden rounded-md">{image}</div>
+    <div className="relative h-full w-full overflow-hidden rounded-md">{image}</div>
   )
 
   return (
@@ -79,11 +104,23 @@ function SidebarAdSlot({
   pathname: string | null
 }) {
   const [currentIndex, setCurrentIndex] = useState(0)
+  const [naturalSizes, setNaturalSizes] = useState<Record<string, NaturalSize>>({})
   const pathnameRef = useRef<string | null>(pathname)
+
+  const handleNaturalSize = useCallback((adId: string, width: number, height: number) => {
+    setNaturalSizes((current) => {
+      const existing = current[adId]
+      if (existing?.w === width && existing?.h === height) {
+        return current
+      }
+      return { ...current, [adId]: { w: width, h: height } }
+    })
+  }, [])
 
   useEffect(() => {
     setCurrentIndex(0)
-  }, [ads.length])
+    setNaturalSizes({})
+  }, [ads])
 
   useEffect(() => {
     if (!rotationEnabled || ads.length <= 1) return
@@ -102,6 +139,11 @@ function SidebarAdSlot({
     setCurrentIndex((index) => getNextAdIndex(index, ads.length))
   }, [pathname, ads.length, rotationEnabled])
 
+  const aspectRatio = useMemo(
+    () => computeSlotAspectRatio(ads, naturalSizes, format.width_px, format.height_px),
+    [ads, naturalSizes, format.width_px, format.height_px]
+  )
+
   if (ads.length === 0) return null
 
   const displayIndex = rotationEnabled ? currentIndex : 0
@@ -113,14 +155,14 @@ function SidebarAdSlot({
       </p>
       <div
         className="relative w-full overflow-hidden rounded-md bg-sage-100"
-        style={{ aspectRatio: `${format.width_px} / ${format.height_px}` }}
+        style={{ aspectRatio }}
       >
         {ads.map((ad, index) => (
           <AdBannerImage
             key={ad.id}
             ad={ad}
-            format={format}
             visible={index === displayIndex}
+            onNaturalSize={handleNaturalSize}
           />
         ))}
       </div>

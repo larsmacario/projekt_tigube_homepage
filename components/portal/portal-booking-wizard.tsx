@@ -67,6 +67,8 @@ import {
   buildPortalBookingPetsPayload,
   validatePortalBookingStep2,
 } from '@/lib/portal-booking-step2-validation'
+import { PickupTimesReference } from '@/components/portal/pickup-times-reference'
+import type { KundenportalPickupRow } from '@/lib/cms/portal-defaults'
 
 const OVERVIEW_STEP = 4
 const ADDON_STEP = 3
@@ -87,6 +89,7 @@ function PickupTimesFields({
   prices,
   categories,
   pickupTimesNote,
+  pickupTimesList,
 }: {
   dropOffTime: string
   pickUpTime: string
@@ -98,6 +101,7 @@ function PickupTimesFields({
   prices?: BookingExtraPrice[]
   categories?: BookingExtraCategory[]
   pickupTimesNote?: string
+  pickupTimesList?: KundenportalPickupRow[]
 }) {
   const holidaySet = useMemo(
     () => buildPublicHolidayDateSet(publicHolidays ?? []),
@@ -126,11 +130,11 @@ function PickupTimesFields({
     (dropEval?.earlyArrivalNote || pickEval?.earlyArrivalNote) ?? false
 
   const hint = (
-    <p className="text-sm text-sage-600">
-      Wann möchtest du deinen Hund bringen und wieder abholen? Standardzeiten findest du im
-      Kundenportal unter „Bring- und Holzeiten“. Bei Tagesbetreuung gilt: erster bzw. letzter
-      Betreuungstag.
-    </p>
+    <div className="space-y-3 text-sm text-sage-600">
+      <p>Wann möchtest du deinen Hund bringen und wieder abholen?</p>
+      <PickupTimesReference rows={pickupTimesList} className="text-sm" />
+      <p>Bei Tagesbetreuung gilt: erster bzw. letzter Betreuungstag.</p>
+    </div>
   )
 
   const notes = (
@@ -254,6 +258,7 @@ export function PortalBookingWizard({
   const [pickUpTimeTouched, setPickUpTimeTouched] = useState(false)
   const [pickupTimeDefaults, setPickupTimeDefaults] = useState(defaultPickupTimeDefaults)
   const [pickupTimesNote, setPickupTimesNote] = useState('')
+  const [pickupTimesList, setPickupTimesList] = useState<KundenportalPickupRow[]>([])
   const [addonServices, setAddonServices] = useState<AddonService[]>([])
   const [addonsLoading, setAddonsLoading] = useState(false)
   const [selectedAddonIds, setSelectedAddonIds] = useState<string[]>([])
@@ -340,8 +345,16 @@ export function PortalBookingWizard({
       prices: catalogPrices,
       categories: priceCategories,
       pickupTimesNote,
+      pickupTimesList,
     }),
-    [pickupSpan, availability.publicHolidays, catalogPrices, priceCategories, pickupTimesNote]
+    [
+      pickupSpan,
+      availability.publicHolidays,
+      catalogPrices,
+      priceCategories,
+      pickupTimesNote,
+      pickupTimesList,
+    ]
   )
 
   const handleDropOffTimeChange = useCallback((value: string) => {
@@ -478,6 +491,7 @@ export function PortalBookingWizard({
         const merged = mergeKundenportalData(data?.data)
         setPickupTimeDefaults(merged.pickupTimeDefaults ?? defaultPickupTimeDefaults)
         setPickupTimesNote(merged.pickupTimesNote ?? '')
+        setPickupTimesList(merged.pickupTimesList ?? [])
       } catch (error) {
         console.error('Error loading portal CMS defaults:', error)
       }

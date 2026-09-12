@@ -13,8 +13,8 @@ export interface User {
 
 /** Vereinheitlichte Kontaktzeile (Tabelle `contacts`): Leads, Kunden, verloren, Warteliste */
 export type ContactType = 'lead' | 'customer' | 'lost' | 'waitlist'
-/** Lead: new/contacted · Kunde: pending/active */
-export type ContactStatus = 'new' | 'contacted' | 'pending' | 'active'
+/** Lead: new/contacted · Kunde: pending/active/deleted */
+export type ContactStatus = 'new' | 'contacted' | 'pending' | 'active' | 'deleted'
 
 export interface Contact {
   id: string
@@ -76,6 +76,9 @@ export interface Contact {
   sevdesk_contact_id?: string | null
   sevdesk_synced_at?: string | null
   sevdesk_sync_error?: string | null
+  deleted_at?: string | null
+  anonymized_at?: string | null
+  deletion_retention_until?: string | null
 }
 
 /** Alias — Kunden sind `contacts` mit contact_type customer */
@@ -138,8 +141,34 @@ export interface PetCarePlanChange {
   changed_by: string | null
   summary: string
   seen_at: string | null
+  care_plan_snapshot?: unknown | null
+  archived_at?: string | null
   pet?: Pick<Pet, 'id' | 'name'> | null
   customer?: Pick<Contact, 'id' | 'vorname' | 'nachname' | 'email'> | null
+}
+
+export interface PetCarePlanChangeGroup {
+  pet_id: string
+  customer_id: string
+  pet: Pick<Pet, 'id' | 'name'> | null
+  customer: Pick<Contact, 'id' | 'vorname' | 'nachname' | 'email'> | null
+  changes: PetCarePlanChange[]
+  latest_at: string
+  has_unseen: boolean
+  unseen_count: number
+  current_change_id: string | null
+  version_count: number
+  current_summary: string
+}
+
+export interface PetCarePlanVersion {
+  id: string
+  changed_at: string
+  summary: string
+  seen_at: string | null
+  archived_at: string | null
+  care_plan_snapshot: unknown | null
+  is_current: boolean
 }
 
 export interface PetPhoto {

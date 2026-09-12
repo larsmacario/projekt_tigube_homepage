@@ -447,11 +447,12 @@ export function formatCarePlanSummary(plan: PetCarePlan): string {
     .join(', ')
 
   const feeding = plan.feeding
-    .filter((slot) => slot.enabled)
     .map((slot, index) => {
+      if (!slot.enabled) return null
       const label = CARE_PLAN_SLOT_LABELS[index]
       return `${label} ${slot.time}: ${slot.food} (${slot.amount})`
     })
+    .filter(Boolean)
 
   const medication = getActiveMedicationEntries(plan).map(
     (entry) => `${entry.timeSlot}: ${entry.medication} (${entry.amount}, ${entry.timing})`

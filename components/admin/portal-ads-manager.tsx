@@ -1,7 +1,6 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import Image from 'next/image'
 import { Plus, Trash2, Upload } from 'lucide-react'
 
 import { Badge } from '@/components/ui/badge'
@@ -22,7 +21,6 @@ import { useToast } from '@/hooks/use-toast'
 import { authenticatedFetch } from '@/lib/authenticated-fetch'
 import {
   SIDEBAR_AD_FORMAT,
-  SIDEBAR_AD_FORMAT_RECOMMENDATIONS,
   type AdFormat,
   type AdLinkTarget,
   type AdRotationSettings,
@@ -108,13 +106,6 @@ export function PortalAdsManager() {
     interval_seconds: '8',
     is_enabled: true,
   })
-
-  const primaryRecommendation =
-    SIDEBAR_AD_FORMAT_RECOMMENDATIONS.find((format) => format.recommended) ||
-    SIDEBAR_AD_FORMAT_RECOMMENDATIONS[0]
-
-  const previewWidth = sidebarFormat?.width_px ?? primaryRecommendation.width_px
-  const previewHeight = sidebarFormat?.height_px ?? primaryRecommendation.height_px
 
   const loadAll = useCallback(async () => {
     setLoading(true)
@@ -395,18 +386,16 @@ export function PortalAdsManager() {
             </Label>
           </div>
           <p className="text-xs text-muted-foreground">
-            Siehe Format-Empfehlungen oben – ideal: {primaryRecommendation.width_px}×
-            {primaryRecommendation.height_px} px ({primaryRecommendation.aspect_ratio})
+            Siehe Format-Empfehlungen oben – die Höhe passt sich im Portal automatisch an dein
+            Bild an.
           </p>
           {draft.image_url && (
-            <div className="mt-2 max-w-xs overflow-hidden rounded-md border bg-white p-2">
-              <Image
+            <div className="mt-2 max-w-xs overflow-hidden rounded-md border bg-sage-100 p-2">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
                 src={draft.image_url}
                 alt={draft.title || 'Vorschau'}
-                width={previewWidth}
-                height={previewHeight}
-                className="h-auto w-full rounded object-cover"
-                unoptimized
+                className="h-auto w-full rounded-md object-contain"
               />
             </div>
           )}

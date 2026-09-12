@@ -1,5 +1,6 @@
 'use client'
 
+import type { ReactNode } from 'react'
 import { Printer } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
@@ -14,12 +15,16 @@ type PetCarePlanPrintProps = {
   petName: string
   customerName?: string
   carePlan: unknown
+  standDate?: string
+  toolbar?: ReactNode
 }
 
 export function PetCarePlanPrintView({
   petName,
   customerName,
   carePlan,
+  standDate,
+  toolbar,
 }: PetCarePlanPrintProps) {
   const plan = normalizeCarePlan(carePlan)
   if (!plan) {
@@ -54,8 +59,9 @@ export function PetCarePlanPrintView({
         }
       `}</style>
 
-      <div className="no-print mb-6 flex justify-end">
-        <Button type="button" onClick={() => window.print()}>
+      <div className="no-print mb-6 flex flex-wrap items-center justify-between gap-3">
+        {toolbar}
+        <Button type="button" onClick={() => window.print()} className="ml-auto">
           <Printer className="mr-2 h-4 w-4" />
           Drucken
         </Button>
@@ -65,7 +71,12 @@ export function PetCarePlanPrintView({
         <h1 className="text-2xl font-bold">Futter- & Medikamentenplan</h1>
         <p className="mt-2 text-sm">Tier: {petName}</p>
         {customerName && <p className="text-sm">Besitzer: {customerName}</p>}
-        <p className="text-sm">Stand: {new Date().toLocaleDateString('de-DE')}</p>
+        <p className="text-sm">
+          Stand:{' '}
+          {standDate
+            ? new Date(standDate).toLocaleString('de-DE')
+            : new Date().toLocaleDateString('de-DE')}
+        </p>
       </header>
 
       {foodTypes && (

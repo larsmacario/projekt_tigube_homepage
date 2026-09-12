@@ -15,6 +15,7 @@ import {
   mergeKundenportalData,
   type KundenportalData,
 } from '@/lib/cms/portal-defaults'
+import { PickupTimesReference } from '@/components/portal/pickup-times-reference'
 import { isCustomerProfileComplete } from '@/lib/customer-profile-complete'
 
 export default function PortalPage() {
@@ -362,13 +363,8 @@ export default function PortalPage() {
         <CardContent className="space-y-6">
           <div>
             <h3 className="text-lg font-semibold text-sage-900 mb-3">{portalCms.pickupTimesTitle}</h3>
-            <div className="space-y-2 text-sage-700">
-              {(portalCms.pickupTimesList ?? []).map((row, idx) => (
-                <div key={idx}>
-                  <p className="font-medium">{row.days}</p>
-                  <p>{row.times}</p>
-                </div>
-              ))}
+            <div className="space-y-2">
+              <PickupTimesReference rows={portalCms.pickupTimesList} title={null} />
               {portalCms.pickupTimesNote ? (
                 <p className="text-sm text-sage-600 mt-2">{portalCms.pickupTimesNote}</p>
               ) : null}

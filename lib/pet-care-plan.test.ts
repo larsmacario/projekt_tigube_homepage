@@ -3,6 +3,7 @@ import {
   carePlanToLegacyFields,
   defaultFeedingTimeForSlot,
   emptyPetCarePlan,
+  formatCarePlanSummary,
   getActiveFeedingSlotCount,
   getActiveMedicationSlotCount,
   hasCarePlanChanged,
@@ -176,6 +177,33 @@ describe('pet-care-plan', () => {
     expect(legacy.medikamente).toBe(
       'Morgens (½ h vor Futter): Apoquel ½ Tablette\nMorgens (mit Futter): Herzmedikament 1 Tablette'
     )
+  })
+
+  it('uses original slot index in formatCarePlanSummary when slots are skipped', () => {
+    const plan = emptyPetCarePlan()
+    plan.foodTypes = ['trocken']
+    plan.feeding[0] = {
+      enabled: true,
+      time: '6 Uhr',
+      food: 'Trockenfutter',
+      amount: '200g',
+      additive: '',
+      additiveAmount: '',
+    }
+    plan.feeding[2] = {
+      enabled: true,
+      time: '19 Uhr',
+      food: 'Trockenfutter',
+      amount: '150g',
+      additive: '',
+      additiveAmount: '',
+    }
+
+    const summary = formatCarePlanSummary(plan)
+
+    expect(summary).toContain('Morgens 6 Uhr')
+    expect(summary).toContain('Abends 19 Uhr')
+    expect(summary).not.toMatch(/Mittags \d/)
   })
 
   it('preserves whitespace and trailing spaces in string fields for form typing', () => {

@@ -1,12 +1,12 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { Suspense, useEffect, useState } from 'react'
 import { useParams } from 'next/navigation'
-import { PetCarePlanPrintView } from '@/components/portal/pet-care-plan-print'
+import { PetCarePlanVersionViewer } from '@/components/admin/pet-care-plan-version-viewer'
 import { authenticatedFetch } from '@/lib/authenticated-fetch'
 import type { Contact, Pet } from '@/lib/types'
 
-export default function AdminPetCarePlanPrintPage() {
+function AdminPetCarePlanPrintContent() {
   const params = useParams<{ id: string; petId: string }>()
   const [pet, setPet] = useState<Pet | null>(null)
   const [customer, setCustomer] = useState<Contact | null>(null)
@@ -45,10 +45,20 @@ export default function AdminPetCarePlanPrintPage() {
     : undefined
 
   return (
-    <PetCarePlanPrintView
+    <PetCarePlanVersionViewer
+      petId={pet.id}
+      customerId={params.id}
       petName={pet.name}
       customerName={customerName}
-      carePlan={pet.care_plan}
+      liveCarePlan={pet.care_plan}
     />
+  )
+}
+
+export default function AdminPetCarePlanPrintPage() {
+  return (
+    <Suspense fallback={<p className="p-8 text-center text-sage-600">Lade Pflegeplan…</p>}>
+      <AdminPetCarePlanPrintContent />
+    </Suspense>
   )
 }

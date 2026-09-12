@@ -9,11 +9,11 @@ export function SidebarAdFormatRecommendations() {
   return (
     <Card className="border-sage-200 bg-sage-50/60">
       <CardHeader className="pb-3">
-        <CardTitle className="text-lg">Empfohlene Bildformate</CardTitle>
+        <CardTitle className="text-lg">Gestaltungshinweise</CardTitle>
         <CardDescription>
           Die Sidebar im Kundenportal ist ca. {SIDEBAR_CONTENT_WIDTH_PX} px breit. Bilder werden
-          automatisch auf die volle Breite skaliert – wichtig ist das Seitenverhältnis. Formate JPG,
-          PNG oder WebP, möglichst unter 500 KB.
+          automatisch auf die volle Breite skaliert – die Höhe passt sich dem Seitenverhältnis deines
+          Bildes an. Formate JPG, PNG oder WebP, möglichst unter 500 KB.
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -31,9 +31,6 @@ export function SidebarAdFormatRecommendations() {
                 <Badge variant="secondary" className="text-xs">
                   {format.aspect_ratio}
                 </Badge>
-                {format.recommended && (
-                  <Badge className="bg-sage-600 text-white hover:bg-sage-600">Empfohlen</Badge>
-                )}
               </div>
               <p className="text-sm text-sage-600">{format.description}</p>
             </li>

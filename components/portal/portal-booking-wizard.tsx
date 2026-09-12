@@ -63,9 +63,18 @@ import {
   selectedPetsHaveCompleteCarePlans,
   type PortalBookingCarePlanSectionHandle,
 } from '@/components/portal/portal-booking-care-plan-section'
+import {
+  buildPortalBookingPetsPayload,
+  validatePortalBookingStep2,
+} from '@/lib/portal-booking-step2-validation'
 
 const OVERVIEW_STEP = 4
 const ADDON_STEP = 3
+
+function toIsoWeekday(date: Date): number {
+  const jsDay = date.getDay()
+  return jsDay === 0 ? 7 : jsDay
+}
 
 function PickupTimesFields({
   dropOffTime,
@@ -260,7 +269,15 @@ export function PortalBookingWizard({
   const pets = wizardPets
   const [submitting, setSubmitting] = useState(false)
   const [advancingStep, setAdvancingStep] = useState(false)
+  const [highlightedSectionId, setHighlightedSectionId] = useState<string | null>(null)
   const carePlanSectionRef = useRef<PortalBookingCarePlanSectionHandle>(null)
+  const highlightTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  useEffect(() => {
+    return () => {
+      if (highlightTimeoutRef.current) clearTimeout(highlightTimeoutRef.current)
+    }
+  }, [])
 
   const today = useMemo(() => startOfDay(new Date()), [])
 
@@ -605,119 +622,36 @@ export function PortalBookingWizard({
     return true
   }
 
-  function datesBlocked(isoDates: string[]): boolean {
-    return isoDates.some((date) => {
-      if (availability.closedDates.includes(date)) return true
-      return isDateInVacationPeriods(date, availability.vacationPeriods)
+  function focusValidationSection(sectionId: string) {
+    if (highlightTimeoutRef.current) clearTimeout(highlightTimeoutRef.current)
+    setHighlightedSectionId(sectionId)
+    requestAnimationFrame(() => {
+      document.getElementById(sectionId)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
     })
+    highlightTimeoutRef.current = setTimeout(() => setHighlightedSectionId(null), 3000)
   }
 
   function validateStep2(): boolean {
-    if (rangePetLines.length > 0) {
-      const startDate = dateRange?.from
-      const endDate = dateRange?.to ?? dateRange?.from
-      if (!startDate || !endDate) {
-        toast({
-          title: 'Fehler',
-          description: 'Bitte wähle einen Zeitraum für Urlaubs- oder Katzenbetreuung.',
-          variant: 'destructive',
-        })
-        return false
-      }
-      const startIso = toIsoDate(startDate)
-      const endIso = toIsoDate(endDate)
-      if (datesBlocked(iterateIsoDateRange(startIso, endIso))) {
-        toast({
-          title: 'Fehler',
-          description:
-            'Der gewählte Zeitraum ist wegen Betriebsferien oder Schließtagen nicht verfügbar.',
-          variant: 'destructive',
-        })
-        return false
-      }
-    }
+    const petNames = Object.fromEntries(pets.map((pet) => [pet.id, pet.name]))
+    const error = validatePortalBookingStep2({
+      petLines: resolvedPetLines,
+      petNames,
+      dateRange,
+      dayCareOnceDates,
+      dayCareRecurring,
+      dropOffTime,
+      pickUpTime,
+      availability,
+    })
 
-    for (const line of dayCareOnceLines) {
-      const dates = dayCareOnceDates[line.pet_id] || []
-      if (dates.length === 0) {
-        toast({
-          title: 'Fehler',
-          description: 'Bitte wähle mindestens einen Tag für die Tagesbetreuung.',
-          variant: 'destructive',
-        })
-        return false
-      }
-      const isoList = dates.map((d) => toIsoDate(startOfDay(d)))
-      if (datesBlocked(isoList)) {
-        toast({
-          title: 'Fehler',
-          description: 'Ein gewählter Tag ist wegen Ferien oder Schließtag nicht verfügbar.',
-          variant: 'destructive',
-        })
-        return false
-      }
-    }
-
-    for (const line of dayCareRecurringLines) {
-      const cfg = dayCareRecurring[line.pet_id]
-      if (!cfg?.weekdays?.length) {
-        toast({
-          title: 'Fehler',
-          description: 'Bitte wähle mindestens einen Wochentag.',
-          variant: 'destructive',
-        })
-        return false
-      }
-      if (!cfg.startDate) {
-        toast({
-          title: 'Fehler',
-          description: 'Bitte wähle ein Startdatum für die festen Tage.',
-          variant: 'destructive',
-        })
-        return false
-      }
-      const startIso = toIsoDate(startOfDay(cfg.startDate))
-      if (datesBlocked([startIso])) {
-        toast({
-          title: 'Fehler',
-          description: 'Das Startdatum ist wegen Ferien oder Schließtag nicht verfügbar.',
-          variant: 'destructive',
-        })
-        return false
-      }
-    }
-
-    if (
-      rangePetLines.length === 0 &&
-      dayCareOnceLines.length === 0 &&
-      dayCareRecurringLines.length === 0
-    ) {
+    if (error) {
+      if (error.sectionId) focusValidationSection(error.sectionId)
       toast({
         title: 'Fehler',
-        description: 'Bitte wähle Termine für die Betreuung.',
+        description: error.description,
         variant: 'destructive',
       })
       return false
-    }
-
-    if (needsPickupTimes) {
-      if (!dropOffTime.trim() || !pickUpTime.trim()) {
-        toast({
-          title: 'Fehler',
-          description:
-            'Bitte gib Bring- und Holzeiten für Hundepension oder Tagesbetreuung an.',
-          variant: 'destructive',
-        })
-        return false
-      }
-      if (!isValidTimeHHmm(dropOffTime) || !isValidTimeHHmm(pickUpTime)) {
-        toast({
-          title: 'Fehler',
-          description: 'Bring- und Holzeiten müssen im Format HH:MM sein.',
-          variant: 'destructive',
-        })
-        return false
-      }
     }
 
     return true
@@ -764,33 +698,11 @@ export function PortalBookingWizard({
 
     const addon_services = selectedAddonIds.map((addon_service_id) => ({ addon_service_id }))
 
-    const petsPayload = resolvedPetLines.map((line) => {
-      if (line.service_type === 'tagesbetreuung' && line.day_care_mode === 'once') {
-        return {
-          pet_id: line.pet_id,
-          service_type: line.service_type,
-          day_care_mode: 'once' as const,
-          selected_dates: (dayCareOnceDates[line.pet_id] || [])
-            .map((d) => toIsoDate(startOfDay(d)))
-            .sort(),
-        }
-      }
-      if (line.service_type === 'tagesbetreuung' && line.day_care_mode === 'recurring') {
-        const cfg = dayCareRecurring[line.pet_id]
-        return {
-          pet_id: line.pet_id,
-          service_type: line.service_type,
-          day_care_mode: 'recurring' as const,
-          day_care_weekdays: cfg?.weekdays || [],
-          day_care_interval_weeks: cfg?.intervalWeeks === 2 ? 2 : 1,
-          start_date: cfg?.startDate ? toIsoDate(startOfDay(cfg.startDate)) : undefined,
-        }
-      }
-      return {
-        pet_id: line.pet_id,
-        service_type: line.service_type,
-      }
-    })
+    const petsPayload = buildPortalBookingPetsPayload(
+      resolvedPetLines,
+      dayCareOnceDates,
+      dayCareRecurring
+    )
 
     setSubmitting(true)
     try {
@@ -990,6 +902,11 @@ export function PortalBookingWizard({
                         </Label>
                       </div>
                     </RadioGroup>
+                    <p className="mt-2 text-xs text-sage-600">
+                      <span className="font-medium">Einmalig:</span> einzelne konkrete Tage.{' '}
+                      <span className="font-medium">Feste Wochentage:</span> wiederkehrend
+                      (wöchentlich oder alle 14 Tage).
+                    </p>
                   </div>
                 )}
                 <div className="flex items-end">
@@ -1082,8 +999,16 @@ export function PortalBookingWizard({
 
           {dayCareOnceLines.map((line) => {
             const pet = pets.find((p) => p.id === line.pet_id)
+            const sectionId = `daycare-once-${line.pet_id}`
             return (
-              <div key={line.pet_id} className="space-y-3">
+              <div
+                key={line.pet_id}
+                id={sectionId}
+                className={cn(
+                  'space-y-3 rounded-lg transition-shadow',
+                  highlightedSectionId === sectionId && 'ring-2 ring-destructive'
+                )}
+              >
                 <Label>
                   Tagesbetreuung einmalig{pet ? ` – ${pet.name}` : ''}
                 </Label>
@@ -1124,15 +1049,25 @@ export function PortalBookingWizard({
           {dayCareRecurringLines.map((line) => {
             const pet = pets.find((p) => p.id === line.pet_id)
             const cfg = dayCareRecurring[line.pet_id] || { weekdays: [] }
+            const sectionId = `daycare-recurring-${line.pet_id}`
             return (
-              <div key={line.pet_id} className="space-y-3 rounded-lg border border-sage-200 p-3">
+              <div
+                key={line.pet_id}
+                id={sectionId}
+                className={cn(
+                  'space-y-3 rounded-lg border border-sage-200 p-3 transition-shadow',
+                  highlightedSectionId === sectionId && 'ring-2 ring-destructive'
+                )}
+              >
                 <Label>
                   Feste Wochentage{pet ? ` – ${pet.name}` : ''}
                 </Label>
                 <p className="text-sm text-sage-600">
                   An welchen Wochentagen und ab wann soll die Tagesbetreuung laufen?
                 </p>
-                <div className="flex flex-wrap gap-2">
+                <div>
+                  <Label>Wochentage (Pflicht)</Label>
+                  <div className="mt-2 flex flex-wrap gap-2">
                   {DAY_CARE_WEEKDAY_OPTIONS.map((day) => {
                     const active = cfg.weekdays.includes(day.iso)
                     return (
@@ -1159,6 +1094,12 @@ export function PortalBookingWizard({
                       </Button>
                     )
                   })}
+                  </div>
+                  {cfg.weekdays.length === 0 && (
+                    <p className="mt-2 text-sm text-amber-800">
+                      Tippe auf die Wochentage, an denen die Betreuung laufen soll.
+                    </p>
+                  )}
                 </div>
                 <div>
                   <Label>Rhythmus</Label>
@@ -1208,13 +1149,18 @@ export function PortalBookingWizard({
                       weekStartsOn={1}
                       selected={cfg.startDate}
                       onSelect={(date) =>
-                        setDayCareRecurring((prev) => ({
-                          ...prev,
-                          [line.pet_id]: {
-                            ...(prev[line.pet_id] || { weekdays: cfg.weekdays }),
-                            startDate: date ? startOfDay(date) : undefined,
-                          },
-                        }))
+                        setDayCareRecurring((prev) => {
+                          const current = prev[line.pet_id] || { weekdays: [] }
+                          const startDate = date ? startOfDay(date) : undefined
+                          const weekdays =
+                            startDate && current.weekdays.length === 0
+                              ? [toIsoWeekday(startDate)]
+                              : current.weekdays
+                          return {
+                            ...prev,
+                            [line.pet_id]: { ...current, startDate, weekdays },
+                          }
+                        })
                       }
                       disabled={isDateUnavailable}
                       className={bookingRangeCalendarClassName}

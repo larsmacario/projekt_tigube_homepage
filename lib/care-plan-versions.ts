@@ -28,7 +28,7 @@ export function getCurrentVersion(changes: PetCarePlanChange[]): PetCarePlanChan
 }
 
 export function getVersionChain(changes: PetCarePlanChange[]): PetCarePlanChange[] {
-  return sortChangesByDateDesc(changes).filter(hasCarePlanSnapshot)
+  return sortChangesByDateDesc(changes)
 }
 
 export function canArchiveVersion(
@@ -36,7 +36,6 @@ export function canArchiveVersion(
   changes: PetCarePlanChange[]
 ): boolean {
   if (isArchivedChange(change)) return false
-  if (!hasCarePlanSnapshot(change)) return false
 
   const current = getCurrentVersion(changes)
   if (!current) return false

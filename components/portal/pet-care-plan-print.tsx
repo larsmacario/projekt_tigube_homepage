@@ -17,6 +17,8 @@ type PetCarePlanPrintProps = {
   carePlan: unknown
   standDate?: string
   toolbar?: ReactNode
+  onDownloadPdf?: () => void | Promise<void>
+  downloadingPdf?: boolean
 }
 
 export function PetCarePlanPrintView({
@@ -25,6 +27,8 @@ export function PetCarePlanPrintView({
   carePlan,
   standDate,
   toolbar,
+  onDownloadPdf,
+  downloadingPdf = false,
 }: PetCarePlanPrintProps) {
   const plan = normalizeCarePlan(carePlan)
   if (!plan) {
@@ -59,13 +63,22 @@ export function PetCarePlanPrintView({
         }
       `}</style>
 
-      <div className="no-print mb-6 flex flex-wrap items-center justify-between gap-3">
-        {toolbar}
-        <Button type="button" onClick={() => window.print()} className="ml-auto">
-          <Printer className="mr-2 h-4 w-4" />
-          Drucken
-        </Button>
-      </div>
+      {(toolbar || onDownloadPdf) && (
+        <div className="no-print mb-6 flex flex-wrap items-center justify-between gap-3">
+          {toolbar}
+          {!toolbar && onDownloadPdf && (
+            <Button
+              type="button"
+              onClick={() => void onDownloadPdf()}
+              disabled={downloadingPdf}
+              className="ml-auto"
+            >
+              <Printer className="mr-2 h-4 w-4" />
+              {downloadingPdf ? 'PDF wird erstellt…' : 'PDF'}
+            </Button>
+          )}
+        </div>
+      )}
 
       <header className="mb-6 border-b border-black pb-4">
         <h1 className="text-2xl font-bold">Futter- & Medikamentenplan</h1>

@@ -46,13 +46,13 @@ describe('care-plan-versions', () => {
     expect(getCurrentVersion(changes)?.id).toBe('v1')
   })
 
-  it('builds version chain newest first with snapshots only', () => {
+  it('builds version chain newest first including legacy entries without snapshot', () => {
     const changes = [
       change({ id: 'v2', changed_at: '2026-09-10T14:00:00.000Z' }),
       change({ id: 'v1', changed_at: '2026-09-10T12:00:00.000Z', care_plan_snapshot: null }),
     ]
 
-    expect(getVersionChain(changes).map((item) => item.id)).toEqual(['v2'])
+    expect(getVersionChain(changes).map((item) => item.id)).toEqual(['v2', 'v1'])
   })
 
   it('prevents archiving the current version', () => {

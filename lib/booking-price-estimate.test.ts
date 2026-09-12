@@ -54,6 +54,7 @@ describe('estimateBookingCosts', () => {
       minimalInput({
         petLines: [{ pet_id: 'pet-1', service_type: 'hundepension' }],
         dateRange: { from: new Date(2026, 6, 24), to: new Date(2026, 6, 26) },
+        publicHolidays: [{ date: '2026-07-24', name: 'Testfeiertag' }],
       })
     )
 
@@ -69,6 +70,106 @@ describe('estimateBookingCosts', () => {
     expect(weekendCharge?.quantity).toBe(2)
     expect(weekendCharge?.lineTotal).toBe(40)
     expect(result.total).toBe(160)
+  })
+
+  it('estimates Luna Oct 2026 scenario with auto extras and weekend travel', () => {
+    const extraCat: BookingExtraCategory = {
+      id: 'extra-cat',
+      name: 'Hundepension Zusatzleistungen',
+      description: null,
+      service_type: 'hundepension',
+      sort_order: 10,
+    }
+    const bringHolCategory: BookingExtraCategory = {
+      id: 'bring-hol-cat',
+      name: 'Hundepension Bring- und Holzeiten',
+      description: null,
+      service_type: 'hundepension',
+      sort_order: 5,
+    }
+    const lunaBase: BookingExtraPrice = {
+      id: 'luna-base',
+      category_id: grundCategory.id,
+      name: 'Standard Pension',
+      description: null,
+      price: 31,
+      price_type: 'fixed',
+      unit: 'Kalendertag',
+      note: null,
+      sort_order: 1,
+      usage: 'base',
+      final_price: 31,
+      catalog_price: 31,
+      applicable: true,
+    }
+    const laufigExtra: BookingExtraPrice = {
+      id: 'laufig-extra',
+      category_id: extraCat.id,
+      name: 'Läufige Hündin',
+      description: null,
+      price: 8,
+      price_type: 'fixed',
+      unit: 'je angefangenem Tag',
+      note: null,
+      sort_order: 2,
+      usage: 'extra',
+      final_price: 8,
+      catalog_price: 8,
+      applicable: true,
+    }
+    const travelSurcharge: BookingExtraPrice = {
+      id: 'travel-surcharge',
+      category_id: bringHolCategory.id,
+      name: 'An- und Abreise an Sonn- und Feiertagen',
+      description: null,
+      price: 19,
+      price_type: 'fixed',
+      unit: 'pauschal',
+      note: null,
+      sort_order: 2,
+      usage: 'surcharge',
+      final_price: 19,
+      catalog_price: 19,
+    }
+
+    const result = estimateBookingCosts(
+      minimalInput({
+        pets: [{ id: 'pet-luna', name: 'Luna' } as BookingEstimateInput['pets'][0]],
+        petLines: [{ pet_id: 'pet-luna', service_type: 'hundepension' }],
+        dateRange: { from: new Date(2026, 9, 1), to: new Date(2026, 9, 11) },
+        dropOffTime: '08:00',
+        pickUpTime: '17:00',
+        prices: [lunaBase, laufigExtra, travelSurcharge],
+        pricesByPetId: {
+          'pet-luna': [lunaBase, laufigExtra, travelSurcharge],
+        },
+        categories: [grundCategory, extraCat, bringHolCategory],
+      })
+    )
+
+    const base = result.lines.find(
+      (l) => l.kind === 'charge' && l.label.includes('Standard Pension')
+    )
+    expect(base?.lineTotal).toBe(341)
+
+    const surcharge = result.lines.find(
+      (l) => l.kind === 'charge' && l.label.includes('Sonn- und Feiertagszuschlag')
+    )
+    expect(surcharge?.quantity).toBe(3)
+    expect(surcharge?.lineTotal).toBe(46.5)
+
+    const laufig = result.lines.find(
+      (l) => l.kind === 'charge' && l.label.includes('Läufige Hündin')
+    )
+    expect(laufig?.quantity).toBe(10)
+    expect(laufig?.lineTotal).toBe(80)
+
+    const travel = result.lines.find(
+      (l) => l.kind === 'charge' && l.label.includes('An- und Abreise an Sonn-/Feiertagen')
+    )
+    expect(travel?.lineTotal).toBe(19)
+
+    expect(result.total).toBe(486.5)
   })
 
   it('adds katzen note without charge', () => {

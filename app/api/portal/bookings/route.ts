@@ -28,6 +28,7 @@ import { isValidTimeHHmm } from '@/lib/pickup-time-surcharge'
 import { resolvePickupDateSpanFromPortalLines } from '@/lib/pickup-date-span'
 import { buildPickupSurchargeLineItems } from '@/lib/pickup-surcharge-line-items'
 import { buildOvernightSurchargeLineItems } from '@/lib/overnight-surcharge-line-items'
+import { buildWeekendTravelSurchargeLineItems } from '@/lib/weekend-travel-surcharge-line-items'
 import { getPublicHolidaysInRange } from '@/lib/public-holidays-de'
 import type { SupabaseClient } from '@supabase/supabase-js'
 
@@ -511,6 +512,7 @@ export async function POST(request: NextRequest) {
 
       let pickupSurchargeLineItems: BookingLineItemInsert[] = []
       let overnightSurchargeLineItems: BookingLineItemInsert[] = []
+      let weekendTravelLineItems: BookingLineItemInsert[] = []
       if (needsPickupTimes && pickupTimesForEmail) {
         const pickupSpan = resolvePickupDateSpanFromPortalLines(petLines, groupRange)
         if (pickupSpan) {
@@ -535,6 +537,14 @@ export async function POST(request: NextRequest) {
           overnightSurchargeLineItems = buildOvernightSurchargeLineItems({
             requestGroupId,
             pickUpTime: pickupTimesForEmail.pick_up_time,
+            prices: catalog.prices,
+            categories: catalog.categories,
+            createdBy: userData.id,
+          })
+          weekendTravelLineItems = buildWeekendTravelSurchargeLineItems({
+            requestGroupId,
+            pickupSpan,
+            publicHolidays,
             prices: catalog.prices,
             categories: catalog.categories,
             createdBy: userData.id,
@@ -596,6 +606,7 @@ export async function POST(request: NextRequest) {
           ...addonLineItems,
           ...pickupSurchargeLineItems,
           ...overnightSurchargeLineItems,
+          ...weekendTravelLineItems,
         ]
 
         if (lineItemsToInsert.length > 0) {

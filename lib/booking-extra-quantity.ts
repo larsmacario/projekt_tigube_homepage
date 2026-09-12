@@ -108,6 +108,10 @@ export function inferExtraQuantityBehavior(price: BookingExtraPrice): ExtraQuant
   return 'manual'
 }
 
+export function usesStartedDayCount(price: BookingExtraPrice): boolean {
+  return priceTextBlob(price).includes('angefangenem tag')
+}
+
 export function countBookingDaysForPet(
   line: PetLineForExtraQuantity,
   dateRange: DateRange | undefined,
@@ -134,6 +138,21 @@ export function countBookingDaysForPet(
   }
 
   return null
+}
+
+export function countBookingDaysForExtra(
+  price: BookingExtraPrice,
+  line: PetLineForExtraQuantity,
+  dateRange: DateRange | undefined,
+  dayCareOnceDates: Record<string, Date[]>
+): number | null {
+  const days = countBookingDaysForPet(line, dateRange, dayCareOnceDates)
+  if (days == null) return null
+  if (!usesStartedDayCount(price)) return days
+  if (line.service_type === 'hundepension' && dateRange?.from && days > 0) {
+    return Math.max(1, days - 1)
+  }
+  return days
 }
 
 export function suggestedExtraQuantity(
@@ -203,7 +222,7 @@ export function computeSuggestedExtraForPetLine(
   dayCareOnceDates: Record<string, Date[]>
 ): { behavior: ExtraQuantityBehavior; dayCount: number | null; quantity: number } {
   const behavior = inferExtraQuantityBehavior(price)
-  const dayCount = countBookingDaysForPet(line, dateRange, dayCareOnceDates)
+  const dayCount = countBookingDaysForExtra(price, line, dateRange, dayCareOnceDates)
   const quantity = suggestedExtraQuantity(price, behavior, dayCount)
   return { behavior, dayCount, quantity }
 }

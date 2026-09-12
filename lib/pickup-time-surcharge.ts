@@ -105,6 +105,11 @@ export function isBringHolCategory(category: Pick<BookingExtraCategory, 'id' | '
   return category.id === BRING_HOLZEITEN_CATEGORY_ID || (name.includes('bring') && name.includes('hol'))
 }
 
+function isWeekendHolidayTravelPrice(price: Pick<BookingExtraPrice, 'name'>): boolean {
+  const name = price.name.toLowerCase()
+  return name.includes('an- und abreise') || name.includes('an und abreise')
+}
+
 export function findOutOfHoursPickupCatalogPrice(
   prices: BookingExtraPrice[],
   categories: BookingExtraCategory[]
@@ -122,7 +127,8 @@ export function findOutOfHoursPickupCatalogPrice(
     (p) =>
       bringCategoryIds.has(p.category_id) &&
       p.usage === 'surcharge' &&
-      p.price_type !== 'text'
+      p.price_type !== 'text' &&
+      !isWeekendHolidayTravelPrice(p)
   )
   if (byUsage) return byUsage
 
@@ -130,6 +136,7 @@ export function findOutOfHoursPickupCatalogPrice(
     (p) =>
       bringCategoryIds.has(p.category_id) &&
       p.price_type !== 'text' &&
+      !isWeekendHolidayTravelPrice(p) &&
       (p.name.toLowerCase().includes('außerhalb') ||
         p.name.toLowerCase().includes('ausserhalb') ||
         p.description?.toLowerCase().includes('außerhalb') ||

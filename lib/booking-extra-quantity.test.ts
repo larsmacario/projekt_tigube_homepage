@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import type { BookingExtraPrice } from '@/lib/booking-extras'
 import {
   computeSuggestedExtraForPetLine,
+  countBookingDaysForExtra,
   countBookingDaysForPet,
   formatExtraQuantityHint,
   inferExtraQuantityBehavior,
@@ -130,6 +131,19 @@ describe('booking-extra-quantity', () => {
     expect(hint).toContain('2 Fütterungen pro Tag')
     expect(hint).toContain('5 Tage')
     expect(hint).toContain('10')
+  })
+
+  it('excludes pickup day for je angefangenem Tag extras in hundepension', () => {
+    const p = price({ id: '1', name: 'Läufige Hündin', unit: 'je angefangenem Tag' })
+    const days = countBookingDaysForExtra(
+      p,
+      { pet_id: 'p1', service_type: 'hundepension' },
+      { from: new Date(2026, 9, 1), to: new Date(2026, 9, 11) },
+      {}
+    )
+    expect(days).toBe(10)
+    const behavior = inferExtraQuantityBehavior(p)
+    expect(suggestedExtraQuantity(p, behavior, days)).toBe(10)
   })
 
   it('computeSuggestedExtraForPetLine integrates line and price', () => {

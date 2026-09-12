@@ -1,5 +1,6 @@
 import type { BookingLineItem, BookingRequest } from '@/lib/types'
 import { getBookingLineItems } from '@/lib/cancellation-booking-total'
+import { isSurchargeCalendarDay } from '@/lib/booking-sunday-holiday-surcharge'
 import { FIXED_PERCENTAGE_SURCHARGE_RATE } from '@/lib/price-catalog-policy'
 import { isoWeekdayFromIsoDate } from '@/lib/day-care-interval'
 
@@ -29,7 +30,7 @@ function isSurchargeDay(date: string, holidayDates: Set<string>): boolean {
  * - einmalige Zusatzleistungen bleiben außen vor
  */
 export function resolveDayCareDayPrice(input: {
-  booking: Pick<BookingRequest, 'id' | 'service_type' | 'day_care_mode'>
+  booking: Pick<BookingRequest, 'id' | 'service_type' | 'day_care_mode' | 'end_date'>
   lineItems: BookingLineItem[]
   date: string
   holidayDates?: string[]
@@ -56,8 +57,14 @@ export function resolveDayCareDayPrice(input: {
     })
   }
 
+  const skipEndDateSurcharge =
+    input.booking.service_type === 'hundepension' &&
+    input.booking.end_date &&
+    input.date === input.booking.end_date &&
+    isSurchargeCalendarDay(input.date, holidaySet)
+
   let weekendHolidaySurcharge = 0
-  if (baseUnitPrice > 0 && isSurchargeDay(input.date, holidaySet)) {
+  if (baseUnitPrice > 0 && isSurchargeDay(input.date, holidaySet) && !skipEndDateSurcharge) {
     weekendHolidaySurcharge = roundMoney(
       (baseUnitPrice * FIXED_PERCENTAGE_SURCHARGE_RATE) / 100
     )
@@ -99,7 +106,10 @@ export function resolveDayCareDayPrice(input: {
 }
 
 export function resolveScopeTotalForCancelledDates(input: {
-  booking: Pick<BookingRequest, 'id' | 'service_type' | 'day_care_mode' | 'selected_dates'>
+  booking: Pick<
+    BookingRequest,
+    'id' | 'service_type' | 'day_care_mode' | 'selected_dates' | 'end_date'
+  >
   lineItems: BookingLineItem[]
   datesToCancel: string[]
   bookingTotal: number

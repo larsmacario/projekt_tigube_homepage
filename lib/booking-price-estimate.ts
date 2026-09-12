@@ -14,8 +14,17 @@ import {
   computeSundayHolidaySurchargeTotal,
   countSurchargeDaysInList,
   countSurchargeDaysInRange,
+  listWeekendHolidayTravelDates,
+  resolveWeekendHolidayTravelUnitPrice,
   WEEKEND_SURCHARGE_FOOTNOTE,
 } from '@/lib/booking-sunday-holiday-surcharge'
+import {
+  countBookingDaysForExtra,
+  inferExtraQuantityBehavior,
+  resolvesExtraQuantityFromPeriod,
+  suggestedExtraQuantity,
+  type PetLineForExtraQuantity,
+} from '@/lib/booking-extra-quantity'
 import { buildPublicHolidayDateSet } from '@/lib/public-holidays-de'
 import { resolvePickupDateSpan } from '@/lib/pickup-date-span'
 import {
@@ -26,6 +35,7 @@ import {
   resolveOutOfHoursPickupUnitPrice,
 } from '@/lib/pickup-time-surcharge'
 import {
+  findOvernightCatalogPrice,
   needsOvernightOnLastDay,
   OVERNIGHT_PICKUP_NOTE,
   resolveOvernightUnitPrice,
@@ -91,16 +101,85 @@ export interface BookingEstimateInput {
   pickUpTime?: string | null
 }
 
+function petPricesForLine(petId: string, input: BookingEstimateInput): BookingExtraPrice[] {
+  return input.pricesByPetId?.[petId] ?? input.prices
+}
+
+function categoryIdsForService(
+  input: BookingEstimateInput,
+  serviceType: ServiceType
+): Set<string> {
+  const categories = filterCategoriesForServices(input.categories, [serviceType])
+  return new Set(categories.map((category) => category.id))
+}
+
 function findBasePriceForPet(
   petId: string,
   input: BookingEstimateInput,
   serviceType: ServiceType
 ): BookingExtraPrice | null {
-  const petPrices = input.pricesByPetId?.[petId] ?? input.prices
-  const catalogServiceType = serviceTypeForExtraCatalog(serviceType)
-  const categories = filterCategoriesForServices(input.categories, [serviceType])
-  const categoryIds = new Set(categories.map((category) => category.id))
-  return filterApplicableBasePrices(petPrices, categoryIds)[0] ?? null
+  const categoryIds = categoryIdsForService(input, serviceType)
+  return filterApplicableBasePrices(petPricesForLine(petId, input), categoryIds)[0] ?? null
+}
+
+function findAutoApplicableExtrasForPet(
+  petId: string,
+  input: BookingEstimateInput,
+  serviceType: ServiceType
+): BookingExtraPrice[] {
+  const categoryIds = categoryIdsForService(input, serviceType)
+  return petPricesForLine(petId, input)
+    .filter(
+      (price) =>
+        categoryIds.has(price.category_id) &&
+        price.usage === 'extra' &&
+        price.applicable !== false &&
+        price.price_type !== 'text' &&
+        price.price_type !== 'percentage'
+    )
+    .sort((a, b) => a.sort_order - b.sort_order)
+}
+
+function appendAutoApplicableExtras(
+  lines: BookingEstimateLine[],
+  petName: string,
+  line: PetServiceLineInput,
+  input: BookingEstimateInput,
+  manuallySelectedIds: Set<string>
+) {
+  const extras = findAutoApplicableExtrasForPet(line.pet_id, input, line.service_type)
+  const overnightCatalog = findOvernightCatalogPrice(input.prices, input.categories)
+  const petLine: PetLineForExtraQuantity = {
+    pet_id: line.pet_id,
+    service_type: line.service_type,
+    day_care_mode: line.day_care_mode,
+  }
+
+  for (const price of extras) {
+    if (manuallySelectedIds.has(price.id)) continue
+    if (overnightCatalog?.id === price.id) continue
+    const behavior = inferExtraQuantityBehavior(price)
+    if (!resolvesExtraQuantityFromPeriod(behavior)) continue
+
+    const dayCount = countBookingDaysForExtra(
+      price,
+      petLine,
+      input.dateRange,
+      input.dayCareOnceDates
+    )
+    const quantity = suggestedExtraQuantity(price, behavior, dayCount)
+    const snapshot = computeLineItemSnapshot(price, quantity)
+    if (snapshot.unit_price == null || snapshot.line_total == null) continue
+
+    lines.push({
+      kind: 'charge',
+      label: `${petName}: ${price.name}`,
+      quantity: snapshot.quantity,
+      unit: price.unit,
+      unitPrice: snapshot.unit_price,
+      lineTotal: snapshot.line_total,
+    })
+  }
 }
 
 function unitPrice(price: BookingExtraPrice): number | null {
@@ -194,7 +273,18 @@ export function estimateBookingCosts(input: BookingEstimateInput): BookingEstima
           kind: 'note',
           label: HUND_GRUNDPREISE_TIER_NOTE,
         })
-        appendWeekendSurcharge(petName, countSurchargeDaysInRange(start, end, holidaySet), up)
+        appendWeekendSurcharge(
+          petName,
+          countSurchargeDaysInRange(start, end, holidaySet, { excludeEndDate: true }),
+          up
+        )
+        appendAutoApplicableExtras(
+          lines,
+          petName,
+          line,
+          input,
+          new Set(Object.keys(input.selectedExtrasByPet[line.pet_id] ?? {}))
+        )
       }
     } else if (line.service_type === 'tagesbetreuung' && line.day_care_mode === 'once') {
       const dates = (input.dayCareOnceDates[line.pet_id] || []).map((d) => toIsoDate(d))
@@ -212,6 +302,13 @@ export function estimateBookingCosts(input: BookingEstimateInput): BookingEstima
           label: HUND_GRUNDPREISE_TIER_NOTE,
         })
         appendWeekendSurcharge(petName, countSurchargeDaysInList(dates, holidaySet), up)
+        appendAutoApplicableExtras(
+          lines,
+          petName,
+          line,
+          input,
+          new Set(Object.keys(input.selectedExtrasByPet[line.pet_id] ?? {}))
+        )
       }
     } else if (line.service_type === 'tagesbetreuung' && line.day_care_mode === 'recurring') {
       const cfg = input.dayCareRecurring[line.pet_id]
@@ -308,6 +405,18 @@ export function estimateBookingCosts(input: BookingEstimateInput): BookingEstima
       const overnightFee = resolveOvernightUnitPrice(input.prices, input.categories)
       addChargeLine(lines, 'Übernachtung (geschätzt)', 1, overnightFee, 'je Nacht')
       lines.push({ kind: 'note', label: OVERNIGHT_PICKUP_NOTE })
+    }
+
+    const travelUnitPrice = resolveWeekendHolidayTravelUnitPrice(input.prices, input.categories)
+    const travelDates = listWeekendHolidayTravelDates(start, end, holidaySet)
+    for (const travelDate of travelDates) {
+      const travelLabel =
+        travelDates.length === 1
+          ? 'An- und Abreise an Sonn-/Feiertagen (geschätzt)'
+          : travelDate === start
+            ? 'An- und Abreise an Sonn-/Feiertagen – Bringen (geschätzt)'
+            : 'An- und Abreise an Sonn-/Feiertagen – Abholen (geschätzt)'
+      addChargeLine(lines, travelLabel, 1, travelUnitPrice, 'pauschal')
     }
   }
 

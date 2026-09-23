@@ -41,6 +41,8 @@ import {
   resolveOvernightUnitPrice,
 } from '@/lib/overnight-surcharge'
 import { FIXED_PERCENTAGE_SURCHARGE_RATE } from '@/lib/price-catalog-policy'
+import type { BookingDateBlock } from '@/lib/booking-date-blocks'
+import { expandRecurringDayCareDates } from '@/lib/day-care-interval'
 import { formatWeekdayList } from '@/lib/day-care-booking'
 import { formatEuro } from '@/lib/price-override'
 import type { DayCareMode, Pet, ServiceType } from '@/lib/types'
@@ -86,8 +88,18 @@ export interface BookingEstimateInput {
   pets: Pet[]
   petLines: PetServiceLineInput[]
   dateRange?: DateRange
+  dateBlocks?: BookingDateBlock[]
   dayCareOnceDates: Record<string, Date[]>
-  dayCareRecurring: Record<string, { weekdays: number[]; startDate?: Date; intervalWeeks?: 1 | 2 }>
+  dayCareRecurring: Record<
+    string,
+    {
+      weekdays: number[]
+      startDate?: Date
+      endDate?: Date
+      unbefristet?: boolean
+      intervalWeeks?: 1 | 2
+    }
+  >
   /** pet_id → price_id → quantity */
   selectedExtrasByPet: Record<string, Record<string, number>>
   prices: BookingExtraPrice[]
@@ -103,6 +115,26 @@ export interface BookingEstimateInput {
 
 function petPricesForLine(petId: string, input: BookingEstimateInput): BookingExtraPrice[] {
   return input.pricesByPetId?.[petId] ?? input.prices
+}
+
+function resolveEstimateDateBlocks(input: BookingEstimateInput): BookingDateBlock[] {
+  if (input.dateBlocks?.length) return input.dateBlocks
+  if (input.dateRange?.from) {
+    return [
+      {
+        start_date: toIsoDate(input.dateRange.from),
+        end_date: toIsoDate(input.dateRange.to ?? input.dateRange.from),
+      },
+    ]
+  }
+  return []
+}
+
+function countCalendarDaysInBlocks(blocks: BookingDateBlock[]): number {
+  return blocks.reduce(
+    (sum, block) => sum + iterateIsoDateRange(block.start_date, block.end_date).length,
+    0
+  )
 }
 
 function categoryIdsForService(
@@ -249,17 +281,26 @@ export function estimateBookingCosts(input: BookingEstimateInput): BookingEstima
           )
         : null
 
+    const rangeBlocks = resolveEstimateDateBlocks(input)
+
     if (line.service_type === 'katzenbetreuung') {
-      lines.push({
-        kind: 'note',
-        label: `${petName}: Katzenbetreuung`,
-        detail:
-          'Preis pro Besuch laut deiner Preisliste – genaue Besuche klären wir bei der Bestätigung.',
-      })
-    } else if (line.service_type === 'hundepension' && input.dateRange?.from) {
-      const start = toIsoDate(input.dateRange.from)
-      const end = toIsoDate(input.dateRange.to ?? input.dateRange.from)
-      const days = iterateIsoDateRange(start, end).length
+      if (rangeBlocks.length > 0) {
+        const days = countCalendarDaysInBlocks(rangeBlocks)
+        lines.push({
+          kind: 'note',
+          label: `${petName}: Katzenbetreuung`,
+          detail: `${days} Kalendertag(e) in ${rangeBlocks.length} Block/Blöcken – Preis pro Besuch laut Preisliste, genaue Besuche klären wir bei der Bestätigung.`,
+        })
+      } else {
+        lines.push({
+          kind: 'note',
+          label: `${petName}: Katzenbetreuung`,
+          detail:
+            'Preis pro Besuch laut deiner Preisliste – genaue Besuche klären wir bei der Bestätigung.',
+        })
+      }
+    } else if (line.service_type === 'hundepension' && rangeBlocks.length > 0) {
+      const days = countCalendarDaysInBlocks(rangeBlocks)
       if (days > 0 && basePriceForPet) {
         const up = unitPrice(basePriceForPet)!
         addChargeLine(
@@ -269,15 +310,25 @@ export function estimateBookingCosts(input: BookingEstimateInput): BookingEstima
           up,
           basePriceForPet.unit || 'Kalendertag'
         )
+        if (rangeBlocks.length > 1) {
+          lines.push({
+            kind: 'note',
+            label: `${petName}: ${rangeBlocks.length} Betreuungsblöcke`,
+          })
+        }
         lines.push({
           kind: 'note',
           label: HUND_GRUNDPREISE_TIER_NOTE,
         })
-        appendWeekendSurcharge(
-          petName,
-          countSurchargeDaysInRange(start, end, holidaySet, { excludeEndDate: true }),
-          up
+        const surchargeDays = rangeBlocks.reduce(
+          (sum, block) =>
+            sum +
+            countSurchargeDaysInRange(block.start_date, block.end_date, holidaySet, {
+              excludeEndDate: true,
+            }),
+          0
         )
+        appendWeekendSurcharge(petName, surchargeDays, up)
         appendAutoApplicableExtras(
           lines,
           petName,
@@ -316,11 +367,36 @@ export function estimateBookingCosts(input: BookingEstimateInput): BookingEstima
       if (weekdays.length > 0 && basePriceForPet) {
         const up = unitPrice(basePriceForPet)!
         const intervalLabel = cfg?.intervalWeeks === 2 ? 'alle 14 Tage' : 'wöchentlich'
-        lines.push({
-          kind: 'note',
-          label: `${petName}: Feste Tage (${formatWeekdayList(weekdays)}, ${intervalLabel})`,
-          detail: `${formatEuro(up)} pro Tag – laufend, ohne Enddatum (kein Gesamtbetrag).`,
-        })
+        const unbefristet = cfg?.unbefristet !== false && !cfg?.endDate
+        if (unbefristet) {
+          lines.push({
+            kind: 'note',
+            label: `${petName}: Feste Tage (${formatWeekdayList(weekdays)}, ${intervalLabel})`,
+            detail: `${formatEuro(up)} pro Tag – unbefristet (kein Gesamtbetrag).`,
+          })
+        } else if (cfg?.startDate && cfg.endDate) {
+          const startIso = toIsoDate(cfg.startDate)
+          const endIso = toIsoDate(cfg.endDate)
+          const dates = expandRecurringDayCareDates(
+            startIso,
+            endIso,
+            weekdays,
+            cfg.intervalWeeks ?? 1
+          )
+          const lineTotal = dates.length * up
+          addChargeLine(
+            lines,
+            `${petName}: Feste Tage (${formatWeekdayList(weekdays)}, ${intervalLabel})`,
+            dates.length,
+            up,
+            basePriceForPet.unit || 'Tag'
+          )
+          lines.push({
+            kind: 'note',
+            label: `${petName}: Befristet bis ${endIso}`,
+            detail: `Orientierung ca. ${formatEuro(lineTotal)} für ${dates.length} Termin(e).`,
+          })
+        }
         lines.push({
           kind: 'note',
           label: HUND_GRUNDPREISE_TIER_NOTE,

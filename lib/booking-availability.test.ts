@@ -61,6 +61,23 @@ describe('booking availability', () => {
     expect(result.conflicts[0]?.reason).toBe('vacation')
   })
 
+  it('blockiert Tage aus dem Google Kalender', () => {
+    const context: AvailabilityContext = {
+      ...baseContext,
+      googleBlockedDates: ['2026-09-05'],
+    }
+
+    const result = validateBookingAvailability(context, {
+      serviceType: 'hundepension',
+      startDate: '2026-09-05',
+      endDate: '2026-09-05',
+      checkCapacity: false,
+    })
+
+    expect(result.valid).toBe(false)
+    expect(result.conflicts[0]?.reason).toBe('google_calendar')
+  })
+
   it('erkennt geschlossene Tage über Override mit Kapazität 0', () => {
     expect(
       isDayClosed('2026-09-01', 'hundepension', baseContext.capacitySettings, baseContext.capacityOverrides)

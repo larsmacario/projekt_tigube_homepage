@@ -49,6 +49,7 @@ import {
   normalizePetGeschlecht,
 } from '@/lib/pet-form-options'
 import { AccountDeletionSection } from '@/components/portal/account-deletion-section'
+import { isCatCustomer, isCatPetContext } from '@/lib/cat-customer'
 
 function ProfileContent() {
   const searchParams = useSearchParams()
@@ -703,6 +704,7 @@ function ProfileContent() {
         impfpassCount: formImpfpassCount,
         wurmtestFiles,
         photoCount: formPhotoCount,
+        customer,
       })
     )
     if (saveWarning) {
@@ -1425,8 +1427,10 @@ function ProfileContent() {
               {showPetForm && (
                 <div className="p-4 border border-sage-200 rounded-lg bg-sage-50 space-y-4">
                   <p className="text-sm text-sage-600">
-                    Speichere zuerst Name und Tierart – Impfpass, Wurmtest und weitere Angaben kannst du
-                    danach jederzeit ergänzen.
+                    Speichere zuerst Name und Tierart –{' '}
+                    {isCatCustomer(customer)
+                      ? 'Wurmtest und weitere Angaben kannst du danach jederzeit ergänzen.'
+                      : 'Impfpass, Wurmtest und weitere Angaben kannst du danach jederzeit ergänzen.'}
                   </p>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
@@ -1519,7 +1523,8 @@ function ProfileContent() {
                       onChange={setCarePlan}
                       idPrefix="profile-pet"
                     />
-                    {!isDog(petFormData.tierart) && (
+                    {!isDog(petFormData.tierart) &&
+                      !isCatPetContext({ tierart: petFormData.tierart, customer }) && (
                       <div>
                         <h4 className="font-semibold mb-3">Intervalle</h4>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1561,6 +1566,7 @@ function ProfileContent() {
                       onDocumentsChange={setDocuments}
                       impfpassGalleryRef={petImpfpassGalleryRef}
                       onImpfpassCountChange={setFormImpfpassCount}
+                      customer={customer}
                     />
 
                     {/* Wurmtest Bereich */}
@@ -1695,6 +1701,7 @@ function ProfileContent() {
                             <PetMissingFieldsHint
                               pet={pet}
                               documents={documents}
+                              customer={customer}
                               className="mt-2 text-sm text-amber-700"
                             />
                           </div>

@@ -17,6 +17,7 @@ import {
 } from '@/lib/cms/portal-defaults'
 import { PickupTimesReference } from '@/components/portal/pickup-times-reference'
 import { isCustomerProfileComplete } from '@/lib/customer-profile-complete'
+import { isCatCustomer } from '@/lib/cat-customer'
 
 export default function PortalPage() {
   const [customer, setCustomer] = useState<Customer | null>(null)
@@ -80,8 +81,9 @@ export default function PortalPage() {
     ? '/portal/profile?onboarding=true&step=2'
     : '/portal/profile?onboarding=true&step=3'
 
-  const petsWithMissingFields = getPetsWithDashboardMissingFields(pets, documents)
+  const petsWithMissingFields = getPetsWithDashboardMissingFields(pets, documents, customer)
   const hasCompletePetData = pets.length === 0 || petsWithMissingFields.length === 0
+  const isCatPortalCustomer = isCatCustomer(customer)
 
   return (
     <div className="space-y-8">
@@ -256,7 +258,12 @@ export default function PortalPage() {
             {documents.length > 0 ? (
               <div className="text-sm text-sage-600">
                 <p>{documents.filter(d => d.document_type === 'vertrag').length} Vertrag/Verträge</p>
-                <p>{documents.filter(d => d.document_type === 'impfpass').length} Impfpass/Impfpässe</p>
+                {!isCatPortalCustomer && (
+                  <p>
+                    {documents.filter((d) => d.document_type === 'impfpass').length}{' '}
+                    Impfpass/Impfpässe
+                  </p>
+                )}
                 <p>{documents.filter(d => d.document_type === 'wurmtest').length} Wurmtest(s)</p>
               </div>
             ) : (
@@ -303,7 +310,9 @@ export default function PortalPage() {
                     {hasCompletePetData ? '✓' : '3'}
                   </span>
                   <span className={hasCompletePetData ? 'text-sage-600 line-through' : 'text-sage-900'}>
-                    Tierdaten ergänzen (Impfpass, Wurmtest, Entwurmung)
+                    {isCatPortalCustomer
+                      ? 'Tierdaten ergänzen (Wurmtest, Entwurmung)'
+                      : 'Tierdaten ergänzen (Impfpass, Wurmtest, Entwurmung)'}
                   </span>
                 </li>
               )}

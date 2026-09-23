@@ -32,6 +32,7 @@ import { PetCarePlanSummary } from '@/components/portal/pet-care-plan-summary'
 import { buildPetSaveBody, carePlanFromPet } from '@/lib/pet-care-plan-form-state'
 import type { PetCarePlan } from '@/lib/pet-care-plan'
 import { isDog } from '@/lib/pet-vaccination'
+import { isCatPetContext, type CatCustomerContext } from '@/lib/cat-customer'
 import { formatDeceasedLabel, isPetDeceased } from '@/lib/pet-lifecycle'
 import { Badge } from '@/components/ui/badge'
 import {
@@ -74,6 +75,7 @@ interface PetManagerProps {
   customerId: string
   pets: Pet[]
   onPetsChange: (pets: Pet[]) => void
+  customer?: CatCustomerContext | null
   defaultExpanded?: boolean
   embedded?: boolean
 }
@@ -82,6 +84,7 @@ export function PetManager({
   customerId,
   pets,
   onPetsChange,
+  customer = null,
   defaultExpanded = false,
   embedded = false,
 }: PetManagerProps) {
@@ -309,7 +312,8 @@ export function PetManager({
             <div className="border-t pt-4 space-y-4">
               <h4 className="font-semibold text-sm text-sage-800">Intervalle & Vorsorge</h4>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {!isDog(formData.tierart) && (
+                {!isDog(formData.tierart) &&
+                  !isCatPetContext({ tierart: formData.tierart, customer }) && (
                   <div>
                     <Label>Intervall Impfung</Label>
                     <Select value={formData.intervall_impfung} onValueChange={(v) => setFormData({ ...formData, intervall_impfung: v })}>

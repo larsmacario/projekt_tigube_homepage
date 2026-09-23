@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { getLeadColumnCatalog } from '@/lib/table-columns'
+import { getCatalogForEntity } from '@/lib/admin-table-view-catalog'
 import { validateViewConfig } from '@/lib/table-view-utils'
 import { getServerClient } from '@/lib/admin-auth'
 import type { AdminTableView, TableViewConfig, TableViewEntityType, TableViewScope } from '@/lib/types'
@@ -33,29 +33,6 @@ function parseViewRow(row: any): AdminTableView {
     ...row,
     config: row.config as TableViewConfig,
   }
-}
-
-async function getCatalogForEntity(entityType: TableViewEntityType, supabase: any) {
-  if (entityType === 'lead') {
-    const { data } = await supabase
-      .from('property_definitions')
-      .select('*')
-      .contains('applies_to', ['lead'])
-      .order('sort_order', { ascending: true })
-
-    const definitions = (data || []).map((def: any) => ({
-      ...def,
-      options: Array.isArray(def.options)
-        ? def.options
-        : def.options
-          ? JSON.parse(def.options)
-          : [],
-    }))
-
-    return getLeadColumnCatalog(definitions)
-  }
-
-  return getLeadColumnCatalog([])
 }
 
 async function clearDefaultViews(

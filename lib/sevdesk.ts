@@ -16,6 +16,17 @@ const PERSON_CATEGORY_ID = '1'
 const DEFAULT_TAX_RATE = 19
 
 export const SEVDESK_ACTIVE_CUSTOMER_TAG = 'aktiv'
+export const SEVDESK_CAT_CUSTOMER_TAG = 'cat'
+
+export function normalizeSevdeskTagNames(
+  tags: Array<{ name: string }> | null | undefined
+): string[] {
+  if (!tags?.length) return []
+  const normalized = tags
+    .map((tag) => tag.name.trim().toLowerCase())
+    .filter(Boolean)
+  return [...new Set(normalized)]
+}
 
 export async function getSevdeskApiKey(): Promise<string | null> {
   const db = getAdminDbClient()

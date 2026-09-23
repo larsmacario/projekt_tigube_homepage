@@ -2,7 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { requireAdmin, getAdminDbClient } from '@/lib/admin-auth'
 import {
+  isValidAdAudience,
   isValidLinkTarget,
+  normalizeAdAudience,
   normalizeOptionalDate,
   validateAdSchedule,
 } from '@/lib/portal-ads'
@@ -74,6 +76,7 @@ export async function POST(request: NextRequest) {
     const linkTarget = isValidLinkTarget(body.link_target) ? body.link_target : '_blank'
     const sortOrder = Number.isFinite(Number(body.sort_order)) ? Number(body.sort_order) : 0
     const isActive = Boolean(body.is_active)
+    const audience = isValidAdAudience(body.audience) ? body.audience : normalizeAdAudience(body.audience)
     const startsAt = normalizeOptionalDate(body.starts_at)
     const endsAt = normalizeOptionalDate(body.ends_at)
 
@@ -105,6 +108,7 @@ export async function POST(request: NextRequest) {
         format_id: formatId,
         link_url: linkUrl,
         link_target: linkTarget,
+        audience,
         sort_order: sortOrder,
         is_active: isActive,
         starts_at: startsAt,

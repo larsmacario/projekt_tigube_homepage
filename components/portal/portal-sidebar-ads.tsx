@@ -4,6 +4,7 @@ import Image from "next/image"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
+import { authenticatedFetch } from "@/lib/authenticated-fetch"
 import {
   getNextAdIndex,
   groupAdsByFormat,
@@ -183,7 +184,7 @@ export function PortalSidebarAds() {
   useEffect(() => {
     async function loadAds() {
       try {
-        const response = await fetch("/api/portal/ads")
+        const response = await authenticatedFetch("/api/portal/ads")
         const data = (await response.json()) as PortalAdsResponse & { error?: string }
         if (!response.ok) {
           throw new Error(data.error || "Fehler beim Laden der Werbeanzeigen")

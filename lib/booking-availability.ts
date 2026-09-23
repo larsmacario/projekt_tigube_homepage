@@ -12,6 +12,7 @@ import { recurringDayCareAppliesOnDate } from '@/lib/day-care-interval'
 export type AvailabilityConflictReason =
   | 'vacation'
   | 'closed'
+  | 'google_calendar'
   | 'capacity_overall'
   | 'capacity_service'
 
@@ -32,6 +33,7 @@ export interface AvailabilityContext {
   capacitySettings: CapacitySetting[]
   capacityOverrides: CapacityOverride[]
   approvedBookings: ApprovedBookingSlice[]
+  googleBlockedDates?: string[]
 }
 
 export interface AvailabilityConflict {
@@ -126,6 +128,27 @@ export function getClosedReason(
   return serviceOverride?.reason ?? null
 }
 
+const googleBlockedDateSetCache = new WeakMap<string[], Set<string>>()
+
+function getGoogleBlockedDateSet(dates: string[] | undefined): Set<string> {
+  if (!dates?.length) {
+    return new Set()
+  }
+  let set = googleBlockedDateSetCache.get(dates)
+  if (!set) {
+    set = new Set(dates)
+    googleBlockedDateSetCache.set(dates, set)
+  }
+  return set
+}
+
+export function isGoogleCalendarBlockedDate(
+  date: string,
+  googleBlockedDates: string[] | undefined
+): boolean {
+  return getGoogleBlockedDateSet(googleBlockedDates).has(date)
+}
+
 export function bookingAppliesOnDate(
   booking: ApprovedBookingSlice,
   date: string
@@ -218,6 +241,10 @@ export function formatAvailabilityError(conflicts: AvailabilityConflict[]): stri
       return conflict.date
         ? `Am ${formatGermanDate(conflict.date)} ist keine Betreuung möglich${conflict.message ? `: ${conflict.message}` : ''}.`
         : `Im gewählten Zeitraum ist keine Betreuung möglich${conflict.message ? `: ${conflict.message}` : ''}.`
+    case 'google_calendar':
+      return conflict.date
+        ? `Am ${formatGermanDate(conflict.date)} blockiert ein Termin im Google Kalender neue Buchungen.`
+        : 'Im gewählten Zeitraum blockiert der Google Kalender neue Buchungen.'
     case 'capacity_overall':
       return conflict.date
         ? `Am ${formatGermanDate(conflict.date)} ist die Gesamtkapazität ausgeschöpft (${conflict.message}).`
@@ -262,6 +289,15 @@ export function validateBookingAvailability(
   }
 
   for (const date of iterateIsoDateRange(startDate, endDate)) {
+    if (isGoogleCalendarBlockedDate(date, context.googleBlockedDates)) {
+      conflicts.push({
+        reason: 'google_calendar',
+        date,
+        message: '',
+      })
+      continue
+    }
+
     if (isDayClosed(date, serviceType, context.capacitySettings, context.capacityOverrides)) {
       conflicts.push({
         reason: 'closed',
@@ -387,6 +423,10 @@ export function getBlockedDatesForService(
   const blocked = new Set<string>()
 
   for (const date of iterateIsoDateRange(fromDate, toDate)) {
+    if (isGoogleCalendarBlockedDate(date, context.googleBlockedDates)) {
+      blocked.add(date)
+      continue
+    }
     if (isDayClosed(date, serviceType, context.capacitySettings, context.capacityOverrides)) {
       blocked.add(date)
     }

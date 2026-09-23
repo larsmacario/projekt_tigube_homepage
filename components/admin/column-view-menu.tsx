@@ -72,15 +72,15 @@ export function ColumnViewMenu({
   const isSystemDefault = activeViewId === SYSTEM_DEFAULT_VIEW_ID
 
   const orderedEntries = useMemo(() => {
-    const merged = mergeViewConfigWithCatalog(catalog, viewConfig)
+    const merged = mergeViewConfigWithCatalog(catalog, viewConfig, entityType)
     return merged.columns.sort((a, b) => a.order - b.order)
-  }, [catalog, viewConfig])
+  }, [catalog, viewConfig, entityType])
 
   function updateEntry(
     columnId: string,
     patch: Partial<TableViewColumnConfig>
   ) {
-    const merged = mergeViewConfigWithCatalog(catalog, viewConfig)
+    const merged = mergeViewConfigWithCatalog(catalog, viewConfig, entityType)
     const nextColumns = merged.columns.map((entry) =>
       entry.id === columnId ? { ...entry, ...patch } : entry
     )
@@ -106,14 +106,14 @@ export function ColumnViewMenu({
   function handleSelectView(viewId: string) {
     onActiveViewChange(viewId)
     if (viewId === SYSTEM_DEFAULT_VIEW_ID) {
-      onViewConfigChange(createDefaultViewConfig(catalog))
+      onViewConfigChange(createDefaultViewConfig(catalog, entityType))
       setSaveName('')
       return
     }
 
     const view = views.find((item) => item.id === viewId)
     if (view) {
-      onViewConfigChange(mergeViewConfigWithCatalog(catalog, view.config))
+      onViewConfigChange(mergeViewConfigWithCatalog(catalog, view.config, entityType))
       setSaveName(view.name)
       setSaveScope(view.scope)
       setSaveAsDefault(view.is_default)
@@ -136,7 +136,7 @@ export function ColumnViewMenu({
         name: saveName.trim(),
         entity_type: entityType,
         scope: saveScope,
-        config: mergeViewConfigWithCatalog(catalog, viewConfig),
+        config: mergeViewConfigWithCatalog(catalog, viewConfig, entityType),
         is_default: saveAsDefault,
       }
 

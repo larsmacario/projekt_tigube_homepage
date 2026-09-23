@@ -5,6 +5,7 @@ import {
   contactHasTag,
   listAllSevdeskContacts,
   loadSevdeskContactDetail,
+  normalizeSevdeskTagNames,
   SEVDESK_ACTIVE_CUSTOMER_TAG,
   updateSevdeskCustomerImportSummary,
 } from '@/lib/sevdesk'
@@ -64,6 +65,7 @@ const IMPORT_PLACEHOLDER_FIELDS = {
 function buildStammdatenPayload(
   mapped: MappedSevdeskCustomer,
   sevdeskContactId: string,
+  sevdeskTags: string[],
   includeEmail = true
 ) {
   return {
@@ -79,16 +81,18 @@ function buildStammdatenPayload(
     sevdesk_contact_id: sevdeskContactId,
     sevdesk_synced_at: new Date().toISOString(),
     sevdesk_sync_error: null,
+    sevdesk_tags: sevdeskTags,
   }
 }
 
 export function buildSevdeskImportCreatePayload(
   mapped: MappedSevdeskCustomer,
-  sevdeskContactId: string
+  sevdeskContactId: string,
+  sevdeskTags: string[]
 ) {
   return {
     ...IMPORT_PLACEHOLDER_FIELDS,
-    ...buildStammdatenPayload(mapped, sevdeskContactId),
+    ...buildStammdatenPayload(mapped, sevdeskContactId, sevdeskTags),
     status: 'pending' as const,
     datenschutz: false,
     onboarding_completed: false,
@@ -99,13 +103,14 @@ export function buildSevdeskImportCreatePayload(
 export function buildSevdeskImportUpdatePayload(
   mapped: MappedSevdeskCustomer,
   sevdeskContactId: string,
+  sevdeskTags: string[],
   existing: { user_id?: string | null }
 ) {
   const payload = {
     // Nach Abschluss des Onboardings ist das Portal die führende Quelle für die
     // bestätigte Kontakt- und Login-Adresse. Ein SevDesk-Import darf sie nicht
     // zurücksetzen.
-    ...buildStammdatenPayload(mapped, sevdeskContactId, !existing.user_id),
+    ...buildStammdatenPayload(mapped, sevdeskContactId, sevdeskTags, !existing.user_id),
     service: 'import',
   }
 
@@ -169,6 +174,7 @@ export async function importActiveSevdeskCustomers(options: {
 
         const detail = await loadSevdeskContactDetail(contact)
         const mapped = mapSevdeskContactToPortalFields(detail)
+        const sevdeskTags = normalizeSevdeskTagNames(detail.tags)
 
         const existingBySevdesk = await options.db
           .from('contacts')
@@ -208,7 +214,12 @@ export async function importActiveSevdeskCustomers(options: {
 
         if (match.action === 'update') {
           const existing = match.existing
-          const payload = buildSevdeskImportUpdatePayload(mapped, detail.id, existing)
+          const payload = buildSevdeskImportUpdatePayload(
+            mapped,
+            detail.id,
+            sevdeskTags,
+            existing
+          )
           const { error } = await options.db
             .from('contacts')
             .update(payload)
@@ -222,7 +233,7 @@ export async function importActiveSevdeskCustomers(options: {
         }
 
         {
-          const payload = buildSevdeskImportCreatePayload(mapped, detail.id)
+          const payload = buildSevdeskImportCreatePayload(mapped, detail.id, sevdeskTags)
           const { error } = await options.db.from('contacts').insert(payload)
           if (error) {
             throw new Error(error.message)

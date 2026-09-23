@@ -1,13 +1,21 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useToast } from '@/hooks/use-toast'
-import type { Customer, PropertyDefinition } from '@/lib/types'
+import type { AdminTableView, PropertyDefinition, TableViewConfig } from '@/lib/types'
 import { DataTable } from '@/components/admin/data-table'
-import { getCustomerColumns } from '@/lib/table-columns'
+import { ColumnViewMenu } from '@/components/admin/column-view-menu'
+import { getCustomerColumnCatalog } from '@/lib/table-columns'
 import type { TableColumn } from '@/lib/table-columns'
+import {
+  applyTableViewConfig,
+  createDefaultViewConfig,
+  mergeViewConfigWithCatalog,
+  resolveActiveView,
+  SYSTEM_DEFAULT_VIEW_ID,
+} from '@/lib/table-view-utils'
 import {
   Dialog,
   DialogContent,
@@ -34,13 +42,28 @@ import { BULK_EXPORT_MAX_CUSTOMERS } from '@/lib/admin-bulk-export'
 import { downloadResponseAsFile } from '@/lib/admin-bulk-export-download'
 import { saveListOrder } from '@/hooks/use-adjacent-record-nav'
 
+const ACTIVE_VIEW_STORAGE_KEY = 'customer-table-active-view-id'
+
+function isAbortError(error: unknown): boolean {
+  return error instanceof DOMException && error.name === 'AbortError'
+}
+
 export default function CustomersPage() {
   const [customers, setCustomers] = useState<Record<string, any>[]>([])
   const [propertyDefinitions, setPropertyDefinitions] = useState<PropertyDefinition[]>([])
-  const [columns, setColumns] = useState<TableColumn[]>([])
+  const [views, setViews] = useState<AdminTableView[]>([])
+  const [catalog, setCatalog] = useState<TableColumn[]>([])
+  const [viewConfig, setViewConfig] = useState<TableViewConfig>({ columns: [] })
+  const [activeViewId, setActiveViewId] = useState<string>(SYSTEM_DEFAULT_VIEW_ID)
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
+  const [reloadKey, setReloadKey] = useState(0)
   const { toast } = useToast()
+
+  const displayColumns = useMemo(
+    () => applyTableViewConfig(catalog, viewConfig, 'customer'),
+    [catalog, viewConfig]
+  )
 
   // State für Kunden-Einladung
   const [isInviteOpen, setIsInviteOpen] = useState(false)
@@ -57,10 +80,111 @@ export default function CustomersPage() {
   const [sevdeskConnected, setSevdeskConnected] = useState(false)
   const [importingFromSevdesk, setImportingFromSevdesk] = useState(false)
 
+  const loadViews = useCallback(async (nextCatalog: TableColumn[], signal?: AbortSignal) => {
+    const response = await authenticatedFetch('/api/admin/table-views?entity_type=customer', {
+      signal,
+    })
+    const { data, error } = await readApiResponse<{ views?: AdminTableView[] }>(response)
+    if (error) {
+      throw new Error(error)
+    }
+
+    const loadedViews = data?.views || []
+    setViews(loadedViews)
+
+    const storedViewId =
+      typeof window !== 'undefined'
+        ? window.localStorage.getItem(ACTIVE_VIEW_STORAGE_KEY)
+        : null
+
+    const resolvedViewId = resolveActiveView(loadedViews, storedViewId)
+    setActiveViewId(resolvedViewId)
+
+    if (resolvedViewId === SYSTEM_DEFAULT_VIEW_ID) {
+      setViewConfig(createDefaultViewConfig(nextCatalog, 'customer'))
+      return
+    }
+
+    const activeView = loadedViews.find((view) => view.id === resolvedViewId)
+    if (activeView) {
+      setViewConfig(mergeViewConfigWithCatalog(nextCatalog, activeView.config, 'customer'))
+    } else {
+      setViewConfig(createDefaultViewConfig(nextCatalog, 'customer'))
+    }
+  }, [])
+
   useEffect(() => {
-    void loadData()
     void loadSevdeskStatus()
   }, [])
+
+  useEffect(() => {
+    const controller = new AbortController()
+
+    async function loadData() {
+      setLoading(true)
+      try {
+        const groupsResponse = await authenticatedFetch('/api/admin/customer-groups', {
+          signal: controller.signal,
+        })
+        const groupsData = await groupsResponse.json()
+        const groups = groupsData.groups || []
+        const groupsMap: Record<string, string> = {}
+        groups.forEach((g: { id: string; name: string }) => {
+          groupsMap[g.id] = g.name
+        })
+
+        const defResponse = await authenticatedFetch('/api/admin/properties?applies_to=customer', {
+          signal: controller.signal,
+        })
+        const { data: defData, error: defError } = await readApiResponse<{
+          definitions?: PropertyDefinition[]
+        }>(defResponse)
+        if (defError) {
+          throw new Error(defError)
+        }
+
+        const definitions = defData?.definitions || []
+        setPropertyDefinitions(definitions)
+
+        const nextCatalog = getCustomerColumnCatalog(definitions, groupsMap)
+        setCatalog(nextCatalog)
+
+        await loadViews(nextCatalog, controller.signal)
+
+        const response = await authenticatedFetch('/api/admin/customers', {
+          signal: controller.signal,
+        })
+        const { data, error } = await readApiResponse<{ customers?: Record<string, unknown>[] }>(
+          response
+        )
+        if (error) {
+          throw new Error(error)
+        }
+
+        setCustomers(data?.customers || [])
+      } catch (error) {
+        if (isAbortError(error) || controller.signal.aborted) {
+          return
+        }
+        console.error('Error loading data:', error)
+        toast({
+          title: 'Fehler',
+          description: error instanceof Error ? error.message : 'Fehler beim Laden der Daten',
+          variant: 'destructive',
+        })
+      } finally {
+        if (!controller.signal.aborted) {
+          setLoading(false)
+        }
+      }
+    }
+
+    void loadData()
+
+    return () => {
+      controller.abort()
+    }
+  }, [reloadKey, loadViews, toast])
 
   async function loadSevdeskStatus() {
     try {
@@ -95,7 +219,7 @@ export default function CustomersPage() {
           : 'Import abgeschlossen.',
       })
 
-      await loadData()
+      reloadCustomerData()
     } catch (error) {
       toast({
         title: 'Fehler',
@@ -107,40 +231,27 @@ export default function CustomersPage() {
     }
   }
 
-  async function loadData() {
-    setLoading(true)
-    try {
-      // Lade Kundengruppen
-      const groupsResponse = await authenticatedFetch('/api/admin/customer-groups')
-      const groupsData = await groupsResponse.json()
-      const groups = groupsData.groups || []
-      const groupsMap: Record<string, string> = {}
-      groups.forEach((g: any) => {
-        groupsMap[g.id] = g.name
-      })
+  function handleActiveViewChange(viewId: string) {
+    setActiveViewId(viewId)
+    window.localStorage.setItem(ACTIVE_VIEW_STORAGE_KEY, viewId)
 
-      // Lade Property Definitions
-      const defResponse = await authenticatedFetch('/api/admin/properties?applies_to=customer')
-      const defData = await defResponse.json()
-      setPropertyDefinitions(defData.definitions || [])
-
-      // Lade Kunden
-      const response = await authenticatedFetch('/api/admin/customers')
-      const data = await response.json()
-      setCustomers(data.customers || [])
-
-      // Aktualisiere Spalten
-      setColumns(getCustomerColumns(defData.definitions || [], groupsMap))
-    } catch (error) {
-      console.error('Error loading data:', error)
-      toast({
-        title: 'Fehler',
-        description: 'Fehler beim Laden der Daten',
-        variant: 'destructive',
-      })
-    } finally {
-      setLoading(false)
+    if (viewId === SYSTEM_DEFAULT_VIEW_ID) {
+      setViewConfig(createDefaultViewConfig(catalog, 'customer'))
+      return
     }
+
+    const view = views.find((item) => item.id === viewId)
+    if (view) {
+      setViewConfig(mergeViewConfigWithCatalog(catalog, view.config, 'customer'))
+    }
+  }
+
+  async function handleViewsReload() {
+    await loadViews(catalog)
+  }
+
+  function reloadCustomerData() {
+    setReloadKey((current) => current + 1)
   }
 
   const pendingOnboardingCustomers = customers.filter(
@@ -286,7 +397,7 @@ export default function CustomersPage() {
       setNachname('')
       setEmail('')
       setIsInviteOpen(false)
-      loadData()
+      reloadCustomerData()
     } catch (error: any) {
       console.error('Error inviting customer:', error)
       toast({
@@ -301,7 +412,7 @@ export default function CustomersPage() {
 
   async function handleCellUpdate(rowId: string | number, columnId: string, value: any) {
     try {
-      const column = columns.find(c => c.id === columnId)
+      const column = catalog.find((c) => c.id === columnId)
       if (!column) return
 
       if (column.isProperty && column.propertyDefinitionId) {
@@ -356,8 +467,13 @@ export default function CustomersPage() {
   }
 
   function handleAddColumn() {
-    loadData()
+    setReloadKey((current) => current + 1)
   }
+
+  useEffect(() => {
+    if (catalog.length === 0) return
+    setViewConfig((current) => mergeViewConfigWithCatalog(catalog, current, 'customer'))
+  }, [catalog, propertyDefinitions])
 
   const filteredCustomers = useMemo(
     () =>
@@ -385,70 +501,169 @@ export default function CustomersPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+      <div className="space-y-4">
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold text-sage-900">Kunden</h1>
           <p className="mt-2 text-sage-600">Übersicht aller registrierten Kunden</p>
         </div>
-        <div className="flex flex-col items-stretch gap-3 sm:items-end w-full lg:max-w-xl">
-          <Input
-            placeholder="Suche nach Name, E-Mail oder Kundennummer..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="w-full"
-          />
-          <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:justify-end">
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <span className="inline-flex w-full sm:w-auto">
-                  <Button
-                    variant="outline"
-                    className="w-full sm:w-auto whitespace-normal sm:whitespace-nowrap"
-                    disabled={!sevdeskConnected || importingFromSevdesk}
-                    onClick={() => void handleImportFromSevdesk()}
-                  >
-                    {importingFromSevdesk ? (
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    ) : (
-                      <RefreshCw className="mr-2 h-4 w-4" />
-                    )}
-                    Aus SevDesk aktualisieren
-                  </Button>
-                </span>
-              </TooltipTrigger>
-              {!sevdeskConnected && (
-                <TooltipContent>
-                  <p>
-                    Zuerst SevDesk in den{' '}
-                    <Link href="/admin/einstellungen" className="underline">
-                      Einstellungen
-                    </Link>{' '}
-                    verbinden.
-                  </p>
-                </TooltipContent>
-              )}
-            </Tooltip>
-          </TooltipProvider>
-          <Button
-            variant="outline"
-            className="w-full sm:w-auto whitespace-normal sm:whitespace-nowrap"
-            disabled={customers.length === 0}
-            onClick={openBulkExportDialog}
-          >
-            <Download className="mr-2 h-4 w-4" />
-            Mehrere Kunden exportieren
-          </Button>
-          <Button
-            variant="outline"
-            className="w-full sm:w-auto whitespace-normal sm:whitespace-nowrap"
-            disabled={pendingOnboardingCustomers.length === 0}
-            onClick={openBulkInviteDialog}
-          >
-            <Mail className="mr-2 h-4 w-4" />
-            Onboarding-Einladungen
-          </Button>
-          <Dialog open={isBulkExportOpen} onOpenChange={setIsBulkExportOpen}>
+
+        <div className="space-y-3">
+          <div className="flex justify-end">
+            <Input
+              placeholder="Suche nach Name, E-Mail oder Kundennummer..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full sm:w-1/2"
+            />
+          </div>
+
+          <div className="flex flex-col gap-3 lg:flex-row lg:flex-nowrap lg:items-center lg:justify-end lg:gap-2">
+            <ColumnViewMenu
+              catalog={catalog}
+              viewConfig={viewConfig}
+              views={views}
+              activeViewId={activeViewId}
+              entityType="customer"
+              onViewConfigChange={setViewConfig}
+              onActiveViewChange={handleActiveViewChange}
+              onViewsReload={handleViewsReload}
+            />
+
+            <div className="flex flex-nowrap gap-2 overflow-x-auto pb-0.5 lg:pb-0">
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className="inline-flex shrink-0">
+                      <Button
+                        variant="outline"
+                        className="whitespace-nowrap"
+                        disabled={!sevdeskConnected || importingFromSevdesk}
+                        onClick={() => void handleImportFromSevdesk()}
+                      >
+                        {importingFromSevdesk ? (
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        ) : (
+                          <RefreshCw className="mr-2 h-4 w-4" />
+                        )}
+                        Aus SevDesk aktualisieren
+                      </Button>
+                    </span>
+                  </TooltipTrigger>
+                  {!sevdeskConnected && (
+                    <TooltipContent>
+                      <p>
+                        Zuerst SevDesk in den{' '}
+                        <Link href="/admin/einstellungen" className="underline">
+                          Einstellungen
+                        </Link>{' '}
+                        verbinden.
+                      </p>
+                    </TooltipContent>
+                  )}
+                </Tooltip>
+              </TooltipProvider>
+              <Button
+                variant="outline"
+                className="shrink-0 whitespace-nowrap"
+                disabled={customers.length === 0}
+                onClick={openBulkExportDialog}
+              >
+                <Download className="mr-2 h-4 w-4" />
+                Mehrere Kunden exportieren
+              </Button>
+              <Button
+                variant="outline"
+                className="shrink-0 whitespace-nowrap"
+                disabled={pendingOnboardingCustomers.length === 0}
+                onClick={openBulkInviteDialog}
+              >
+                <Mail className="mr-2 h-4 w-4" />
+                Onboarding-Einladungen
+              </Button>
+            </div>
+
+            <Dialog open={isInviteOpen} onOpenChange={setIsInviteOpen}>
+              <DialogTrigger asChild>
+                <Button className="w-full shrink-0 whitespace-nowrap bg-sage-600 hover:bg-sage-700 text-white lg:w-auto">
+                  <UserPlus className="mr-2 h-4 w-4" />
+                  Kunde einladen
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-[425px]">
+                <DialogHeader>
+                  <DialogTitle>Kunde einladen</DialogTitle>
+                  <DialogDescription>
+                    Lade einen neuen Kunden ein. Dieser erhält eine E-Mail mit einem Onboarding-Link zur Vervollständigung seiner Daten.
+                  </DialogDescription>
+                </DialogHeader>
+                <form onSubmit={handleInvite} className="space-y-4 py-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="vorname">Vorname</Label>
+                    <Input
+                      id="vorname"
+                      placeholder="Vorname"
+                      value={vorname}
+                      onChange={(e) => setVorname(e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="nachname">Nachname <span className="text-red-500">*</span></Label>
+                    <Input
+                      id="nachname"
+                      placeholder="Nachname"
+                      value={nachname}
+                      onChange={(e) => setNachname(e.target.value)}
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="email">E-Mail <span className="text-red-500">*</span></Label>
+                    <Input
+                      id="email"
+                      type="email"
+                      placeholder="E-Mail-Adresse"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      required
+                    />
+                  </div>
+                  <DialogFooter className="pt-4">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => {
+                        setIsInviteOpen(false)
+                        setVorname('')
+                        setNachname('')
+                        setEmail('')
+                      }}
+                      disabled={isInviting}
+                    >
+                      Abbrechen
+                    </Button>
+                    <Button
+                      type="submit"
+                      disabled={isInviting}
+                      className="bg-sage-600 hover:bg-sage-700 text-white"
+                    >
+                      {isInviting ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Wird eingeladen...
+                        </>
+                      ) : (
+                        'Einladen'
+                      )}
+                    </Button>
+                  </DialogFooter>
+                </form>
+              </DialogContent>
+            </Dialog>
+          </div>
+        </div>
+      </div>
+
+      <Dialog open={isBulkExportOpen} onOpenChange={setIsBulkExportOpen}>
             <DialogContent className="sm:max-w-[520px]">
               <DialogHeader>
                 <DialogTitle>Tierhalter-Berichte exportieren</DialogTitle>
@@ -594,89 +809,9 @@ export default function CustomersPage() {
               </DialogFooter>
             </DialogContent>
           </Dialog>
-          <Dialog open={isInviteOpen} onOpenChange={setIsInviteOpen}>
-            <DialogTrigger asChild>
-              <Button className="w-full sm:w-auto bg-sage-600 hover:bg-sage-700 text-white whitespace-normal sm:whitespace-nowrap">
-                <UserPlus className="mr-2 h-4 w-4" />
-                Kunde einladen
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-[425px]">
-              <DialogHeader>
-                <DialogTitle>Kunde einladen</DialogTitle>
-                <DialogDescription>
-                  Lade einen neuen Kunden ein. Dieser erhält eine E-Mail mit einem Onboarding-Link zur Vervollständigung seiner Daten.
-                </DialogDescription>
-              </DialogHeader>
-              <form onSubmit={handleInvite} className="space-y-4 py-4">
-                <div className="space-y-2">
-                  <Label htmlFor="vorname">Vorname</Label>
-                  <Input
-                    id="vorname"
-                    placeholder="Vorname"
-                    value={vorname}
-                    onChange={(e) => setVorname(e.target.value)}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="nachname">Nachname <span className="text-red-500">*</span></Label>
-                  <Input
-                    id="nachname"
-                    placeholder="Nachname"
-                    value={nachname}
-                    onChange={(e) => setNachname(e.target.value)}
-                    required
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="email">E-Mail <span className="text-red-500">*</span></Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    placeholder="E-Mail-Adresse"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    required
-                  />
-                </div>
-                <DialogFooter className="pt-4">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => {
-                      setIsInviteOpen(false)
-                      setVorname('')
-                      setNachname('')
-                      setEmail('')
-                    }}
-                    disabled={isInviting}
-                  >
-                    Abbrechen
-                  </Button>
-                  <Button
-                    type="submit"
-                    disabled={isInviting}
-                    className="bg-sage-600 hover:bg-sage-700 text-white"
-                  >
-                    {isInviting ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Wird eingeladen...
-                      </>
-                    ) : (
-                      'Einladen'
-                    )}
-                  </Button>
-                </DialogFooter>
-              </form>
-            </DialogContent>
-          </Dialog>
-          </div>
-        </div>
-      </div>
 
       <DataTable
-        columns={columns}
+        columns={displayColumns}
         data={filteredCustomers}
         entityType="customer"
         loading={loading}

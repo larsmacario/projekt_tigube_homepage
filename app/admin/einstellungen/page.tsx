@@ -34,6 +34,8 @@ import type { SevdeskContact, SevdeskCustomerImportSummary, SevdeskPart, Sevdesk
 import type { CustomerDuplicateGroup } from '@/lib/customer-merge'
 import { ExternalLink, Loader2, RefreshCw } from 'lucide-react'
 import Link from 'next/link'
+import { Suspense } from 'react'
+import { GoogleCalendarIntegrationCard } from '@/components/admin/google-calendar-integration-card'
 
 function formatDateTime(iso: string | null | undefined): string {
   if (!iso) return '—'
@@ -436,6 +438,16 @@ export default function AdminEinstellungenPage() {
           </Button>
         </CardContent>
       </Card>
+
+      <Suspense
+        fallback={
+          <Card>
+            <CardContent className="py-10 text-center text-sage-600">Google Kalender wird geladen…</CardContent>
+          </Card>
+        }
+      >
+        <GoogleCalendarIntegrationCard />
+      </Suspense>
 
       <Card>
         <CardHeader>

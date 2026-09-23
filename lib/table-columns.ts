@@ -3,7 +3,13 @@ import type { PropertyDefinition, PropertyFieldType } from './types'
 export interface TableColumn {
   id: string
   label: string
-  fieldType: PropertyFieldType | 'id' | 'status' | 'timestamp' | 'email_status'
+  fieldType:
+    | PropertyFieldType
+    | 'id'
+    | 'status'
+    | 'timestamp'
+    | 'email_status'
+    | 'onboarding_status'
   fieldName: string
   sortable: boolean
   filterable: boolean
@@ -321,7 +327,7 @@ export function getLeadColumns(propertyDefinitions: PropertyDefinition[] = []): 
   return getLeadColumnCatalog(propertyDefinitions)
 }
 
-export function getCustomerColumns(
+export function getCustomerColumnCatalog(
   propertyDefinitions: PropertyDefinition[] = [],
   groupOptionsMap: Record<string, string> = {}
 ): TableColumn[] {
@@ -467,8 +473,18 @@ export function getCustomerColumns(
       options: ['monatlich', 'vierteljährlich', 'halbjährlich', 'jährlich', 'alle_2_jahre', 'alle_3_jahre'],
     },
     {
+      id: 'onboarding_completed',
+      label: 'Onboarding',
+      fieldType: 'onboarding_status',
+      fieldName: 'onboarding_completed',
+      sortable: true,
+      filterable: true,
+      width: 140,
+      readOnly: true,
+    },
+    {
       id: 'onboarding_email_status',
-      label: 'Onboarding-Mail Status',
+      label: 'Onboarding-Mail',
       fieldType: 'email_status',
       fieldName: 'onboarding_email_status',
       sortable: true,
@@ -509,4 +525,12 @@ export function getCustomerColumns(
   ]
 
   return [...standardColumns, ...buildPropertyColumns(propertyDefinitions, 'customer')]
+}
+
+/** @deprecated Nutze getCustomerColumnCatalog + applyTableViewConfig für konfigurierbare Views */
+export function getCustomerColumns(
+  propertyDefinitions: PropertyDefinition[] = [],
+  groupOptionsMap: Record<string, string> = {}
+): TableColumn[] {
+  return getCustomerColumnCatalog(propertyDefinitions, groupOptionsMap)
 }

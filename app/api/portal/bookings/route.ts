@@ -4,10 +4,12 @@ import { validateBookingAvailabilityForRange, validateBookingAvailabilityForDate
 import type { ServiceType } from '@/lib/types'
 import { isServiceAllowedForPetType } from '@/lib/booking-service'
 import {
-  buildBookingInsertRow,
+  buildBookingInsertRows,
   parsePortalPetLines,
   validatePortalPetLines,
 } from '@/lib/booking-batch-create'
+import { envelopeFromBlocks, normalizeDateBlocksFromRequest } from '@/lib/booking-date-blocks'
+import { expandRecurringDayCareDates } from '@/lib/day-care-interval'
 import { isRangeService } from '@/lib/day-care-booking'
 import {
   buildLineItemsForRequest,
@@ -269,13 +271,23 @@ export async function POST(request: NextRequest) {
       addon_services: addonServicesPayload,
       drop_off_time: dropOffTimePayload,
       pick_up_time: pickUpTimePayload,
+      date_blocks: dateBlocksPayload,
     } = bookingData
 
     const isBatch = Array.isArray(petsPayload) && petsPayload.length > 0
 
     if (isBatch) {
+      const dateBlocks = normalizeDateBlocksFromRequest({
+        date_blocks: dateBlocksPayload,
+        start_date,
+        end_date,
+      })
       const groupRange =
-        start_date && end_date ? { start_date, end_date } : null
+        dateBlocks.length > 0
+          ? envelopeFromBlocks(dateBlocks)
+          : start_date && end_date
+            ? { start_date, end_date }
+            : null
 
       const petLines = parsePortalPetLines(petsPayload)
       const seenPetIds = new Set<string>()
@@ -293,12 +305,13 @@ export async function POST(request: NextRequest) {
         seenPetIds.add(line.pet_id)
       }
 
-      const lineValidation = validatePortalPetLines(petLines, groupRange)
+      const lineValidation = validatePortalPetLines(petLines, dateBlocks, groupRange)
       if (!lineValidation.valid) {
         return NextResponse.json({ error: lineValidation.error }, { status: 400 })
       }
 
       const needsPickupTimes =
+        (dateBlocks.length > 0 && petLines.some((l) => l.service_type === 'hundepension')) ||
         (Boolean(groupRange) && petLines.some((l) => l.service_type === 'hundepension')) ||
         petLines.some((l) => l.service_type === 'tagesbetreuung')
 
@@ -363,19 +376,31 @@ export async function POST(request: NextRequest) {
 
       const serviceTypes = [...new Set(petLines.map((l) => l.service_type))]
 
-      if (groupRange) {
+      const rangeBlocksForAvailability =
+        dateBlocks.length > 0
+          ? dateBlocks
+          : groupRange
+            ? [{ start_date: groupRange.start_date, end_date: groupRange.end_date }]
+            : []
+
+      if (rangeBlocksForAvailability.length > 0) {
         for (const st of serviceTypes.filter(isRangeService)) {
-          const availability = await validateBookingAvailabilityForRange({
-            serviceType: st,
-            startDate: groupRange.start_date,
-            endDate: groupRange.end_date,
-            checkCapacity: false,
-          })
-          if (!availability.valid) {
-            return NextResponse.json(
-              { error: availability.error || 'Der gewählte Zeitraum ist nicht verfügbar.' },
-              { status: 400 }
-            )
+          for (const block of rangeBlocksForAvailability) {
+            const availability = await validateBookingAvailabilityForRange({
+              serviceType: st,
+              startDate: block.start_date,
+              endDate: block.end_date,
+              checkCapacity: false,
+            })
+            if (!availability.valid) {
+              return NextResponse.json(
+                {
+                  error:
+                    availability.error || 'Ein gewählter Betreuungsblock ist nicht verfügbar.',
+                },
+                { status: 400 }
+              )
+            }
           }
         }
       }
@@ -398,17 +423,41 @@ export async function POST(request: NextRequest) {
         }
 
         if (line.day_care_mode === 'recurring' && line.start_date) {
-          const availability = await validateBookingAvailabilityForRange({
-            serviceType: 'tagesbetreuung',
-            startDate: line.start_date,
-            endDate: line.start_date,
-            checkCapacity: false,
-          })
-          if (!availability.valid) {
-            return NextResponse.json(
-              { error: availability.error || 'Das Startdatum ist nicht verfügbar.' },
-              { status: 400 }
+          const expanded = expandRecurringDayCareDates(
+            line.start_date,
+            line.end_date ?? null,
+            line.day_care_weekdays,
+            line.day_care_interval_weeks
+          )
+          if (expanded.length > 0) {
+            const availability = await validateBookingAvailabilityForDateListServer(
+              'tagesbetreuung',
+              expanded,
+              false
             )
+            if (!availability.valid) {
+              return NextResponse.json(
+                {
+                  error:
+                    availability.error ||
+                    'Mindestens ein Termin der festen Tagesbetreuung ist nicht verfügbar.',
+                },
+                { status: 400 }
+              )
+            }
+          } else {
+            const availability = await validateBookingAvailabilityForRange({
+              serviceType: 'tagesbetreuung',
+              startDate: line.start_date,
+              endDate: line.start_date,
+              checkCapacity: false,
+            })
+            if (!availability.valid) {
+              return NextResponse.json(
+                { error: availability.error || 'Das Startdatum ist nicht verfügbar.' },
+                { status: 400 }
+              )
+            }
           }
         }
       }
@@ -514,7 +563,11 @@ export async function POST(request: NextRequest) {
       let overnightSurchargeLineItems: BookingLineItemInsert[] = []
       let weekendTravelLineItems: BookingLineItemInsert[] = []
       if (needsPickupTimes && pickupTimesForEmail) {
-        const pickupSpan = resolvePickupDateSpanFromPortalLines(petLines, groupRange)
+        const pickupSpan = resolvePickupDateSpanFromPortalLines(
+          petLines,
+          groupRange,
+          dateBlocks
+        )
         if (pickupSpan) {
           const catalog = await loadBookingExtraCatalogForCustomer(
             supabase,
@@ -559,34 +612,39 @@ export async function POST(request: NextRequest) {
 
       try {
         for (const line of petLines) {
-          const insertRow = buildBookingInsertRow(
+          const insertRows = buildBookingInsertRows(
             line,
+            dateBlocks,
             groupRange,
             customer.id,
             requestGroupId,
             message || null
           )
 
-          const { data: row, error: insertError } = await supabase
-            .from('bookings')
-            .insert(insertRow)
-            .select(`
+          for (const insertRow of insertRows) {
+            const { data: row, error: insertError } = await supabase
+              .from('bookings')
+              .insert(insertRow)
+              .select(`
               *,
               pet:pets(id, name, tierart),
               customer:contacts!bookings_customer_id_fkey(id, vorname, nachname)
             `)
-            .single()
+              .single()
 
-          if (insertError || !row) {
-            throw insertError || new Error('Buchung konnte nicht erstellt werden')
-          }
+            if (insertError || !row) {
+              throw insertError || new Error('Buchung konnte nicht erstellt werden')
+            }
 
-          createdBookingIds.push(row.id)
-          createdBookings.push(row)
-          bookingIdByPetId.set(line.pet_id, row.id)
-          const petName = (row as { pet?: { name?: string } }).pet?.name
-          if (petName) {
-            petNameByPetId.set(line.pet_id, petName)
+            createdBookingIds.push(row.id)
+            createdBookings.push(row)
+            if (!bookingIdByPetId.has(line.pet_id)) {
+              bookingIdByPetId.set(line.pet_id, row.id)
+            }
+            const petName = (row as { pet?: { name?: string } }).pet?.name
+            if (petName) {
+              petNameByPetId.set(line.pet_id, petName)
+            }
           }
         }
 

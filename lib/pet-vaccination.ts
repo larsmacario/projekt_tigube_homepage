@@ -1,3 +1,4 @@
+import { type CatCustomerContext, requiresImpfpass } from '@/lib/cat-customer'
 import { getCarePlanMissingLabel } from '@/lib/pet-care-plan'
 import type { Pet } from '@/lib/types'
 
@@ -15,6 +16,10 @@ export type VaccinationReminderDays = (typeof VACCINATION_REMINDER_DAYS)[number]
 
 export function isDog(tierart: string | null | undefined): boolean {
   return tierart?.trim().toLowerCase() === 'hund'
+}
+
+export function isCat(tierart: string | null | undefined): boolean {
+  return tierart?.trim().toLowerCase() === 'katze'
 }
 
 function parseDateOnly(value: string): Date | null {
@@ -131,11 +136,15 @@ export function getPetCompletenessIssues(
     | 'letzte_stuhlprobe'
     | 'naechste_stuhlprobe'
   >,
-  documents: Array<{ pet_id: string | null; document_type: string }>
+  documents: Array<{ pet_id: string | null; document_type: string }>,
+  customer?: CatCustomerContext | null
 ): string[] {
   const issues: string[] = []
 
-  if (!petHasImpfpass(pet.id, documents)) {
+  if (
+    requiresImpfpass({ tierart: pet.tierart, customer }) &&
+    !petHasImpfpass(pet.id, documents)
+  ) {
     issues.push('Impfpass')
   }
   if (!petHasWurmtest(pet.id, documents)) {
@@ -170,9 +179,10 @@ export type PetDashboardCompletenessInput = Pick<
 
 export function getPetDashboardMissingFields(
   pet: PetDashboardCompletenessInput,
-  documents: Array<{ pet_id: string | null; document_type: string }>
+  documents: Array<{ pet_id: string | null; document_type: string }>,
+  customer?: CatCustomerContext | null
 ): string[] {
-  const missing = getPetCompletenessIssues(pet, documents)
+  const missing = getPetCompletenessIssues(pet, documents, customer)
   if ((pet.photo_count ?? 0) === 0) {
     missing.push('Tierfoto')
   }
@@ -195,12 +205,13 @@ export function getPetsWithDashboardMissingFields<
   T extends PetDashboardCompletenessInput,
 >(
   pets: T[],
-  documents: Array<{ pet_id: string | null; document_type: string }>
+  documents: Array<{ pet_id: string | null; document_type: string }>,
+  customer?: CatCustomerContext | null
 ): Array<{ pet: T; missingFields: string[] }> {
   return pets
     .map((pet) => ({
       pet,
-      missingFields: getPetDashboardMissingFields(pet, documents),
+      missingFields: getPetDashboardMissingFields(pet, documents, customer),
     }))
     .filter((entry) => entry.missingFields.length > 0)
 }
@@ -223,8 +234,17 @@ export function getPetSaveWarnings(input: {
   impfpassCount?: number
   wurmtestFiles?: File[]
   photoCount?: number
+  customer?: CatCustomerContext | null
 }): string[] {
-  const { formData, documents, editingPetId, impfpassCount, wurmtestFiles, photoCount } = input
+  const {
+    formData,
+    documents,
+    editingPetId,
+    impfpassCount,
+    wurmtestFiles,
+    photoCount,
+    customer,
+  } = input
   const missing: string[] = []
 
   const hasExistingImpfpass =
@@ -232,7 +252,10 @@ export function getPetSaveWarnings(input: {
   const hasExistingWurmtest =
     !!editingPetId && petHasWurmtest(editingPetId, documents)
 
-  if ((impfpassCount ?? 0) === 0 && !hasExistingImpfpass) missing.push('Impfpass')
+  const needsImpfpass = requiresImpfpass({ tierart: formData.tierart, customer })
+  if (needsImpfpass && (impfpassCount ?? 0) === 0 && !hasExistingImpfpass) {
+    missing.push('Impfpass')
+  }
   if ((wurmtestFiles?.length ?? 0) === 0 && !hasExistingWurmtest) missing.push('Wurmtest')
   if (!formData.letzte_stuhlprobe && !formData.naechste_stuhlprobe) missing.push('Entwurmungsdatum')
   if ((photoCount ?? 0) === 0) missing.push('Tierfoto')

@@ -61,6 +61,31 @@ export function formatGroupPetServiceSummary(group: BookingRequestGroup): string
     .join(', ')
 }
 
+/** Distinct start–end pairs for range-style rows in a group. */
+export function formatGroupPeriodRanges(group: BookingRequestGroup): string | null {
+  const rangeBookings = group.bookings.filter(
+    (b) =>
+      b.service_type === 'hundepension' ||
+      b.service_type === 'katzenbetreuung' ||
+      (b.service_type === 'tagesbetreuung' && !b.day_care_mode)
+  )
+  if (rangeBookings.length === 0) return null
+
+  const unique = new Map<string, { start: string; end: string }>()
+  for (const b of rangeBookings) {
+    const end = b.end_date ?? b.start_date
+    unique.set(`${b.start_date}|${end}`, { start: b.start_date, end })
+  }
+  const parts = [...unique.values()].map(({ start, end }) => {
+    const startDe = new Date(start + 'T12:00:00').toLocaleDateString('de-DE')
+    const endDe = new Date(end + 'T12:00:00').toLocaleDateString('de-DE')
+    return start === end ? startDe : `${startDe} – ${endDe}`
+  })
+  if (parts.length === 0) return null
+  if (parts.length === 1) return parts[0]
+  return `${parts.length} Zeiträume: ${parts.join('; ')}`
+}
+
 function parseIsoDateLocal(iso: string): Date {
   const [y, m, d] = iso.split('-').map(Number)
   return startOfDay(new Date(y, m - 1, d))

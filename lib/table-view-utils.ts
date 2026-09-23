@@ -1,20 +1,40 @@
 import type { TableColumn } from './table-columns'
-import type { TableViewColumnConfig, TableViewConfig } from './types'
+import type { TableViewColumnConfig, TableViewConfig, TableViewEntityType } from './types'
 
 export const SYSTEM_DEFAULT_VIEW_ID = '__system_default__'
 
-export function createDefaultViewConfig(catalog: TableColumn[]): TableViewConfig {
-  const defaultVisibleIds = new Set([
-    'id',
-    'vorname',
-    'nachname',
-    'email',
-    'telefonnummer',
-    'service',
-    'status',
-    'created_at',
-    'updated_at',
-  ])
+const LEAD_DEFAULT_VISIBLE_IDS = new Set([
+  'id',
+  'vorname',
+  'nachname',
+  'email',
+  'telefonnummer',
+  'service',
+  'status',
+  'created_at',
+  'updated_at',
+])
+
+const CUSTOMER_DEFAULT_VISIBLE_IDS = new Set([
+  'id',
+  'customer_group_id',
+  'vorname',
+  'nachname',
+  'kundennummer',
+  'email',
+  'telefonnummer',
+  'onboarding_completed',
+  'onboarding_email_status',
+  'created_at',
+  'updated_at',
+])
+
+export function createDefaultViewConfig(
+  catalog: TableColumn[],
+  entityType: TableViewEntityType = 'lead'
+): TableViewConfig {
+  const defaultVisibleIds =
+    entityType === 'customer' ? CUSTOMER_DEFAULT_VISIBLE_IDS : LEAD_DEFAULT_VISIBLE_IDS
 
   return {
     columns: catalog.map((column, index) => ({
@@ -30,9 +50,10 @@ export function createDefaultViewConfig(catalog: TableColumn[]): TableViewConfig
 
 export function mergeViewConfigWithCatalog(
   catalog: TableColumn[],
-  config: TableViewConfig | null | undefined
+  config: TableViewConfig | null | undefined,
+  entityType: TableViewEntityType = 'lead'
 ): TableViewConfig {
-  const base = createDefaultViewConfig(catalog)
+  const base = createDefaultViewConfig(catalog, entityType)
   if (!config?.columns?.length) {
     return base
   }
@@ -72,9 +93,10 @@ export function mergeViewConfigWithCatalog(
 
 export function applyTableViewConfig(
   catalog: TableColumn[],
-  config: TableViewConfig
+  config: TableViewConfig,
+  entityType: TableViewEntityType = 'lead'
 ): TableColumn[] {
-  const merged = mergeViewConfigWithCatalog(catalog, config)
+  const merged = mergeViewConfigWithCatalog(catalog, config, entityType)
   const catalogById = new Map(catalog.map((column) => [column.id, column]))
 
   return merged.columns

@@ -13,6 +13,10 @@ import {
   isImpfpassPageCategory,
   normalizeImpfpassPageCategory,
 } from '@/lib/impfpass-photo-categories'
+import {
+  IMFPASS_UPLOAD_NOT_ALLOWED_MESSAGE,
+  isImpfpassUploadAllowed,
+} from '@/lib/impfpass-eligibility'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
@@ -57,6 +61,14 @@ export async function POST(request: NextRequest) {
         .update({ status: 'expired', updated_at: new Date().toISOString() })
         .eq('id', sessionId)
       return NextResponse.json({ error: 'Diese Upload-Session ist abgelaufen' }, { status: 400 })
+    }
+
+    const uploadAllowed = await isImpfpassUploadAllowed(serviceSupabase, {
+      customerId: session.customer_id,
+      petId: session.pet_id,
+    })
+    if (!uploadAllowed) {
+      return NextResponse.json({ error: IMFPASS_UPLOAD_NOT_ALLOWED_MESSAGE }, { status: 400 })
     }
 
     await assertImpfpassUploadCapacity(serviceSupabase, session.pet_id, sessionId)

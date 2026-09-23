@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerClient } from '@/lib/admin-auth'
 import { registerCustomerDocument } from '@/lib/customer-document-register'
 import {
+  IMFPASS_UPLOAD_NOT_ALLOWED_MESSAGE,
+  isImpfpassUploadAllowed,
+} from '@/lib/impfpass-eligibility'
+import {
   ALLOWED_CUSTOMER_DOCUMENT_TYPES,
   buildCustomerDocumentStoragePath,
   CUSTOMER_DOCUMENTS_BUCKET,
@@ -120,6 +124,20 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ error: 'Ungültiger Dokumenttyp' }, { status: 400 })
       }
 
+      if (documentType === 'impfpass') {
+        const petId = body.pet_id ?? null
+        if (!petId) {
+          return NextResponse.json({ error: 'Tier ist für Impfpass erforderlich' }, { status: 400 })
+        }
+        const allowed = await isImpfpassUploadAllowed(supabase, {
+          customerId: customer.id,
+          petId,
+        })
+        if (!allowed) {
+          return NextResponse.json({ error: IMFPASS_UPLOAD_NOT_ALLOWED_MESSAGE }, { status: 400 })
+        }
+      }
+
       const result = await registerCustomerDocument(supabase, {
         customerId: customer.id,
         documentType: documentType as CustomerDocumentType,
@@ -162,6 +180,19 @@ export async function POST(request: NextRequest) {
       !ALLOWED_CUSTOMER_DOCUMENT_TYPES.includes(documentType as CustomerDocumentType)
     ) {
       return NextResponse.json({ error: 'Ungültiger Dokumenttyp' }, { status: 400 })
+    }
+
+    if (documentType === 'impfpass') {
+      if (!petId) {
+        return NextResponse.json({ error: 'Tier ist für Impfpass erforderlich' }, { status: 400 })
+      }
+      const allowed = await isImpfpassUploadAllowed(supabase, {
+        customerId: customer.id,
+        petId,
+      })
+      if (!allowed) {
+        return NextResponse.json({ error: IMFPASS_UPLOAD_NOT_ALLOWED_MESSAGE }, { status: 400 })
+      }
     }
 
     const fileExt = getCustomerDocumentFileExtension(file.name)

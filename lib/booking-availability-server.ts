@@ -16,6 +16,7 @@ import {
   getPublicHolidaysInRange,
   type PublicHolidayEntry,
 } from '@/lib/public-holidays-de'
+import { getGoogleBlockedDatesForRange } from '@/lib/google-calendar'
 
 async function loadVacationDates(adminClient: SupabaseClient): Promise<VacationDate[]> {
   try {
@@ -52,23 +53,25 @@ export async function loadAvailabilityContextForRange(
   endDate: string,
   adminClient: SupabaseClient = getAdminDbClient()
 ): Promise<AvailabilityContext> {
-  const [vacations, settingsResult, overridesResult, bookingsResult] = await Promise.all([
-    loadVacationDates(adminClient),
-    adminClient.from('capacity_settings').select('*'),
-    adminClient
-      .from('capacity_overrides')
-      .select('*')
-      .gte('date', startDate)
-      .lte('date', endDate),
-    adminClient
-      .from('bookings')
-      .select(
-        'id, service_type, start_date, end_date, day_care_mode, selected_dates, day_care_weekdays, day_care_interval_weeks, cancelled_dates'
-      )
-      .eq('status', 'approved')
-      .lte('start_date', endDate)
-      .or(`end_date.gte.${startDate},end_date.is.null`),
-  ])
+  const [vacations, settingsResult, overridesResult, bookingsResult, googleBlockedDates] =
+    await Promise.all([
+      loadVacationDates(adminClient),
+      adminClient.from('capacity_settings').select('*'),
+      adminClient
+        .from('capacity_overrides')
+        .select('*')
+        .gte('date', startDate)
+        .lte('date', endDate),
+      adminClient
+        .from('bookings')
+        .select(
+          'id, service_type, start_date, end_date, day_care_mode, selected_dates, day_care_weekdays, day_care_interval_weeks, cancelled_dates'
+        )
+        .eq('status', 'approved')
+        .lte('start_date', endDate)
+        .or(`end_date.gte.${startDate},end_date.is.null`),
+      getGoogleBlockedDatesForRange(startDate, endDate),
+    ])
 
   if (settingsResult.error) {
     throw settingsResult.error
@@ -85,6 +88,7 @@ export async function loadAvailabilityContextForRange(
     capacitySettings: settingsResult.data || [],
     capacityOverrides: overridesResult.data || [],
     approvedBookings: bookingsResult.data || [],
+    googleBlockedDates,
   }
 }
 

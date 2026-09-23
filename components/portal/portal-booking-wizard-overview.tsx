@@ -1,7 +1,6 @@
 'use client'
 
 import { useMemo } from 'react'
-import { type DateRange } from 'react-day-picker'
 
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
@@ -19,6 +18,10 @@ import {
   formatSelectedDatesDE,
 } from '@/lib/day-care-booking'
 import { formatDateRangeDE } from '@/lib/format-date-range-de'
+import {
+  buildPortalBookingDateBlocksPayload,
+  type PortalBookingStep2DateBlockUI,
+} from '@/lib/portal-booking-step2-validation'
 import { formatEuro } from '@/lib/price-override'
 import { VatPriceDisplay } from '@/components/vat-price-display'
 import type { AddonService, DayCareMode, Pet, ServiceType } from '@/lib/types'
@@ -56,9 +59,18 @@ export interface PortalBookingWizardOverviewProps {
   rangePetLines: PetServiceLine[]
   dayCareOnceLines: PetServiceLine[]
   dayCareRecurringLines: PetServiceLine[]
-  dateRange?: DateRange
+  dateBlocks?: PortalBookingStep2DateBlockUI[]
   dayCareOnceDates: Record<string, Date[]>
-  dayCareRecurring: Record<string, { weekdays: number[]; startDate?: Date; intervalWeeks?: 1 | 2 }>
+  dayCareRecurring: Record<
+    string,
+    {
+      weekdays: number[]
+      startDate?: Date
+      endDate?: Date
+      unbefristet?: boolean
+      intervalWeeks?: 1 | 2
+    }
+  >
   selectedAddonIds: string[]
   addonServices: AddonService[]
   catalogPrices: BookingExtraPrice[]
@@ -78,7 +90,7 @@ export function PortalBookingWizardOverview({
   rangePetLines,
   dayCareOnceLines,
   dayCareRecurringLines,
-  dateRange,
+  dateBlocks = [],
   dayCareOnceDates,
   dayCareRecurring,
   selectedAddonIds,
@@ -93,6 +105,21 @@ export function PortalBookingWizardOverview({
   onMessageChange,
   pricesLoading,
 }: PortalBookingWizardOverviewProps) {
+  const isoDateBlocks = useMemo(
+    () =>
+      buildPortalBookingDateBlocksPayload({
+        petLines: resolvedPetLines,
+        petNames: {},
+        dateBlocks,
+        dayCareOnceDates,
+        dayCareRecurring,
+        dropOffTime: '',
+        pickUpTime: '',
+        availability: { closedDates: [], vacationPeriods: [] },
+      }),
+    [resolvedPetLines, dateBlocks, dayCareOnceDates, dayCareRecurring]
+  )
+
   const estimate = useMemo(
     () =>
       estimateBookingCosts({
@@ -102,7 +129,7 @@ export function PortalBookingWizardOverview({
           service_type: l.service_type as ServiceType,
           day_care_mode: l.day_care_mode,
         })),
-        dateRange,
+        dateBlocks: isoDateBlocks,
         dayCareOnceDates,
         dayCareRecurring,
         selectedExtrasByPet: {},
@@ -116,7 +143,7 @@ export function PortalBookingWizardOverview({
     [
       pets,
       resolvedPetLines,
-      dateRange,
+      isoDateBlocks,
       dayCareOnceDates,
       dayCareRecurring,
       catalogPrices,
@@ -166,10 +193,18 @@ export function PortalBookingWizardOverview({
             )
           })}
         </ul>
-        {rangePetLines.length > 0 && dateRange?.from && (
-          <p className="mt-2">
-            Zeitraum: {formatDateRangeDE(dateRange.from, dateRange.to ?? dateRange.from)}
-          </p>
+        {rangePetLines.length > 0 && isoDateBlocks.length > 0 && (
+          <div className="mt-2 space-y-1">
+            {isoDateBlocks.map((block, i) => (
+              <p key={`${block.start_date}-${block.end_date}-${i}`}>
+                {isoDateBlocks.length > 1 ? `Block ${i + 1}: ` : 'Zeitraum: '}
+                {formatDateRangeDE(
+                  new Date(block.start_date + 'T12:00:00'),
+                  new Date(block.end_date + 'T12:00:00')
+                )}
+              </p>
+            ))}
+          </div>
         )}
         {dropOffTime && pickUpTime && (
           <p className="mt-2">
@@ -198,7 +233,12 @@ export function PortalBookingWizardOverview({
             day_care_interval_weeks: cfg.intervalWeeks === 2 ? 2 : 1,
             selected_dates: null,
             start_date: toIsoDate(startOfDay(cfg.startDate)),
-            end_date: null,
+            end_date:
+              cfg.unbefristet !== false && !cfg.endDate
+                ? null
+                : cfg.endDate
+                  ? toIsoDate(startOfDay(cfg.endDate))
+                  : null,
           })
           const pet = pets.find((p) => p.id === line.pet_id)
           return (

@@ -78,8 +78,9 @@ describe('resolveSevdeskImportMatch', () => {
 
 describe('sevdesk-customer-import payloads', () => {
   it('legt neue Import-Kunden mit offenem Onboarding an', () => {
-    const payload = buildSevdeskImportCreatePayload(mapped, 'sevdesk-99')
+    const payload = buildSevdeskImportCreatePayload(mapped, 'sevdesk-99', ['aktiv', 'cat'])
 
+    expect(payload.sevdesk_tags).toEqual(['aktiv', 'cat'])
     expect(payload.onboarding_completed).toBe(false)
     expect(payload.status).toBe('pending')
     expect(payload.datenschutz).toBe(false)
@@ -91,7 +92,11 @@ describe('sevdesk-customer-import payloads', () => {
   })
 
   it('setzt beim Update ohne Portal-Login Onboarding und Vertrag zurück', () => {
-    const payload = buildSevdeskImportUpdatePayload(mapped, 'sevdesk-99', { user_id: null })
+    const payload = buildSevdeskImportUpdatePayload(mapped, 'sevdesk-99', ['cat'], {
+      user_id: null,
+    })
+
+    expect(payload.sevdesk_tags).toEqual(['cat'])
 
     expect(payload.onboarding_completed).toBe(false)
     expect(payload.status).toBe('pending')
@@ -104,9 +109,11 @@ describe('sevdesk-customer-import payloads', () => {
   })
 
   it('lässt beim Update mit Portal-Login den Onboarding-Status und die bestätigte E-Mail unverändert', () => {
-    const payload = buildSevdeskImportUpdatePayload(mapped, 'sevdesk-99', {
+    const payload = buildSevdeskImportUpdatePayload(mapped, 'sevdesk-99', ['aktiv'], {
       user_id: 'user-1',
     })
+
+    expect(payload.sevdesk_tags).toEqual(['aktiv'])
 
     expect(payload.onboarding_completed).toBeUndefined()
     expect(payload.status).toBeUndefined()

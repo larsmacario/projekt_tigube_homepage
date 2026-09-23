@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import {
   buildBookingInsertRow,
+  buildBookingInsertRows,
   validatePortalPetLines,
   type PortalPetBookingLine,
 } from '@/lib/booking-batch-create'
@@ -99,7 +100,7 @@ describe('Portal-Buchungsflow – Schritt 2 (Client-Validierung)', () => {
         baseStep2({
           petLines: [{ pet_id: 'pet-a', service_type: 'hundepension' }],
         }),
-        'Zeitraum'
+        'Betreuungszeitraum'
       )
     })
 
@@ -279,10 +280,11 @@ describe('Portal-Buchungsflow – Payload & Server-Validierung', () => {
         day_care_weekdays: [5],
         day_care_interval_weeks: 2,
         start_date: '2026-09-11',
+        end_date: null,
       },
     ])
 
-    expect(validatePortalPetLines(payload as PortalPetBookingLine[], groupRange)).toEqual({
+    expect(validatePortalPetLines(payload as PortalPetBookingLine[], [], groupRange)).toEqual({
       valid: true,
     })
   })
@@ -328,6 +330,52 @@ describe('Portal-Buchungsflow – Payload & Server-Validierung', () => {
     expect(catRow.start_date).toBe('2026-09-11')
   })
 
+  it('erzeugt zwei Pension-Zeilen bei zwei Blöcken', () => {
+    const rows = buildBookingInsertRows(
+      { pet_id: 'pet-a', service_type: 'hundepension' },
+      [
+        { start_date: '2026-09-11', end_date: '2026-09-14' },
+        { start_date: '2026-09-20', end_date: '2026-09-22' },
+      ],
+      null,
+      'cust-1',
+      'grp-1',
+      null
+    )
+    expect(rows).toHaveLength(2)
+  })
+
+  it('Schritt 2: mehrere Betreuungsblöcke für Pension', () => {
+    expectValidStep2(
+      baseStep2({
+        petLines: [{ pet_id: 'pet-a', service_type: 'hundepension' }],
+        dateBlocks: [
+          { from: d(2026, 9, 11), to: d(2026, 9, 14) },
+          { from: d(2026, 9, 20), to: d(2026, 9, 22) },
+        ],
+      })
+    )
+  })
+
+  it('Schritt 2: recurring mit Enddatum', () => {
+    expectValidStep2(
+      baseStep2({
+        petLines: [
+          { pet_id: 'pet-a', service_type: 'tagesbetreuung', day_care_mode: 'recurring' },
+        ],
+        dayCareRecurring: {
+          'pet-a': {
+            weekdays: [1, 5],
+            startDate: d(2026, 9, 14),
+            endDate: d(2026, 10, 14),
+            unbefristet: false,
+            intervalWeeks: 1,
+          },
+        },
+      })
+    )
+  })
+
   it('Server lehnt recurring ohne Wochentage ab', () => {
     const result = validatePortalPetLines(
       [
@@ -339,6 +387,7 @@ describe('Portal-Buchungsflow – Payload & Server-Validierung', () => {
           day_care_weekdays: [],
         },
       ],
+      [],
       null
     )
     expect(result.valid).toBe(false)
@@ -347,6 +396,7 @@ describe('Portal-Buchungsflow – Payload & Server-Validierung', () => {
   it('Server lehnt Pension ohne Gruppenzeitraum ab', () => {
     const result = validatePortalPetLines(
       [{ pet_id: 'pet-a', service_type: 'hundepension' }],
+      [],
       null
     )
     expect(result.valid).toBe(false)
@@ -385,7 +435,7 @@ describe('Portal-Buchungsflow – Bring-/Holzeiten Span', () => {
     expect(span).toEqual({ start: '2026-09-11', end: '2026-09-14' })
   })
 
-  it('nutzt Startdatum bei nur festen Wochentagen', () => {
+  it('nutzt Horizont-Ende bei unbefristeten festen Wochentagen', () => {
     const span = resolvePickupDateSpanFromPortalLines(
       [
         {
@@ -398,6 +448,24 @@ describe('Portal-Buchungsflow – Bring-/Holzeiten Span', () => {
       ],
       null
     )
-    expect(span).toEqual({ start: '2026-09-11', end: '2026-09-11' })
+    expect(span?.start).toBe('2026-09-11')
+    expect(span?.end).toBe('2027-09-11')
+  })
+
+  it('nutzt Enddatum bei befristeten festen Wochentagen', () => {
+    const span = resolvePickupDateSpanFromPortalLines(
+      [
+        {
+          pet_id: 'pet-a',
+          service_type: 'tagesbetreuung',
+          day_care_mode: 'recurring',
+          day_care_weekdays: [5],
+          start_date: '2026-09-11',
+          end_date: '2026-10-15',
+        },
+      ],
+      null
+    )
+    expect(span).toEqual({ start: '2026-09-11', end: '2026-10-15' })
   })
 })

@@ -4,6 +4,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { KOMBI_INTERVALL_OPTIONS } from '@/lib/pet-form-options'
+import { type CatCustomerContext, isCatPetContext } from '@/lib/cat-customer'
 import {
   COMBI_VACCINE_LABELS,
   formatDateDE,
@@ -35,6 +36,7 @@ type PetVaccinationSectionProps = {
   onDocumentsChange?: (documents: Document[]) => void
   impfpassGalleryRef?: RefObject<PetImpfpassGalleryHandle | null>
   onImpfpassCountChange?: (count: number) => void
+  customer?: CatCustomerContext | null
 }
 
 export function PetVaccinationSection({
@@ -46,9 +48,12 @@ export function PetVaccinationSection({
   onDocumentsChange,
   impfpassGalleryRef,
   onImpfpassCountChange,
+  customer = null,
 }: PetVaccinationSectionProps) {
   const today = new Date().toISOString().split('T')[0]
   const isDogPet = isDog(values.tierart)
+  const isCatContext = isCatPetContext({ tierart: values.tierart, customer })
+  const showImpfpass = !isCatContext
 
   const kombiDueDate = isDogPet
     ? getKombiDueDate(values.letzte_impfung, values.intervall_impfung)
@@ -60,16 +65,18 @@ export function PetVaccinationSection({
   return (
     <div className="p-4 bg-sage-50/50 rounded-lg border border-sage-100 space-y-4">
       <h4 className="font-semibold text-sm text-sage-800 border-b pb-1">
-        Impfpass & Impfstatus
+        {showImpfpass ? 'Impfpass & Impfstatus' : 'Impfstatus'}
       </h4>
 
-      <PetImpfpassGallery
-        ref={impfpassGalleryRef}
-        petId={petId}
-        documents={documents}
-        onDocumentsChange={onDocumentsChange}
-        onImpfpassCountChange={onImpfpassCountChange}
-      />
+      {showImpfpass && (
+        <PetImpfpassGallery
+          ref={impfpassGalleryRef}
+          petId={petId}
+          documents={documents}
+          onDocumentsChange={onDocumentsChange}
+          onImpfpassCountChange={onImpfpassCountChange}
+        />
+      )}
 
       {isDogPet ? (
         <>

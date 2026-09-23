@@ -76,6 +76,8 @@ export interface Contact {
   sevdesk_contact_id?: string | null
   sevdesk_synced_at?: string | null
   sevdesk_sync_error?: string | null
+  /** Normalisierte SevDesk-Tags (lowercase), z. B. aktiv, cat */
+  sevdesk_tags?: string[]
   deleted_at?: string | null
   anonymized_at?: string | null
   deletion_retention_until?: string | null
@@ -690,6 +692,23 @@ export interface WaitlistCmsContent {
   successMessage: string
   emailSubject: string
   emailIntro: string
+}
+
+export interface GoogleCalendarSettings {
+  id: string
+  client_id: string | null
+  oauth_configured: boolean
+  is_connected: boolean
+  calendar_id: string | null
+  calendar_summary: string | null
+  blocking_enabled: boolean
+  timezone: string
+  last_freebusy_at: string | null
+  last_freebusy_ok: boolean | null
+  last_freebusy_error: string | null
+  connected_by: string | null
+  connected_at: string | null
+  updated_at: string
 }
 
 export interface SevdeskSettings {

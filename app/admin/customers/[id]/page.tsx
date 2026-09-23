@@ -433,6 +433,15 @@ export default function CustomerDetailPage() {
             <h1 className="text-3xl font-bold text-sage-900">
               {customer.vorname} {customer.nachname}
             </h1>
+            {(customer.sevdesk_tags?.length ?? 0) > 0 && (
+              <div className="mt-2 flex flex-wrap gap-2">
+                {customer.sevdesk_tags!.map((tag) => (
+                  <Badge key={tag} variant="secondary">
+                    SevDesk: {tag}
+                  </Badge>
+                ))}
+              </div>
+            )}
             <p className="mt-2 text-sage-600">Kundendetails</p>
           </div>
         </div>
@@ -1010,6 +1019,7 @@ export default function CustomerDetailPage() {
           <PetManager
             customerId={customerId}
             pets={customer.pets || []}
+            customer={customer}
             onPetsChange={(pets) => setCustomer((prev) => prev ? { ...prev, pets } : prev)}
             embedded
           />

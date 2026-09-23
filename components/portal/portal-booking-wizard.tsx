@@ -64,9 +64,13 @@ import {
   type PortalBookingCarePlanSectionHandle,
 } from '@/components/portal/portal-booking-care-plan-section'
 import {
+  buildPortalBookingDateBlocksPayload,
+  buildPortalBookingEnvelope,
   buildPortalBookingPetsPayload,
+  type PortalBookingStep2DateBlockUI,
   validatePortalBookingStep2,
 } from '@/lib/portal-booking-step2-validation'
+import { expandBlockToIsoDates } from '@/lib/booking-date-blocks'
 import { PickupTimesReference } from '@/components/portal/pickup-times-reference'
 import type { KundenportalPickupRow } from '@/lib/cms/portal-defaults'
 
@@ -240,10 +244,19 @@ export function PortalBookingWizard({
   )
   const [step, setStep] = useState(1)
   const [petLines, setPetLines] = useState<PetServiceLine[]>([{ pet_id: '', service_type: '' }])
-  const [dateRange, setDateRange] = useState<DateRange | undefined>()
+  const [dateBlocks, setDateBlocks] = useState<PortalBookingStep2DateBlockUI[]>([{}])
   const [dayCareOnceDates, setDayCareOnceDates] = useState<Record<string, Date[]>>({})
   const [dayCareRecurring, setDayCareRecurring] = useState<
-    Record<string, { weekdays: number[]; startDate?: Date; intervalWeeks?: 1 | 2 }>
+    Record<
+      string,
+      {
+        weekdays: number[]
+        startDate?: Date
+        endDate?: Date
+        unbefristet?: boolean
+        intervalWeeks?: 1 | 2
+      }
+    >
   >({})
   const [calendarMonth, setCalendarMonth] = useState<Date>(() => startOfDay(new Date()))
   const [message, setMessage] = useState('')
@@ -318,6 +331,24 @@ export function PortalBookingWizard({
     [resolvedPetLines, hundepensionRange]
   )
 
+  const rangeDateRange = useMemo((): DateRange | undefined => {
+    const envelope = buildPortalBookingEnvelope({
+      petLines: resolvedPetLines,
+      petNames: {},
+      dateBlocks,
+      dayCareOnceDates,
+      dayCareRecurring,
+      dropOffTime: '',
+      pickUpTime: '',
+      availability: { closedDates: [], vacationPeriods: [] },
+    })
+    if (!envelope) return undefined
+    return {
+      from: parseIsoDate(envelope.start_date),
+      to: parseIsoDate(envelope.end_date),
+    }
+  }, [resolvedPetLines, dateBlocks, dayCareOnceDates, dayCareRecurring])
+
   const pickupSpan = useMemo(
     () =>
       resolvePickupDateSpan({
@@ -326,11 +357,11 @@ export function PortalBookingWizard({
           service_type: line.service_type,
           day_care_mode: line.day_care_mode,
         })),
-        dateRange,
+        dateRange: rangeDateRange,
         dayCareOnceDates,
         dayCareRecurring,
       }),
-    [resolvedPetLines, dateRange, dayCareOnceDates, dayCareRecurring]
+    [resolvedPetLines, rangeDateRange, dayCareOnceDates, dayCareRecurring]
   )
 
   const holidaySet = useMemo(
@@ -396,6 +427,9 @@ export function PortalBookingWizard({
       ),
     [resolvedPetLines]
   )
+
+  const needsDateBlocksUi =
+    rangePetLines.length > 0 || dayCareOnceLines.length > 0
 
   const loadAvailability = useCallback(async () => {
     try {
@@ -558,7 +592,9 @@ export function PortalBookingWizard({
   )
 
   const calendarDefaultMonth = useMemo(() => {
-    if (dateRange?.from) return dateRange.from
+    const firstBlockFrom = dateBlocks.find((b) => b.from)?.from
+    if (firstBlockFrom) return firstBlockFrom
+    if (rangeDateRange?.from) return rangeDateRange.from
     const todayIso = toIsoDate(today)
     const upcomingVacation = availability.vacationPeriods.find(
       (period) => period.end_date >= todayIso
@@ -567,7 +603,7 @@ export function PortalBookingWizard({
       return parseIsoDate(upcomingVacation.start_date) ?? today
     }
     return today
-  }, [availability.vacationPeriods, dateRange?.from, today])
+  }, [availability.vacationPeriods, dateBlocks, rangeDateRange?.from, today])
 
   function updatePetLine(index: number, patch: Partial<PetServiceLine>) {
     setPetLines((prev) =>
@@ -650,7 +686,7 @@ export function PortalBookingWizard({
     const error = validatePortalBookingStep2({
       petLines: resolvedPetLines,
       petNames,
-      dateRange,
+      dateBlocks,
       dayCareOnceDates,
       dayCareRecurring,
       dropOffTime,
@@ -671,9 +707,11 @@ export function PortalBookingWizard({
     return true
   }
 
-  function handleRangeSelect(range: DateRange | undefined) {
+  function handleBlockRangeSelect(blockIndex: number, range: DateRange | undefined) {
     if (!range?.from) {
-      setDateRange(range)
+      setDateBlocks((prev) =>
+        prev.map((block, i) => (i === blockIndex ? { ...block, from: undefined, to: undefined } : block))
+      )
       return
     }
 
@@ -692,23 +730,106 @@ export function PortalBookingWizard({
           description: 'Der gewählte Bereich enthält Betriebsferien oder Schließtage.',
           variant: 'destructive',
         })
-        setDateRange({ from, to: undefined })
+        setDateBlocks((prev) =>
+          prev.map((block, i) =>
+            i === blockIndex ? { ...block, from, to: undefined } : block
+          )
+        )
         return
       }
     }
 
-    setDateRange({ from, to })
+    setDateBlocks((prev) =>
+      prev.map((block, i) => (i === blockIndex ? { ...block, from, to } : block))
+    )
+  }
+
+  function addDateBlock() {
+    setDateBlocks((prev) => [...prev, {}])
+  }
+
+  function removeDateBlock(index: number) {
+    setDateBlocks((prev) => (prev.length <= 1 ? prev : prev.filter((_, i) => i !== index)))
+  }
+
+  function toggleBlockWeekday(blockIndex: number, isoWeekday: number) {
+    setDateBlocks((prev) =>
+      prev.map((block, i) => {
+        if (i !== blockIndex) return block
+        const current = block.weekdays ?? []
+        const active = current.includes(isoWeekday)
+        const weekdays = active
+          ? current.filter((d) => d !== isoWeekday)
+          : [...current, isoWeekday].sort()
+        return { ...block, weekdays: weekdays.length ? weekdays : undefined }
+      })
+    )
+  }
+
+  function applyBulkDatesFromBlocks(petId: string) {
+    const isoBlocks = buildPortalBookingDateBlocksPayload({
+      petLines: resolvedPetLines,
+      petNames: {},
+      dateBlocks,
+      dayCareOnceDates,
+      dayCareRecurring,
+      dropOffTime: '',
+      pickUpTime: '',
+      availability: { closedDates: [], vacationPeriods: [] },
+    })
+    const merged = new Set<string>()
+    for (const block of isoBlocks) {
+      for (const iso of expandBlockToIsoDates(block)) {
+        merged.add(iso)
+      }
+    }
+    if (merged.size === 0) {
+      toast({
+        title: 'Keine Tage',
+        description: 'Bitte wähle zuerst mindestens ein vollständiges Zeitfenster.',
+        variant: 'destructive',
+      })
+      return
+    }
+    const asDates = [...merged].sort().map((iso) => parseIsoDate(iso)!)
+    setDayCareOnceDates((prev) => {
+      const existing = prev[petId] || []
+      const existingIso = new Set(existing.map((d) => toIsoDate(startOfDay(d))))
+      for (const iso of merged) existingIso.add(iso)
+      const combined = [...existingIso]
+        .sort()
+        .map((iso) => parseIsoDate(iso)!)
+      return { ...prev, [petId]: combined }
+    })
+    toast({
+      title: 'Tage übernommen',
+      description: `${merged.size} Tag(e) aus dem Zeitfenster in die Auswahl übernommen.`,
+    })
   }
 
   async function handleSubmit() {
     if (!validateStep2()) return
 
-    const hasRange = rangePetLines.length > 0
-    const startIso = hasRange && dateRange?.from ? toIsoDate(dateRange.from) : undefined
-    const endIso =
-      hasRange && dateRange?.from
-        ? toIsoDate(dateRange.to ?? dateRange.from)
-        : undefined
+    const envelope = buildPortalBookingEnvelope({
+      petLines: resolvedPetLines,
+      petNames: {},
+      dateBlocks,
+      dayCareOnceDates,
+      dayCareRecurring,
+      dropOffTime: '',
+      pickUpTime: '',
+      availability: { closedDates: [], vacationPeriods: [] },
+    })
+    const dateBlocksPayload = buildPortalBookingDateBlocksPayload({
+      petLines: resolvedPetLines,
+      petNames: {},
+      dateBlocks,
+      dayCareOnceDates,
+      dayCareRecurring,
+      dropOffTime: '',
+      pickUpTime: '',
+      availability: { closedDates: [], vacationPeriods: [] },
+    })
 
     const addon_services = selectedAddonIds.map((addon_service_id) => ({ addon_service_id }))
 
@@ -724,8 +845,9 @@ export function PortalBookingWizard({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          start_date: startIso,
-          end_date: endIso,
+          start_date: envelope?.start_date ?? null,
+          end_date: envelope?.end_date ?? null,
+          date_blocks: dateBlocksPayload.length > 0 ? dateBlocksPayload : undefined,
           message: message || null,
           pets: petsPayload,
           addon_services,
@@ -963,39 +1085,102 @@ export function PortalBookingWizard({
 
       {step === 2 && (
         <div className="space-y-6">
-          {rangePetLines.length > 0 && (
+          {needsDateBlocksUi && (
             <div className="space-y-3">
-              <Label>Zeitraum (Urlaubs- / Katzenbetreuung)</Label>
+              <Label>
+                {rangePetLines.length > 0
+                  ? 'Betreuungsblöcke (Urlaubs- / Katzenbetreuung)'
+                  : 'Zeitfenster (Mehrfach-Auswahl)'}
+              </Label>
+              <p className="text-sm text-sage-600">
+                {rangePetLines.length > 0
+                  ? 'Du kannst mehrere getrennte Zeiträume in einer Anfrage angeben.'
+                  : 'Wähle Start und Ende; optional nur bestimmte Wochentage im Fenster.'}
+              </p>
               <div
                 className={
-                  needsPickupTimes
+                  rangePetLines.length > 0 && needsPickupTimes
                     ? 'grid grid-cols-1 items-start gap-8 lg:grid-cols-[minmax(0,1fr)_min(100%,22rem)]'
                     : undefined
                 }
               >
-                <div className="min-w-0 space-y-3">
-                  <div className="relative isolate overflow-hidden rounded-xl border border-sage-200/80 bg-white p-3">
-                    <div className="flex justify-center">
-                      <BookingRangeCalendar
-                      selected={dateRange}
-                      onSelect={handleRangeSelect}
-                      disabled={isDateUnavailable}
-                      vacationPeriods={availability.vacationPeriods}
-                      closedDates={availability.closedDates}
-                      publicHolidays={availability.publicHolidays}
-                      defaultMonth={calendarDefaultMonth}
-                      month={calendarMonth}
-                      onMonthChange={setCalendarMonth}
-                    />
-                    </div>
-                  </div>
-                  {dateRange?.from && (
-                    <p className="text-muted-foreground text-center text-sm lg:text-left">
-                      {formatDateRangeDE(dateRange.from, dateRange.to ?? dateRange.from)}
-                    </p>
-                  )}
+                <div className="min-w-0 space-y-4">
+                  {dateBlocks.map((block, blockIndex) => {
+                    const blockRange: DateRange | undefined =
+                      block.from != null
+                        ? { from: block.from, to: block.to }
+                        : undefined
+                    return (
+                      <div
+                        key={blockIndex}
+                        className="space-y-3 rounded-lg border border-sage-200/80 bg-white p-3"
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-sm font-medium text-sage-800">
+                            Block {blockIndex + 1}
+                          </span>
+                          {dateBlocks.length > 1 && (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => removeDateBlock(blockIndex)}
+                            >
+                              Entfernen
+                            </Button>
+                          )}
+                        </div>
+                        <div className="relative isolate overflow-hidden rounded-xl border border-sage-200/80 bg-sage-50/50 p-3">
+                          <div className="flex justify-center">
+                            <BookingRangeCalendar
+                              selected={blockRange}
+                              onSelect={(range) => handleBlockRangeSelect(blockIndex, range)}
+                              disabled={isDateUnavailable}
+                              vacationPeriods={availability.vacationPeriods}
+                              closedDates={availability.closedDates}
+                              publicHolidays={availability.publicHolidays}
+                              defaultMonth={calendarDefaultMonth}
+                              month={calendarMonth}
+                              onMonthChange={setCalendarMonth}
+                            />
+                          </div>
+                        </div>
+                        {block.from && (
+                          <p className="text-center text-sm text-sage-700 lg:text-left">
+                            {formatDateRangeDE(block.from, block.to ?? block.from)}
+                          </p>
+                        )}
+                        {dayCareOnceLines.length > 0 && (
+                          <div>
+                            <Label className="text-xs">Optional: nur diese Wochentage</Label>
+                            <div className="mt-2 flex flex-wrap gap-2">
+                              {DAY_CARE_WEEKDAY_OPTIONS.map((day) => {
+                                const active = block.weekdays?.includes(day.iso) ?? false
+                                return (
+                                  <Button
+                                    key={day.iso}
+                                    type="button"
+                                    size="sm"
+                                    variant={active ? 'default' : 'outline'}
+                                    className={active ? 'bg-sage-600 hover:bg-sage-700' : ''}
+                                    onClick={() => toggleBlockWeekday(blockIndex, day.iso)}
+                                  >
+                                    {day.label}
+                                  </Button>
+                                )
+                              })}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                  <Button type="button" variant="outline" size="sm" onClick={addDateBlock}>
+                    <Plus className="mr-1 size-4" />
+                    Weiteren Block hinzufügen
+                  </Button>
                 </div>
-                {needsPickupTimes && (
+                {rangePetLines.length > 0 && needsPickupTimes && (
                   <div className="w-full shrink-0 rounded-lg border border-sage-200 bg-white p-4 lg:sticky lg:top-4">
                     <PickupTimesFields
                       dropOffTime={dropOffTime}
@@ -1027,8 +1212,18 @@ export function PortalBookingWizard({
                   Tagesbetreuung einmalig{pet ? ` – ${pet.name}` : ''}
                 </Label>
                 <p className="text-sm text-sage-600">
-                  Wähle einzelne Betreuungstage (mehrere möglich).
+                  Wähle einzelne Betreuungstage – oder übernimm Tage aus einem Zeitfenster oben.
                 </p>
+                {needsDateBlocksUi && (
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => applyBulkDatesFromBlocks(line.pet_id)}
+                  >
+                    Tage aus Zeitfenster übernehmen
+                  </Button>
+                )}
                 <div className="relative isolate overflow-hidden rounded-xl border border-sage-200/80 bg-white p-3">
                   <div className="flex justify-center">
                     <BookingMultiDayCalendar
@@ -1154,6 +1349,30 @@ export function PortalBookingWizard({
                     </Button>
                   </div>
                 </div>
+                <div className="flex flex-wrap items-center gap-4">
+                  <div className="flex items-center gap-2">
+                    <Checkbox
+                      id={`dc-unbefristet-${line.pet_id}`}
+                      checked={cfg.unbefristet !== false && !cfg.endDate}
+                      onCheckedChange={(checked) =>
+                        setDayCareRecurring((prev) => {
+                          const current = prev[line.pet_id] || { weekdays: cfg.weekdays }
+                          return {
+                            ...prev,
+                            [line.pet_id]: {
+                              ...current,
+                              unbefristet: checked === true,
+                              endDate: checked === true ? undefined : current.endDate,
+                            },
+                          }
+                        })
+                      }
+                    />
+                    <Label htmlFor={`dc-unbefristet-${line.pet_id}`} className="font-normal">
+                      Unbefristet (Planung ca. 12 Monate)
+                    </Label>
+                  </div>
+                </div>
                 <div>
                   <Label>Startdatum</Label>
                   <div className="mt-2 flex justify-center rounded-xl border border-sage-200/80 bg-sage-50/80 p-3">
@@ -1181,6 +1400,57 @@ export function PortalBookingWizard({
                     />
                   </div>
                 </div>
+                {cfg.unbefristet === false || cfg.endDate ? (
+                  <div>
+                    <Label>Enddatum (befristeter Block)</Label>
+                    <div className="mt-2 flex justify-center rounded-xl border border-sage-200/80 bg-sage-50/80 p-3">
+                      <Calendar
+                        mode="single"
+                        locale={deDayPicker}
+                        weekStartsOn={1}
+                        selected={cfg.endDate}
+                        onSelect={(date) =>
+                          setDayCareRecurring((prev) => {
+                            const current = prev[line.pet_id] || { weekdays: cfg.weekdays }
+                            return {
+                              ...prev,
+                              [line.pet_id]: {
+                                ...current,
+                                endDate: date ? startOfDay(date) : undefined,
+                                unbefristet: false,
+                              },
+                            }
+                          })
+                        }
+                        disabled={(date) => {
+                          if (isDateUnavailable(date)) return true
+                          if (cfg.startDate && startOfDay(date) < startOfDay(cfg.startDate)) {
+                            return true
+                          }
+                          return false
+                        }}
+                        className={bookingRangeCalendarClassName}
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() =>
+                      setDayCareRecurring((prev) => {
+                        const current = prev[line.pet_id] || { weekdays: cfg.weekdays }
+                        return {
+                          ...prev,
+                          [line.pet_id]: { ...current, unbefristet: false },
+                        }
+                      })
+                    }
+                  >
+                    Enddatum festlegen (befristeter Block)
+                  </Button>
+                )}
               </div>
             )
           })}
@@ -1265,7 +1535,7 @@ export function PortalBookingWizard({
           rangePetLines={rangePetLines}
           dayCareOnceLines={dayCareOnceLines}
           dayCareRecurringLines={dayCareRecurringLines}
-          dateRange={dateRange}
+          dateBlocks={dateBlocks}
           dayCareOnceDates={dayCareOnceDates}
           dayCareRecurring={dayCareRecurring}
           selectedAddonIds={selectedAddonIds}

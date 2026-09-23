@@ -10,7 +10,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
 import { useToast } from '@/hooks/use-toast'
 import { Plus, Trash2 } from 'lucide-react'
-import type { Pet, Document } from '@/lib/types'
+import type { Pet, Document, Customer } from '@/lib/types'
+import { isCatCustomer, isCatPetContext } from '@/lib/cat-customer'
 import { PetAvatar } from '@/components/pet-avatar'
 import { authenticatedFetch } from '@/lib/authenticated-fetch'
 import {
@@ -46,6 +47,7 @@ import {
 
 export default function PetsPage() {
   const [pets, setPets] = useState<Pet[]>([])
+  const [customer, setCustomer] = useState<Customer | null>(null)
   const [documents, setDocuments] = useState<Document[]>([])
   const [loading, setLoading] = useState(true)
   const [showPetForm, setShowPetForm] = useState(false)
@@ -87,13 +89,23 @@ export default function PetsPage() {
 
   async function loadPets() {
     try {
-      const response = await authenticatedFetch('/api/portal/pets')
-      const { data, error } = await readApiResponse<{ pets?: Pet[] }>(response)
+      const [petsResponse, profileResponse] = await Promise.all([
+        authenticatedFetch('/api/portal/pets'),
+        authenticatedFetch('/api/portal/profile'),
+      ])
+      const { data, error } = await readApiResponse<{ pets?: Pet[] }>(petsResponse)
       if (error) {
         console.error('Error loading pets:', error)
         return
       }
       setPets(data?.pets || [])
+
+      if (profileResponse.ok) {
+        const profileResult = await readApiResponse<{ customer?: Customer }>(profileResponse)
+        if (!profileResult.error) {
+          setCustomer(profileResult.data?.customer ?? null)
+        }
+      }
 
       const docsResponse = await authenticatedFetch('/api/portal/documents')
       if (docsResponse.ok) {
@@ -181,6 +193,7 @@ export default function PetsPage() {
         impfpassCount: formImpfpassCount,
         wurmtestFiles,
         photoCount: formPhotoCount,
+        customer,
       })
     )
     if (saveWarning) {
@@ -429,8 +442,10 @@ export default function PetsPage() {
           {showPetForm && (
             <div className="p-4 border border-sage-200 rounded-lg bg-sage-50 space-y-4">
               <p className="text-sm text-sage-600">
-                Speichere zuerst Name und Tierart – Impfpass, Wurmtest und weitere Angaben kannst du
-                danach jederzeit ergänzen.
+                Speichere zuerst Name und Tierart –{' '}
+                {isCatCustomer(customer)
+                  ? 'Wurmtest und weitere Angaben kannst du danach jederzeit ergänzen.'
+                  : 'Impfpass, Wurmtest und weitere Angaben kannst du danach jederzeit ergänzen.'}
               </p>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
@@ -522,7 +537,8 @@ export default function PetsPage() {
                   onChange={setCarePlan}
                   idPrefix="pets-page"
                 />
-                {!isDog(petFormData.tierart) && (
+                {!isDog(petFormData.tierart) &&
+                  !isCatPetContext({ tierart: petFormData.tierart, customer }) && (
                   <div>
                     <h4 className="font-semibold mb-3">Intervalle</h4>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -564,6 +580,7 @@ export default function PetsPage() {
                   onDocumentsChange={setDocuments}
                   impfpassGalleryRef={petImpfpassGalleryRef}
                   onImpfpassCountChange={setFormImpfpassCount}
+                  customer={customer}
                 />
 
                 {/* Wurmtest Bereich */}
@@ -715,6 +732,7 @@ export default function PetsPage() {
                         <PetMissingFieldsHint
                           pet={pet}
                           documents={documents}
+                          customer={customer}
                           className="mt-2 text-sm text-amber-700"
                         />
                       </div>

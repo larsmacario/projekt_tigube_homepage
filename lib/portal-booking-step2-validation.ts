@@ -1,5 +1,11 @@
 import { isDateInVacationPeriods, iterateIsoDateRange } from '@/lib/booking-availability'
+import {
+  type BookingDateBlock,
+  envelopeFromBlocks,
+  validateDateBlocks,
+} from '@/lib/booking-date-blocks'
 import { isRangeService } from '@/lib/day-care-booking'
+import { expandRecurringDayCareDates } from '@/lib/day-care-interval'
 import { isValidTimeHHmm } from '@/lib/pickup-time-surcharge'
 import type { DayCareMode, ServiceType } from '@/lib/types'
 import { startOfDay, toIsoDate } from '@/lib/vacation-dates'
@@ -10,6 +16,12 @@ export type PortalBookingStep2PetLine = {
   day_care_mode?: DayCareMode | ''
 }
 
+export type PortalBookingStep2DateBlockUI = {
+  from?: Date
+  to?: Date
+  weekdays?: number[]
+}
+
 export type PortalBookingStep2Availability = {
   closedDates: string[]
   vacationPeriods: Array<{ start_date: string; end_date: string; label?: string }>
@@ -18,11 +30,19 @@ export type PortalBookingStep2Availability = {
 export type PortalBookingStep2Input = {
   petLines: PortalBookingStep2PetLine[]
   petNames: Record<string, string>
+  /** @deprecated use dateBlocks – kept for backward compat in tests */
   dateRange?: { from?: Date; to?: Date }
+  dateBlocks?: PortalBookingStep2DateBlockUI[]
   dayCareOnceDates: Record<string, Date[]>
   dayCareRecurring: Record<
     string,
-    { weekdays: number[]; startDate?: Date; intervalWeeks?: 1 | 2 }
+    {
+      weekdays: number[]
+      startDate?: Date
+      endDate?: Date
+      unbefristet?: boolean
+      intervalWeeks?: 1 | 2
+    }
   >
   dropOffTime: string
   pickUpTime: string
@@ -52,6 +72,40 @@ function datesBlocked(
   })
 }
 
+export function dateBlocksToIso(blocks: PortalBookingStep2DateBlockUI[]): BookingDateBlock[] {
+  const result: BookingDateBlock[] = []
+  for (const block of blocks) {
+    const from = block.from
+    const to = block.to ?? block.from
+    if (!from || !to) continue
+    const start_date = toIsoDate(startOfDay(from))
+    const end_date = toIsoDate(startOfDay(to))
+    result.push({
+      start_date,
+      end_date,
+      ...(block.weekdays?.length ? { weekdays: block.weekdays } : {}),
+    })
+  }
+  return result
+}
+
+export function resolveStep2DateBlocks(input: PortalBookingStep2Input): BookingDateBlock[] {
+  if (input.dateBlocks?.length) {
+    return dateBlocksToIso(input.dateBlocks)
+  }
+  const from = input.dateRange?.from
+  const to = input.dateRange?.to ?? input.dateRange?.from
+  if (from && to) {
+    return [
+      {
+        start_date: toIsoDate(startOfDay(from)),
+        end_date: toIsoDate(startOfDay(to)),
+      },
+    ]
+  }
+  return []
+}
+
 export function validatePortalBookingStep2(
   input: PortalBookingStep2Input
 ): PortalBookingStep2Error | null {
@@ -68,19 +122,17 @@ export function validatePortalBookingStep2(
   )
 
   if (rangePetLines.length > 0) {
-    const startDate = input.dateRange?.from
-    const endDate = input.dateRange?.to ?? input.dateRange?.from
-    if (!startDate || !endDate) {
-      return {
-        description: 'Bitte wähle einen Zeitraum für Urlaubs- oder Katzenbetreuung.',
-      }
+    const isoBlocks = resolveStep2DateBlocks(input)
+    const blockValidation = validateDateBlocks(isoBlocks)
+    if (!blockValidation.valid) {
+      return { description: blockValidation.error }
     }
-    const startIso = toIsoDate(startDate)
-    const endIso = toIsoDate(endDate)
-    if (datesBlocked(iterateIsoDateRange(startIso, endIso), input.availability)) {
-      return {
-        description:
-          'Der gewählte Zeitraum ist wegen Betriebsferien oder Schließtagen nicht verfügbar.',
+    for (const block of isoBlocks) {
+      if (datesBlocked(iterateIsoDateRange(block.start_date, block.end_date), input.availability)) {
+        return {
+          description:
+            'Ein gewählter Betreuungsblock ist wegen Betriebsferien oder Schließtagen nicht verfügbar.',
+        }
       }
     }
   }
@@ -92,7 +144,7 @@ export function validatePortalBookingStep2(
     if (dates.length === 0) {
       return {
         sectionId,
-        description: `Für ${name}: Bitte wähle mindestens einen Betreuungstag im Kalender.`,
+        description: `Für ${name}: Bitte wähle mindestens einen Betreuungstag im Kalender oder übernimm Tage aus einem Zeitfenster.`,
       }
     }
     const isoList = dates.map((d) => toIsoDate(startOfDay(d)))
@@ -121,7 +173,22 @@ export function validatePortalBookingStep2(
       }
     }
     const startIso = toIsoDate(startOfDay(cfg.startDate))
-    if (datesBlocked([startIso], input.availability)) {
+    const unbefristet = cfg.unbefristet !== false && !cfg.endDate
+    if (!unbefristet && cfg.endDate) {
+      const endIso = toIsoDate(startOfDay(cfg.endDate))
+      if (endIso < startIso) {
+        return {
+          sectionId,
+          description: `Für ${name}: Das Enddatum muss am oder nach dem Startdatum liegen.`,
+        }
+      }
+      if (datesBlocked([startIso, endIso], input.availability)) {
+        return {
+          sectionId,
+          description: `Für ${name}: Start- oder Enddatum ist wegen Ferien oder Schließtag nicht verfügbar.`,
+        }
+      }
+    } else if (datesBlocked([startIso], input.availability)) {
       return {
         sectionId,
         description: `Für ${name}: Das Startdatum ist wegen Ferien oder Schließtag nicht verfügbar.`,
@@ -159,7 +226,13 @@ export function buildPortalBookingPetsPayload(
   dayCareOnceDates: Record<string, Date[]>,
   dayCareRecurring: Record<
     string,
-    { weekdays: number[]; startDate?: Date; intervalWeeks?: 1 | 2 }
+    {
+      weekdays: number[]
+      startDate?: Date
+      endDate?: Date
+      unbefristet?: boolean
+      intervalWeeks?: 1 | 2
+    }
   >
 ) {
   return resolvePetLines(petLines).map((line) => {
@@ -175,6 +248,7 @@ export function buildPortalBookingPetsPayload(
     }
     if (line.service_type === 'tagesbetreuung' && line.day_care_mode === 'recurring') {
       const cfg = dayCareRecurring[line.pet_id]
+      const unbefristet = cfg?.unbefristet !== false && !cfg?.endDate
       return {
         pet_id: line.pet_id,
         service_type: line.service_type,
@@ -182,6 +256,8 @@ export function buildPortalBookingPetsPayload(
         day_care_weekdays: cfg?.weekdays || [],
         day_care_interval_weeks: cfg?.intervalWeeks === 2 ? (2 as const) : (1 as const),
         start_date: cfg?.startDate ? toIsoDate(startOfDay(cfg.startDate)) : undefined,
+        end_date:
+          !unbefristet && cfg?.endDate ? toIsoDate(startOfDay(cfg.endDate)) : null,
       }
     }
     return {
@@ -189,4 +265,56 @@ export function buildPortalBookingPetsPayload(
       service_type: line.service_type,
     }
   })
+}
+
+export function buildPortalBookingDateBlocksPayload(
+  input: PortalBookingStep2Input
+): BookingDateBlock[] {
+  return resolveStep2DateBlocks(input)
+}
+
+export function buildPortalBookingEnvelope(
+  input: PortalBookingStep2Input
+): { start_date: string; end_date: string } | null {
+  const blocks = resolveStep2DateBlocks(input)
+  if (blocks.length > 0) return envelopeFromBlocks(blocks)
+
+  const onceLines = resolvePetLines(input.petLines).filter(
+    (l) => l.service_type === 'tagesbetreuung' && l.day_care_mode === 'once'
+  )
+  const allOnce: string[] = []
+  for (const line of onceLines) {
+    for (const d of input.dayCareOnceDates[line.pet_id] || []) {
+      allOnce.push(toIsoDate(startOfDay(d)))
+    }
+  }
+  if (allOnce.length > 0) {
+    const sorted = [...allOnce].sort()
+    return { start_date: sorted[0], end_date: sorted[sorted.length - 1] }
+  }
+
+  return null
+}
+
+/** Sample dates for recurring availability check (bounded). */
+export function sampleRecurringDatesForValidation(cfg: {
+  weekdays: number[]
+  startDate: Date
+  endDate?: Date
+  unbefristet?: boolean
+  intervalWeeks?: 1 | 2
+}): string[] {
+  const startIso = toIsoDate(startOfDay(cfg.startDate))
+  const endIso =
+    cfg.unbefristet !== false && !cfg.endDate
+      ? null
+      : cfg.endDate
+        ? toIsoDate(startOfDay(cfg.endDate))
+        : null
+  return expandRecurringDayCareDates(
+    startIso,
+    endIso,
+    cfg.weekdays,
+    cfg.intervalWeeks ?? 1
+  )
 }

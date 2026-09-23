@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { requireAdmin, getAdminDbClient } from '@/lib/admin-auth'
 import {
+  isValidAdAudience,
   isValidLinkTarget,
   normalizeOptionalDate,
   validateAdSchedule,
@@ -99,6 +100,13 @@ export async function PUT(
 
     if (body.is_active !== undefined) {
       update.is_active = Boolean(body.is_active)
+    }
+
+    if (body.audience !== undefined) {
+      if (!isValidAdAudience(body.audience)) {
+        return NextResponse.json({ error: 'Ungültige Zielgruppe' }, { status: 400 })
+      }
+      update.audience = body.audience
     }
 
     if (body.starts_at !== undefined) {

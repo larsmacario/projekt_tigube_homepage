@@ -8,7 +8,8 @@ import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
 import { useToast } from '@/hooks/use-toast'
-import type { Document, Pet } from '@/lib/types'
+import type { Customer, Document, Pet } from '@/lib/types'
+import { requiresImpfpass } from '@/lib/cat-customer'
 import { authenticatedFetch } from '@/lib/authenticated-fetch'
 import { uploadPortalDocuments } from '@/lib/portal-document-upload'
 import type { CustomerDocumentType } from '@/lib/customer-documents'
@@ -19,6 +20,7 @@ import { getImpfpassCategoryLabel } from '@/lib/impfpass-photo-categories'
 export default function DocumentsPage() {
   const [documents, setDocuments] = useState<Document[]>([])
   const [pets, setPets] = useState<Pet[]>([])
+  const [customer, setCustomer] = useState<Customer | null>(null)
   const [loading, setLoading] = useState(true)
   const [uploading, setUploading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState<{ current: number; total: number } | null>(
@@ -39,9 +41,20 @@ export default function DocumentsPage() {
   const { toast } = useToast()
 
   useEffect(() => {
-    loadDocuments()
-    loadPets()
+    void loadDocuments()
+    void loadPets()
+    void loadCustomer()
   }, [])
+
+  async function loadCustomer() {
+    try {
+      const response = await authenticatedFetch('/api/portal/profile')
+      const data = await response.json()
+      setCustomer(data.customer ?? null)
+    } catch (error) {
+      console.error('Error loading customer profile:', error)
+    }
+  }
 
   async function loadDocuments() {
     try {
@@ -66,6 +79,16 @@ export default function DocumentsPage() {
   }
 
   const requiresPet = uploadForm.document_type === 'wurmtest'
+
+  const impfpassEligiblePets = pets.filter((pet) =>
+    requiresImpfpass({ tierart: pet.tierart, customer })
+  )
+
+  const visibleDocuments = documents.filter((doc) => {
+    if (doc.document_type !== 'impfpass') return true
+    const pet = doc.pet_id ? pets.find((p) => p.id === doc.pet_id) : null
+    return requiresImpfpass({ tierart: pet?.tierart, customer })
+  })
 
   async function handleUpload() {
     if (!uploadForm.document_type) {
@@ -268,51 +291,52 @@ export default function DocumentsPage() {
         <p className="mt-2 text-sage-600">Verwalte deine Dokumente</p>
       </div>
 
-      {/* Impfpass – Schritt 1: Tier, Schritt 2: Seiten hochladen */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Impfpass hochladen</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          <div>
-            <p className="text-sm font-medium text-sage-800 mb-2">1. Schritt: Tier wählen</p>
-            <Label htmlFor="impfpass_pet_id" className="sr-only">
-              Tier
-            </Label>
-            <Select value={impfpassPetId} onValueChange={setImpfpassPetId}>
-              <SelectTrigger id="impfpass_pet_id">
-                <SelectValue placeholder="Tier wählen" />
-              </SelectTrigger>
-              <SelectContent>
-                {pets.map((pet) => (
-                  <SelectItem key={pet.id} value={pet.id}>
-                    {pet.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-
-          {impfpassPetId ? (
+      {impfpassEligiblePets.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Impfpass hochladen</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-6">
             <div>
-              <p className="text-sm font-medium text-sage-800 mb-3">
-                2. Schritt: Impfpass-Seiten hochladen
-              </p>
-              <PetImpfpassGallery
-                variant="documents"
-                petId={impfpassPetId}
-                pets={pets}
-                documents={documents}
-                onDocumentsChange={setDocuments}
-              />
+              <p className="text-sm font-medium text-sage-800 mb-2">1. Schritt: Tier wählen</p>
+              <Label htmlFor="impfpass_pet_id" className="sr-only">
+                Tier
+              </Label>
+              <Select value={impfpassPetId} onValueChange={setImpfpassPetId}>
+                <SelectTrigger id="impfpass_pet_id">
+                  <SelectValue placeholder="Tier wählen" />
+                </SelectTrigger>
+                <SelectContent>
+                  {impfpassEligiblePets.map((pet) => (
+                    <SelectItem key={pet.id} value={pet.id}>
+                      {pet.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
-          ) : (
-            <p className="text-sm text-sage-600 rounded-lg border border-dashed border-sage-300 bg-sage-50/50 px-4 py-3">
-              Wähle zuerst ein Tier, um die Impfpass-Seiten hochzuladen.
-            </p>
-          )}
-        </CardContent>
-      </Card>
+
+            {impfpassPetId ? (
+              <div>
+                <p className="text-sm font-medium text-sage-800 mb-3">
+                  2. Schritt: Impfpass-Seiten hochladen
+                </p>
+                <PetImpfpassGallery
+                  variant="documents"
+                  petId={impfpassPetId}
+                  pets={pets}
+                  documents={documents}
+                  onDocumentsChange={setDocuments}
+                />
+              </div>
+            ) : (
+              <p className="text-sm text-sage-600 rounded-lg border border-dashed border-sage-300 bg-sage-50/50 px-4 py-3">
+                Wähle zuerst ein Tier, um die Impfpass-Seiten hochzuladen.
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Vertrag & Wurmtest */}
       <Card>
@@ -412,7 +436,7 @@ export default function DocumentsPage() {
       </Card>
 
       {/* Dokumente-Liste */}
-      {documents.length === 0 ? (
+      {visibleDocuments.length === 0 ? (
         <Card>
           <CardContent className="py-12 text-center">
             <p className="text-sage-600">Noch keine Dokumente hochgeladen</p>
@@ -420,7 +444,7 @@ export default function DocumentsPage() {
         </Card>
       ) : (
         <div className="space-y-4">
-          {documents.map((doc) => (
+          {visibleDocuments.map((doc) => (
             <Card key={doc.id}>
               <CardContent className="pt-6">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">

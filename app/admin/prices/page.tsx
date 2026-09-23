@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -120,6 +120,11 @@ export default function PricesPage() {
   const [resettingGroup, setResettingGroup] = useState(false)
   const [promotingGroup, setPromotingGroup] = useState(false)
   const [promoteConfirmChecked, setPromoteConfirmChecked] = useState(false)
+  const [groupNameDraft, setGroupNameDraft] = useState('')
+  const [groupDescDraft, setGroupDescDraft] = useState('')
+  const [savingGroupMetadata, setSavingGroupMetadata] = useState(false)
+  const groupNameInputRef = useRef<HTMLInputElement>(null)
+  const focusGroupNameAfterDuplicateRef = useRef(false)
 
   // Category creation form
   const [newCatName, setNewCatName] = useState('')
@@ -157,6 +162,27 @@ export default function PricesPage() {
     } else {
       setGroupPriceForms({})
     }
+  }, [selectedGroupId])
+
+  useEffect(() => {
+    const group = groups.find((g) => g.id === selectedGroupId)
+    if (group) {
+      setGroupNameDraft(group.name)
+      setGroupDescDraft(group.description ?? '')
+    } else {
+      setGroupNameDraft('')
+      setGroupDescDraft('')
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- Drafts nur beim Gruppenwechsel laden
+  }, [selectedGroupId])
+
+  useEffect(() => {
+    if (!focusGroupNameAfterDuplicateRef.current || !selectedGroupId) return
+    focusGroupNameAfterDuplicateRef.current = false
+    requestAnimationFrame(() => {
+      groupNameInputRef.current?.focus()
+      groupNameInputRef.current?.select()
+    })
   }, [selectedGroupId])
 
   async function loadAllData() {
@@ -350,6 +376,7 @@ export default function PricesPage() {
         setGroups((prev) =>
           [...prev, newGroup].sort((a, b) => a.name.localeCompare(b.name, 'de'))
         )
+        focusGroupNameAfterDuplicateRef.current = true
         setSelectedGroupId(newGroup.id)
         toast({
           title: 'Erfolg',
@@ -447,6 +474,69 @@ export default function PricesPage() {
     } finally {
       setPromotingGroup(false)
       setPromoteConfirmChecked(false)
+    }
+  }
+
+  function formatGroupMetadataSaveError(message: string): string {
+    const lower = message.toLowerCase()
+    if (lower.includes('duplicate') || lower.includes('unique')) {
+      return 'Es existiert bereits eine Gruppe mit diesem Namen.'
+    }
+    return message
+  }
+
+  function isGroupMetadataDirty(): boolean {
+    const group = groups.find((g) => g.id === selectedGroupId)
+    if (!group) return false
+    const nameChanged = groupNameDraft.trim() !== group.name
+    const descChanged = groupDescDraft.trim() !== (group.description ?? '').trim()
+    return nameChanged || descChanged
+  }
+
+  async function handleSaveGroupMetadata() {
+    if (!selectedGroupId || !groupNameDraft.trim()) return
+    setSavingGroupMetadata(true)
+    try {
+      const response = await authenticatedFetch(
+        `/api/admin/customer-groups/${selectedGroupId}`,
+        {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: groupNameDraft.trim(),
+            description: groupDescDraft.trim() || null,
+          }),
+        }
+      )
+      const data = await response.json()
+
+      if (response.ok) {
+        const updatedGroup = data.group as CustomerGroup
+        setGroups((prev) =>
+          prev
+            .map((g) => (g.id === updatedGroup.id ? updatedGroup : g))
+            .sort((a, b) => a.name.localeCompare(b.name, 'de'))
+        )
+        toast({
+          title: 'Erfolg',
+          description: 'Gruppenname und Beschreibung gespeichert.',
+        })
+      } else {
+        toast({
+          title: 'Fehler',
+          description: formatGroupMetadataSaveError(data.error || 'Speichern fehlgeschlagen'),
+          variant: 'destructive',
+        })
+      }
+    } catch (error) {
+      console.error('Error saving group metadata:', error)
+      toast({
+        title: 'Fehler',
+        description: 'Speichern fehlgeschlagen',
+        variant: 'destructive',
+      })
+    } finally {
+      setSavingGroupMetadata(false)
     }
   }
 
@@ -1312,16 +1402,17 @@ export default function PricesPage() {
           <div className="lg:col-span-2">
             {selectedGroupId ? (
               <Card>
-                <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                  <div>
-                    <CardTitle>
-                      Preise für Gruppe: {groups.find(g => g.id === selectedGroupId)?.name}
-                    </CardTitle>
-                    <p className="text-xs text-sage-500 mt-1">
-                      Passe Sonderpreise oder Rabatte für diese Gruppe an oder entferne einzelne Preise für diese Gruppe. Im Standard-Katalog bleiben alle Preise unverändert erhalten.
-                    </p>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-2 shrink-0">
+                <CardHeader className="flex flex-col gap-4">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div>
+                      <CardTitle>Gruppenpreise bearbeiten</CardTitle>
+                      <p className="text-xs text-sage-500 mt-1">
+                        Passe Sonderpreise oder Rabatte für diese Gruppe an oder entferne einzelne
+                        Preise für diese Gruppe. Im Standard-Katalog bleiben alle Preise
+                        unverändert erhalten.
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2 shrink-0">
                     <AlertDialog>
                       <AlertDialogTrigger asChild>
                         <Button
@@ -1422,6 +1513,47 @@ export default function PricesPage() {
                     >
                       {savingGroupPrices ? 'Wird gespeichert...' : 'Gruppenpreise speichern'}
                     </Button>
+                    </div>
+                  </div>
+
+                  <div className="rounded-lg border border-sage-200 bg-sage-50/30 p-4 space-y-3">
+                    <p className="text-sm font-medium text-sage-900">Gruppe benennen</p>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="selected-group-name">Name der Gruppe</Label>
+                        <Input
+                          ref={groupNameInputRef}
+                          id="selected-group-name"
+                          value={groupNameDraft}
+                          onChange={(e) => setGroupNameDraft(e.target.value)}
+                          placeholder="z.B. Premium, Tierheim"
+                          className="bg-white"
+                        />
+                      </div>
+                      <div className="space-y-2 md:col-span-2">
+                        <Label htmlFor="selected-group-desc">Beschreibung</Label>
+                        <Textarea
+                          id="selected-group-desc"
+                          value={groupDescDraft}
+                          onChange={(e) => setGroupDescDraft(e.target.value)}
+                          placeholder="Optionale Beschreibung"
+                          rows={2}
+                          className="bg-white"
+                        />
+                      </div>
+                    </div>
+                    <div className="flex justify-end">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => void handleSaveGroupMetadata()}
+                        loading={savingGroupMetadata}
+                        disabled={!groupNameDraft.trim() || !isGroupMetadataDirty()}
+                        className="border-sage-300 text-sage-800 hover:bg-sage-50"
+                      >
+                        {savingGroupMetadata ? 'Wird gespeichert…' : 'Gruppe speichern'}
+                      </Button>
+                    </div>
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-6">

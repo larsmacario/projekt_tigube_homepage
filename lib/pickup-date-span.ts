@@ -3,22 +3,34 @@ import { type DateRange } from 'react-day-picker'
 import type { DayCareMode, ServiceType } from '@/lib/types'
 import { parseIsoDate, startOfDay, toIsoDate } from '@/lib/vacation-dates'
 import type { PortalPetBookingLine } from '@/lib/booking-batch-create'
+import type { BookingDateBlock } from '@/lib/booking-date-blocks'
+import { envelopeFromBlocks } from '@/lib/booking-date-blocks'
+import { resolveRecurringHorizonEnd } from '@/lib/day-care-interval'
 
 export function resolvePickupDateSpanFromPortalLines(
   petLines: PortalPetBookingLine[],
-  groupRange: { start_date: string; end_date: string } | null
+  groupRange: { start_date: string; end_date: string } | null,
+  dateBlocks: BookingDateBlock[] = []
 ): { start: string; end: string } | null {
   let dateRange: DateRange | undefined
 
-  if (groupRange && petLines.some((l) => l.service_type === 'hundepension')) {
+  const pensionEnvelope =
+    dateBlocks.length > 0
+      ? envelopeFromBlocks(dateBlocks)
+      : groupRange
+
+  if (pensionEnvelope && petLines.some((l) => l.service_type === 'hundepension')) {
     dateRange = {
-      from: parseIsoDate(groupRange.start_date),
-      to: parseIsoDate(groupRange.end_date),
+      from: parseIsoDate(pensionEnvelope.start_date),
+      to: parseIsoDate(pensionEnvelope.end_date),
     }
   }
 
   const dayCareOnceDates: Record<string, Date[]> = {}
-  const dayCareRecurring: Record<string, { weekdays: number[]; startDate?: Date }> = {}
+  const dayCareRecurring: Record<
+    string,
+    { weekdays: number[]; startDate?: Date; endDate?: Date }
+  > = {}
 
   for (const line of petLines) {
     if (
@@ -36,6 +48,7 @@ export function resolvePickupDateSpanFromPortalLines(
       dayCareRecurring[line.pet_id] = {
         weekdays: line.day_care_weekdays ?? [],
         startDate: parseIsoDate(line.start_date),
+        endDate: line.end_date ? parseIsoDate(line.end_date) : undefined,
       }
     }
   }
@@ -58,7 +71,7 @@ export type PickupDateSpanInput = {
   petLines: PickupDateSpanPetLine[]
   dateRange?: DateRange
   dayCareOnceDates: Record<string, Date[]>
-  dayCareRecurring: Record<string, { weekdays: number[]; startDate?: Date }>
+  dayCareRecurring: Record<string, { weekdays: number[]; startDate?: Date; endDate?: Date }>
 }
 
 export function resolvePickupDateSpan(input: PickupDateSpanInput): { start: string; end: string } | null {
@@ -94,13 +107,23 @@ export function resolvePickupDateSpan(input: PickupDateSpanInput): { start: stri
 
   if (recurringPetIds.length > 0) {
     const starts: string[] = []
+    const ends: string[] = []
     for (const petId of recurringPetIds) {
-      const d = input.dayCareRecurring[petId]?.startDate
-      if (d) starts.push(toIsoDate(startOfDay(d)))
+      const cfg = input.dayCareRecurring[petId]
+      if (cfg?.startDate) {
+        const startIso = toIsoDate(startOfDay(cfg.startDate))
+        starts.push(startIso)
+        if (cfg.endDate) {
+          ends.push(toIsoDate(startOfDay(cfg.endDate)))
+        } else {
+          ends.push(resolveRecurringHorizonEnd(startIso, null))
+        }
+      }
     }
     if (starts.length === 0) return null
     starts.sort()
-    return { start: starts[0], end: starts[starts.length - 1] }
+    ends.sort()
+    return { start: starts[0], end: ends[ends.length - 1] }
   }
 
   return null

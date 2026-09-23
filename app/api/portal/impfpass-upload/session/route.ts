@@ -21,6 +21,10 @@ import {
   normalizeImpfpassPageCategory,
 } from '@/lib/impfpass-photo-categories'
 import { getPortalCustomer } from '@/lib/portal-customer'
+import {
+  IMFPASS_UPLOAD_NOT_ALLOWED_MESSAGE,
+  isImpfpassUploadAllowed,
+} from '@/lib/impfpass-eligibility'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
@@ -134,6 +138,14 @@ export async function POST(request: NextRequest) {
     const body = await request.json().catch(() => ({}))
     const petId = typeof body.pet_id === 'string' ? body.pet_id : null
 
+    const uploadAllowed = await isImpfpassUploadAllowed(supabase, {
+      customerId: customerResult.customer.id,
+      petId,
+    })
+    if (!uploadAllowed) {
+      return NextResponse.json({ error: IMFPASS_UPLOAD_NOT_ALLOWED_MESSAGE }, { status: 400 })
+    }
+
     if (petId) {
       const { data: pet, error: petError } = await supabase
         .from('pets')
@@ -223,6 +235,14 @@ export async function PATCH(request: NextRequest) {
     if (petError) throw petError
     if (!pet) {
       return NextResponse.json({ error: 'Tier nicht gefunden' }, { status: 404 })
+    }
+
+    const uploadAllowed = await isImpfpassUploadAllowed(supabase, {
+      customerId: customerResult.customer.id,
+      petId,
+    })
+    if (!uploadAllowed) {
+      return NextResponse.json({ error: IMFPASS_UPLOAD_NOT_ALLOWED_MESSAGE }, { status: 400 })
     }
 
     const { data: pendingItems, error: itemsError } = await serviceSupabase

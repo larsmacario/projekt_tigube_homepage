@@ -19,6 +19,7 @@ import { Calendar } from '@/components/ui/calendar'
 import { format } from 'date-fns'
 import { de } from 'date-fns/locale'
 import { CalendarIcon, Plus } from 'lucide-react'
+import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
 import { useToast } from '@/hooks/use-toast'
 import type { TableColumn } from '@/lib/table-columns'
@@ -184,16 +185,33 @@ export function DataTable({
             {value}
           </span>
         )
-      case 'email_status':
-        if (!value) return <span className="text-sage-400">-</span>
+      case 'onboarding_status':
         return (
-          <span className={cn(
-            'px-2 py-1 rounded text-xs',
-            value === 'sent' && 'bg-green-100 text-green-800',
-            value === 'failed' && 'bg-red-100 text-red-800'
-          )}>
-            {value === 'sent' ? 'Gesendet' : value === 'failed' ? 'Fehlgeschlagen' : value}
-          </span>
+          <Badge
+            variant={value === true ? 'default' : 'secondary'}
+            className="text-xs"
+          >
+            {value === true ? 'Vollständig' : 'In Bearbeitung'}
+          </Badge>
+        )
+      case 'email_status':
+        return (
+          <Badge
+            variant={
+              value === 'sent'
+                ? 'default'
+                : value === 'failed'
+                  ? 'destructive'
+                  : 'secondary'
+            }
+            className="text-xs"
+          >
+            {value === 'sent'
+              ? 'Versendet'
+              : value === 'failed'
+                ? 'Fehlgeschlagen'
+                : '—'}
+          </Badge>
         )
       default:
         if (column.optionsMap && value) {

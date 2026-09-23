@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 import {
   clampIntervalSeconds,
   filterActiveAds,
+  filterAdsForCustomerAudience,
+  getCustomerPetAudienceFlags,
   getNextAdIndex,
   isAdWithinSchedule,
   SIDEBAR_AD_FORMAT_RECOMMENDATIONS,
@@ -16,6 +18,7 @@ const baseAd = (overrides: Partial<PortalAd> = {}): PortalAd => ({
   image_url: 'https://example.com/ad.jpg',
   link_url: null,
   link_target: '_blank',
+  audience: 'all',
   sort_order: 0,
   is_active: true,
   starts_at: null,
@@ -68,5 +71,44 @@ describe('portal-ads helpers', () => {
     expect(getNextAdIndex(0, 3)).toBe(1)
     expect(getNextAdIndex(2, 3)).toBe(0)
     expect(getNextAdIndex(0, 0)).toBe(0)
+  })
+
+  it('derives customer pet audience flags from living pets only', () => {
+    expect(
+      getCustomerPetAudienceFlags([
+        { tierart: 'Hund', deceased_at: null },
+        { tierart: 'Katze', deceased_at: '2024-01-01' },
+      ])
+    ).toEqual({ hasDog: true, hasCat: false })
+
+    expect(
+      getCustomerPetAudienceFlags([
+        { tierart: 'Katze', deceased_at: null },
+        { tierart: 'Andere', deceased_at: null },
+      ])
+    ).toEqual({ hasDog: false, hasCat: true })
+  })
+
+  it('filters ads by customer audience', () => {
+    const ads = [
+      baseAd({ id: 'all', audience: 'all' }),
+      baseAd({ id: 'dog', audience: 'dog' }),
+      baseAd({ id: 'cat', audience: 'cat' }),
+    ]
+
+    expect(filterAdsForCustomerAudience(ads, { hasDog: true, hasCat: false }).map((ad) => ad.id)).toEqual([
+      'all',
+      'dog',
+    ])
+    expect(filterAdsForCustomerAudience(ads, { hasDog: false, hasCat: true }).map((ad) => ad.id)).toEqual([
+      'all',
+      'cat',
+    ])
+    expect(filterAdsForCustomerAudience(ads, { hasDog: true, hasCat: true }).map((ad) => ad.id)).toEqual([
+      'all',
+      'dog',
+      'cat',
+    ])
+    expect(filterAdsForCustomerAudience(ads, { hasDog: false, hasCat: false }).map((ad) => ad.id)).toEqual(['all'])
   })
 })

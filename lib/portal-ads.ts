@@ -57,7 +57,27 @@ export const SIDEBAR_AD_FORMAT_RECOMMENDATIONS: SidebarAdFormatRecommendation[] 
   },
 ]
 
+import { isCat, isDog } from '@/lib/pet-vaccination'
+
 export type AdLinkTarget = '_self' | '_blank'
+
+export type AdAudience = 'all' | 'dog' | 'cat'
+
+export const AD_AUDIENCE_OPTIONS: { value: AdAudience; label: string }[] = [
+  { value: 'all', label: 'Alle Kunden' },
+  { value: 'dog', label: 'Nur Hundekunden' },
+  { value: 'cat', label: 'Nur Katzenkunden' },
+]
+
+export type CustomerPetAudienceFlags = {
+  hasDog: boolean
+  hasCat: boolean
+}
+
+export type PetAudienceInput = {
+  tierart: string | null | undefined
+  deceased_at: string | null | undefined
+}
 
 export type AdFormat = {
   id: string
@@ -79,6 +99,7 @@ export type PortalAd = {
   image_url: string
   link_url: string | null
   link_target: AdLinkTarget
+  audience: AdAudience
   sort_order: number
   is_active: boolean
   starts_at: string | null
@@ -115,6 +136,50 @@ export function clampIntervalSeconds(value: number): number {
 
 export function isValidLinkTarget(value: unknown): value is AdLinkTarget {
   return value === '_self' || value === '_blank'
+}
+
+export function isValidAdAudience(value: unknown): value is AdAudience {
+  return value === 'all' || value === 'dog' || value === 'cat'
+}
+
+export function normalizeAdAudience(value: unknown): AdAudience {
+  return isValidAdAudience(value) ? value : 'all'
+}
+
+export function getCustomerPetAudienceFlags(pets: PetAudienceInput[]): CustomerPetAudienceFlags {
+  let hasDog = false
+  let hasCat = false
+
+  for (const pet of pets) {
+    if (pet.deceased_at) continue
+    if (isDog(pet.tierart)) hasDog = true
+    if (isCat(pet.tierart)) hasCat = true
+  }
+
+  return { hasDog, hasCat }
+}
+
+export function adMatchesCustomerAudience(
+  ad: Pick<PortalAd, 'audience'>,
+  flags: CustomerPetAudienceFlags
+): boolean {
+  const audience = normalizeAdAudience(ad.audience)
+  if (audience === 'all') return true
+  if (audience === 'dog') return flags.hasDog
+  if (audience === 'cat') return flags.hasCat
+  return true
+}
+
+export function filterAdsForCustomerAudience(
+  ads: PortalAd[],
+  flags: CustomerPetAudienceFlags
+): PortalAd[] {
+  return ads.filter((ad) => adMatchesCustomerAudience(ad, flags))
+}
+
+export function getAdAudienceLabel(audience: AdAudience | undefined): string {
+  return AD_AUDIENCE_OPTIONS.find((option) => option.value === normalizeAdAudience(audience))
+    ?.label ?? 'Alle Kunden'
 }
 
 export function isAdWithinSchedule(ad: PortalAd, now = new Date()): boolean {

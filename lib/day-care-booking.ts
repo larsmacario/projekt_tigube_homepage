@@ -95,7 +95,11 @@ export function formatDayCareBookingSummary(booking: Pick<
     const days = formatWeekdayList(booking.day_care_weekdays)
     const start = format(parseISO(booking.start_date), 'd. MMMM yyyy', { locale: de })
     const interval = dayCareIntervalLabel(booking.day_care_interval_weeks)
-    return `Feste Tage: ${days} (${interval}) ab ${start}`
+    if (booking.end_date) {
+      const end = format(parseISO(booking.end_date), 'd. MMMM yyyy', { locale: de })
+      return `Feste Tage: ${days} (${interval}) vom ${start} bis ${end}`
+    }
+    return `Feste Tage: ${days} (${interval}) ab ${start} (unbefristet)`
   }
 
   return null
@@ -148,6 +152,10 @@ export function validateDayCarePetPayload(
     !isDayCareIntervalWeeks(line.day_care_interval_weeks)
   ) {
     return { valid: false, error: 'Ungültiger Betreuungsrhythmus.' }
+  }
+
+  if (line.end_date && line.end_date < line.start_date!) {
+    return { valid: false, error: 'Enddatum muss am oder nach dem Startdatum liegen.' }
   }
 
   return { valid: true }

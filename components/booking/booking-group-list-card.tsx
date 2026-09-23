@@ -2,7 +2,10 @@
 
 import { Badge } from '@/components/ui/badge'
 import type { BookingRequest } from '@/lib/types'
-import type { BookingRequestGroup } from '@/lib/booking-request-groups'
+import {
+  formatGroupPeriodRanges,
+  type BookingRequestGroup,
+} from '@/lib/booking-request-groups'
 import { formatDayCareBookingSummary } from '@/lib/day-care-booking'
 import { cn } from '@/lib/utils'
 
@@ -92,10 +95,12 @@ export function BookingGroupListCard({
           )}
           <p className="text-sm text-sage-600">{groupPetSummary(group)}</p>
           <p className="mt-1 text-sm text-sage-600">
-            {new Date(group.start_date).toLocaleDateString('de-DE')} –{' '}
-            {group.end_date
-              ? new Date(group.end_date).toLocaleDateString('de-DE')
-              : 'laufend'}
+            {formatGroupPeriodRanges(group) ??
+              `${new Date(group.start_date).toLocaleDateString('de-DE')} – ${
+                group.end_date
+                  ? new Date(group.end_date).toLocaleDateString('de-DE')
+                  : 'laufend'
+              }`}
           </p>
           {group.bookings.map((b) => {
             const dc = formatDayCareBookingSummary(b)

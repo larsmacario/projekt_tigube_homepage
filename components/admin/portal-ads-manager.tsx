@@ -20,7 +20,11 @@ import {
 import { useToast } from '@/hooks/use-toast'
 import { authenticatedFetch } from '@/lib/authenticated-fetch'
 import {
+  AD_AUDIENCE_OPTIONS,
   SIDEBAR_AD_FORMAT,
+  getAdAudienceLabel,
+  normalizeAdAudience,
+  type AdAudience,
   type AdFormat,
   type AdLinkTarget,
   type AdRotationSettings,
@@ -33,6 +37,7 @@ type AdDraft = {
   image_url: string
   link_url: string
   link_target: AdLinkTarget
+  audience: AdAudience
   sort_order: string
   is_active: boolean
   starts_at: string
@@ -44,6 +49,7 @@ const emptyAdDraft = (): AdDraft => ({
   image_url: '',
   link_url: '',
   link_target: '_blank',
+  audience: 'all',
   sort_order: '0',
   is_active: false,
   starts_at: '',
@@ -143,6 +149,7 @@ export function PortalAdsManager() {
               image_url: ad.image_url,
               link_url: ad.link_url || '',
               link_target: ad.link_target,
+              audience: normalizeAdAudience(ad.audience),
               sort_order: String(ad.sort_order),
               is_active: ad.is_active,
               starts_at: toDatetimeLocalValue(ad.starts_at),
@@ -202,6 +209,7 @@ export function PortalAdsManager() {
           image_url: newAd.image_url.trim(),
           link_url: newAd.link_url.trim() || null,
           link_target: newAd.link_target,
+          audience: newAd.audience,
           sort_order: Number(newAd.sort_order) || 0,
           is_active: newAd.is_active,
           starts_at: fromDatetimeLocalValue(newAd.starts_at),
@@ -252,6 +260,7 @@ export function PortalAdsManager() {
           image_url: edit.image_url.trim(),
           link_url: edit.link_url.trim() || null,
           link_target: edit.link_target,
+          audience: edit.audience,
           sort_order: Number(edit.sort_order) || 0,
           is_active: edit.is_active,
           starts_at: fromDatetimeLocalValue(edit.starts_at),
@@ -424,6 +433,24 @@ export function PortalAdsManager() {
           </Select>
         </div>
         <div className="space-y-2">
+          <Label>Zielgruppe</Label>
+          <Select
+            value={draft.audience}
+            onValueChange={(value: AdAudience) => onChange({ ...draft, audience: value })}
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {AD_AUDIENCE_OPTIONS.map((option) => (
+                <SelectItem key={option.value} value={option.value}>
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-2">
           <Label>Reihenfolge</Label>
           <Input
             type="number"
@@ -518,6 +545,7 @@ export function PortalAdsManager() {
                         <Badge variant={ad.is_active ? 'default' : 'secondary'}>
                           {ad.is_active ? 'Aktiv' : 'Inaktiv'}
                         </Badge>
+                        <Badge variant="outline">{getAdAudienceLabel(normalizeAdAudience(ad.audience))}</Badge>
                         <span>Reihenfolge {ad.sort_order}</span>
                       </CardDescription>
                     </div>

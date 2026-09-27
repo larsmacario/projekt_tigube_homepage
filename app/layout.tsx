@@ -4,7 +4,7 @@ import { Raleway } from "next/font/google"
 import "./globals.css"
 import { Toaster } from "@/components/ui/toaster"
 import { ConditionalLayout } from "@/components/conditional-layout"
-
+import { getPublicSiteUrl } from "@/lib/site-url"
 
 const raleway = Raleway({
   subsets: ["latin"],
@@ -13,8 +13,7 @@ const raleway = Raleway({
   variable: "--font-raleway",
 })
 
-const rawUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://tierischgutbetreut.de"
-const siteUrl = rawUrl.replace("https:/t", "https://t")
+const siteUrl = getPublicSiteUrl()
 
 export const viewport: Viewport = {
   width: "device-width",

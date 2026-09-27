@@ -1,8 +1,8 @@
 import { MetadataRoute } from 'next'
+import { getPublicSiteUrl } from '@/lib/site-url'
 
 export default function robots(): MetadataRoute.Robots {
-  const rawUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://tierischgutbetreut.de'
-  const baseUrl = rawUrl.replace('https:/t', 'https://t')
+  const baseUrl = getPublicSiteUrl()
 
   return {
     rules: [

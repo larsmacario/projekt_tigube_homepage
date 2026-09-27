@@ -1,8 +1,8 @@
 import { MetadataRoute } from 'next'
+import { getPublicSiteUrl } from '@/lib/site-url'
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const rawUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://tierischgutbetreut.de'
-  const baseUrl = rawUrl.replace('https:/t', 'https://t')
+  const baseUrl = getPublicSiteUrl()
 
   // Die 7 öffentlichen Seiten, die gecrawlt werden sollen
   const routes = [

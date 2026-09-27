@@ -234,7 +234,7 @@ export function DataTable({
           <Input
             value={value || ''}
             onChange={(e) => setValue(e.target.value)}
-            onBlur={onSave}
+            onBlur={() => onSave()}
             onKeyDown={(e) => {
               if (e.key === 'Enter') onSave()
               if (e.key === 'Escape') onCancel()
@@ -248,7 +248,7 @@ export function DataTable({
           <textarea
             value={value || ''}
             onChange={(e) => setValue(e.target.value)}
-            onBlur={onSave}
+            onBlur={() => onSave()}
             onKeyDown={(e) => {
               if (e.key === 'Escape') onCancel()
             }}
@@ -262,7 +262,7 @@ export function DataTable({
             type="number"
             value={value || ''}
             onChange={(e) => setValue(e.target.value ? parseFloat(e.target.value) : null)}
-            onBlur={onSave}
+            onBlur={() => onSave()}
             onKeyDown={(e) => {
               if (e.key === 'Enter') onSave()
               if (e.key === 'Escape') onCancel()

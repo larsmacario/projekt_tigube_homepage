@@ -10,23 +10,24 @@ import {
   bookingRangeCalendarClassName,
   bookingRangeCalendarClassNames,
   createBookingVacationDayButton,
+  type BookingPublicHoliday,
   type BookingVacationPeriod,
 } from '@/components/portal/booking-range-calendar'
 
-interface BookingMultiDayCalendarProps {
-  selected?: Date[]
-  onSelect?: (dates: Date[] | undefined) => void
+interface BookingSingleDayCalendarProps {
+  selected?: Date
+  onSelect?: (date: Date | undefined) => void
   disabled?: Matcher | Matcher[]
   vacationPeriods?: BookingVacationPeriod[]
   closedDates?: string[]
-  publicHolidays?: import('@/components/portal/booking-range-calendar').BookingPublicHoliday[]
+  publicHolidays?: BookingPublicHoliday[]
   defaultMonth?: Date
   month?: Date
   onMonthChange?: (month: Date) => void
   className?: string
 }
 
-export function BookingMultiDayCalendar({
+export function BookingSingleDayCalendar({
   selected,
   onSelect,
   disabled,
@@ -37,7 +38,7 @@ export function BookingMultiDayCalendar({
   month,
   onMonthChange,
   className,
-}: BookingMultiDayCalendarProps) {
+}: BookingSingleDayCalendarProps) {
   const holidayMap = useMemo(() => {
     const map = new Map<string, string>()
     for (const h of publicHolidays) {
@@ -59,11 +60,11 @@ export function BookingMultiDayCalendar({
       )}
     >
       <Calendar
-        mode="multiple"
+        mode="single"
         locale={deDayPicker}
         weekStartsOn={1}
         selected={selected}
-        defaultMonth={defaultMonth ?? selected?.[0]}
+        defaultMonth={defaultMonth ?? selected}
         month={month}
         onMonthChange={onMonthChange}
         onSelect={onSelect}

@@ -50,12 +50,7 @@ function setFeedingSlotEnabled(
   index: number,
   enabled: boolean
 ): PetCarePlan {
-  const slot = plan.feeding[index]
-  const patch: Partial<CarePlanFeedingSlot> = { enabled }
-  if (enabled && !slot.time.trim()) {
-    patch.time = defaultFeedingTimeForSlot(index)
-  }
-  return updateFeedingSlot(plan, index, patch)
+  return updateFeedingSlot(plan, index, { enabled })
 }
 
 function updateMedicationEntry(
@@ -167,7 +162,7 @@ export function PetCarePlanForm({
             </thead>
             <tbody>
               {[
-                { key: 'time', label: 'Uhrzeit', placeholder: 'z.B. 6 Uhr' },
+                { key: 'time', label: 'Uhrzeit' },
                 { key: 'food', label: 'Was wird gefüttert', placeholder: 'z.B. Trockenfutter' },
                 { key: 'amount', label: 'Menge', placeholder: 'z.B. 200g' },
                 { key: 'additive', label: 'Zusätze', placeholder: 'z.B. Öl' },
@@ -179,33 +174,6 @@ export function PetCarePlanForm({
                     const slot = plan.feeding[index]
                     const field = row.key as keyof CarePlanFeedingSlot
                     const disabled = readOnly || (!slot.enabled && field !== 'enabled')
-
-                    if (row.key === 'time' && index === 0) {
-                      return (
-                        <td key={`${row.key}-${index}`} className="px-3 py-2 align-top">
-                          <div className="space-y-2">
-                            <label className="flex items-center gap-2 text-xs text-sage-600">
-                              <Checkbox
-                                checked={slot.enabled}
-                                onCheckedChange={(checked) =>
-                                  onChange(setFeedingSlotEnabled(plan, index, checked === true))
-                                }
-                                disabled={readOnly}
-                              />
-                              {slotLabel}
-                            </label>
-                            <Input
-                              value={slot.time}
-                              onChange={(e) =>
-                                onChange(updateFeedingSlot(plan, index, { time: e.target.value }))
-                              }
-                              placeholder={slot.enabled ? row.placeholder : ''}
-                              disabled={disabled}
-                            />
-                          </div>
-                        </td>
-                      )
-                    }
 
                     if (row.key === 'time') {
                       return (

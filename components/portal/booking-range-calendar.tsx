@@ -166,3 +166,22 @@ export function BookingRangeCalendar({
     </div>
   )
 }
+
+export function BookingCalendarLegend({ className }: { className?: string }) {
+  return (
+    <div className={cn('flex flex-wrap gap-3 text-xs text-sage-600', className)}>
+      <span className="inline-flex items-center gap-1">
+        <span className="inline-block size-3 rounded-sm border border-amber-200 bg-amber-100" />
+        Betriebsferien
+      </span>
+      <span className="inline-flex items-center gap-1">
+        <span className="inline-block size-3 rounded-sm border border-sage-300 bg-sage-200" />
+        Schließtag
+      </span>
+      <span className="inline-flex items-center gap-1">
+        <span className="inline-block size-3 rounded-sm border border-violet-300 bg-violet-50" />
+        Feiertag (Baden-Württemberg)
+      </span>
+    </div>
+  )
+}

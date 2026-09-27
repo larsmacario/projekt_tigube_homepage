@@ -1,7 +1,7 @@
 "use client"
 
 import Image from "next/image"
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
 import { authenticatedFetch } from "@/lib/authenticated-fetch"
@@ -19,108 +19,51 @@ type PortalAdsResponse = {
   settings: AdRotationSettings | null
 }
 
-type NaturalSize = { w: number; h: number }
-
-function computeSlotAspectRatio(
-  ads: PortalAd[],
-  naturalSizes: Record<string, NaturalSize>,
-  fallbackWidth: number,
-  fallbackHeight: number
-): number {
-  const measured = ads
-    .map((ad) => naturalSizes[ad.id])
-    .filter((size): size is NaturalSize => size != null && size.w > 0 && size.h > 0)
-
-  if (measured.length === 0) {
-    return fallbackWidth / fallbackHeight
-  }
-
-  // Tallest image (relative to width) sets the stable box height for rotation.
-  return Math.min(...measured.map((size) => size.w / size.h))
-}
-
-function AdBannerImage({
-  ad,
-  visible,
-  onNaturalSize,
-}: {
-  ad: PortalAd
-  visible: boolean
-  onNaturalSize: (adId: string, width: number, height: number) => void
-}) {
+function AdBannerImage({ ad }: { ad: PortalAd }) {
   const image = (
     <Image
       src={ad.image_url}
       alt={ad.title}
-      fill
-      sizes="256px"
-      className="rounded-md object-contain"
+      width={512}
+      height={512}
+      sizes="(max-width: 768px) 100vw, 16rem"
+      className="block h-auto w-full max-w-full rounded-md"
       unoptimized
-      onLoad={(event) => {
-        const img = event.currentTarget
-        if (img.naturalWidth > 0 && img.naturalHeight > 0) {
-          onNaturalSize(ad.id, img.naturalWidth, img.naturalHeight)
-        }
-      }}
     />
   )
 
-  const content = ad.link_url ? (
-    <a
-      href={ad.link_url}
-      target={ad.link_target}
-      rel={ad.link_target === "_blank" ? "noopener noreferrer" : undefined}
-      className="relative block h-full w-full overflow-hidden rounded-md ring-offset-background transition-opacity hover:opacity-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sage-500 focus-visible:ring-offset-2"
-    >
-      {image}
-    </a>
-  ) : (
-    <div className="relative h-full w-full overflow-hidden rounded-md">{image}</div>
-  )
+  if (ad.link_url) {
+    return (
+      <a
+        href={ad.link_url}
+        target={ad.link_target}
+        rel={ad.link_url && ad.link_target === "_blank" ? "noopener noreferrer" : undefined}
+        className="block w-full rounded-md ring-offset-background transition-opacity hover:opacity-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sage-500 focus-visible:ring-offset-2"
+      >
+        {image}
+      </a>
+    )
+  }
 
-  return (
-    <div
-      className={cn(
-        "absolute inset-0 transition-opacity duration-500",
-        visible ? "opacity-100" : "pointer-events-none opacity-0"
-      )}
-      aria-hidden={!visible}
-    >
-      {content}
-    </div>
-  )
+  return <div className="w-full">{image}</div>
 }
 
 function SidebarAdSlot({
-  format,
   ads,
   rotationEnabled,
   intervalSeconds,
   pathname,
 }: {
-  format: AdFormat
   ads: PortalAd[]
   rotationEnabled: boolean
   intervalSeconds: number
   pathname: string | null
 }) {
   const [currentIndex, setCurrentIndex] = useState(0)
-  const [naturalSizes, setNaturalSizes] = useState<Record<string, NaturalSize>>({})
   const pathnameRef = useRef<string | null>(pathname)
-
-  const handleNaturalSize = useCallback((adId: string, width: number, height: number) => {
-    setNaturalSizes((current) => {
-      const existing = current[adId]
-      if (existing?.w === width && existing?.h === height) {
-        return current
-      }
-      return { ...current, [adId]: { w: width, h: height } }
-    })
-  }, [])
 
   useEffect(() => {
     setCurrentIndex(0)
-    setNaturalSizes({})
   }, [ads])
 
   useEffect(() => {
@@ -140,32 +83,25 @@ function SidebarAdSlot({
     setCurrentIndex((index) => getNextAdIndex(index, ads.length))
   }, [pathname, ads.length, rotationEnabled])
 
-  const aspectRatio = useMemo(
-    () => computeSlotAspectRatio(ads, naturalSizes, format.width_px, format.height_px),
-    [ads, naturalSizes, format.width_px, format.height_px]
-  )
-
   if (ads.length === 0) return null
 
   const displayIndex = rotationEnabled ? currentIndex : 0
+  const visibleAd = ads[displayIndex] ?? ads[0]
 
   return (
-    <div className="px-2 py-3 group-data-[collapsible=icon]:hidden">
+    <div className="px-1 py-3 group-data-[collapsible=icon]:hidden">
       <p className="mb-2 px-1 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
         Angebot
       </p>
       <div
-        className="relative w-full overflow-hidden rounded-md bg-sage-100"
-        style={{ aspectRatio }}
+        key={visibleAd.id}
+        className={cn(
+          "w-full overflow-hidden rounded-md bg-sage-100/80",
+          rotationEnabled && ads.length > 1 && "animate-in fade-in duration-500"
+        )}
+        aria-live={rotationEnabled && ads.length > 1 ? "polite" : undefined}
       >
-        {ads.map((ad, index) => (
-          <AdBannerImage
-            key={ad.id}
-            ad={ad}
-            visible={index === displayIndex}
-            onNaturalSize={handleNaturalSize}
-          />
-        ))}
+        <AdBannerImage ad={visibleAd} />
       </div>
     </div>
   )
@@ -223,7 +159,6 @@ export function PortalSidebarAds() {
       {groupedAds.map(({ format, ads }) => (
         <SidebarAdSlot
           key={format.id}
-          format={format}
           ads={ads}
           rotationEnabled={rotationEnabled}
           intervalSeconds={intervalSeconds}

@@ -144,7 +144,7 @@ export function validatePortalBookingStep2(
     if (dates.length === 0) {
       return {
         sectionId,
-        description: `Für ${name}: Bitte wähle mindestens einen Betreuungstag im Kalender oder übernimm Tage aus einem Zeitfenster.`,
+        description: `Für ${name}: Bitte wähle mindestens einen Betreuungstag im Kalender.`,
       }
     }
     const isoList = dates.map((d) => toIsoDate(startOfDay(d)))
@@ -253,7 +253,9 @@ export function buildPortalBookingPetsPayload(
         pet_id: line.pet_id,
         service_type: line.service_type,
         day_care_mode: 'recurring' as const,
-        day_care_weekdays: cfg?.weekdays || [],
+        day_care_weekdays: [...new Set((cfg?.weekdays || []).map((d) => Number(d)).filter((d) => d >= 1 && d <= 7))].sort(
+          (a, b) => a - b
+        ),
         day_care_interval_weeks: cfg?.intervalWeeks === 2 ? (2 as const) : (1 as const),
         start_date: cfg?.startDate ? toIsoDate(startOfDay(cfg.startDate)) : undefined,
         end_date:

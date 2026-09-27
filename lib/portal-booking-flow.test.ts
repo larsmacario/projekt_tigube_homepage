@@ -116,6 +116,19 @@ describe('Portal-Buchungsflow – Schritt 2 (Client-Validierung)', () => {
       )
     })
 
+    it('Tagesbetreuung einmalig ohne Betreuungsblöcke (nur Multi-Day-Kalender)', () => {
+      expectValidStep2(
+        baseStep2({
+          petLines: [
+            { pet_id: 'pet-a', service_type: 'tagesbetreuung', day_care_mode: 'once' },
+          ],
+          petNames: { 'pet-a': 'Bello' },
+          dateBlocks: [{}],
+          dayCareOnceDates: { 'pet-a': [d(2026, 9, 11), d(2026, 9, 14)] },
+        })
+      )
+    })
+
     it('lehnt feste Wochentage ohne Mo–So ab (Original-Bug)', () => {
       const error = validatePortalBookingStep2(
         baseStep2({

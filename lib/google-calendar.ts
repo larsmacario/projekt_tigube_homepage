@@ -5,6 +5,7 @@ import {
   isoDateRangeEndExclusive,
   type BusyInterval,
 } from '@/lib/google-calendar-busy'
+import { getPublicSiteUrl } from '@/lib/site-url'
 import type { GoogleCalendarSettings } from '@/lib/types'
 import { toIsoDate } from '@/lib/vacation-dates'
 
@@ -25,11 +26,27 @@ interface FreeBusyCacheEntry {
 
 let freeBusyCache: FreeBusyCacheEntry | null = null
 
+type PostgrestLikeError = { code?: string; message?: string }
+
+export function isGoogleCalendarInfrastructureError(error: unknown): boolean {
+  if (!error || typeof error !== 'object') {
+    const message = typeof error === 'string' ? error : ''
+    return /google_calendar_settings|schema cache|PGRST205|does not exist|Could not find the table/i.test(
+      message
+    )
+  }
+
+  const err = error as PostgrestLikeError
+  if (err.code === 'PGRST205') {
+    return true
+  }
+
+  const message = err.message ?? ''
+  return /google_calendar_settings|schema cache|does not exist|Could not find the table/i.test(message)
+}
+
 export function getGoogleCalendarRedirectUri(siteUrl?: string): string {
-  const base =
-    siteUrl?.replace(/\/$/, '') ||
-    process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, '') ||
-    'http://localhost:3000'
+  const base = siteUrl?.replace(/\/$/, '') || getPublicSiteUrl()
   return `${base}/api/admin/integrations/google-calendar/oauth/callback`
 }
 
@@ -80,6 +97,64 @@ export async function getGoogleCalendarSettings(): Promise<GoogleCalendarSetting
   }
 
   return data as GoogleCalendarSettings | null
+}
+
+export type GoogleCalendarAdminSnapshot = {
+  settings: GoogleCalendarSettings | null
+  redirectUri: string
+  migrationRequired: boolean
+  setupMessage: string | null
+}
+
+export async function getGoogleCalendarAdminSnapshot(): Promise<GoogleCalendarAdminSnapshot> {
+  const redirectUri = getGoogleCalendarRedirectUri()
+  try {
+    const settings = await getGoogleCalendarSettings()
+    return {
+      settings,
+      redirectUri,
+      migrationRequired: false,
+      setupMessage: null,
+    }
+  } catch (error) {
+    if (isGoogleCalendarInfrastructureError(error)) {
+      return {
+        settings: null,
+        redirectUri,
+        migrationRequired: true,
+        setupMessage:
+          'Die Supabase-Migration für Google Kalender ist noch nicht angewendet (20260923160000_google_calendar_integration.sql). Portal-Buchungen funktionieren weiterhin.',
+      }
+    }
+    throw error
+  }
+}
+
+async function getGoogleCalendarSettingsForAvailability(): Promise<GoogleCalendarSettings | null> {
+  try {
+    const db = getAdminDbClient()
+    const { data, error } = await db
+      .from('google_calendar_settings')
+      .select('*')
+      .eq('id', 'google_calendar')
+      .maybeSingle()
+
+    if (error) {
+      console.warn(
+        'Google-Kalender-Einstellungen für Verfügbarkeit nicht geladen (fail-open):',
+        error.message
+      )
+      return null
+    }
+
+    return data as GoogleCalendarSettings | null
+  } catch (error) {
+    console.warn(
+      'Google-Kalender-Einstellungen für Verfügbarkeit nicht geladen (fail-open):',
+      error
+    )
+    return null
+  }
 }
 
 export async function setGoogleOAuthCredentials(
@@ -278,16 +353,24 @@ export async function updateGoogleCalendarSettings(
 }
 
 export async function recordGoogleFreeBusyResult(ok: boolean, errorMessage: string | null): Promise<void> {
-  const db = getAdminDbClient()
-  await db
-    .from('google_calendar_settings')
-    .update({
-      last_freebusy_at: new Date().toISOString(),
-      last_freebusy_ok: ok,
-      last_freebusy_error: ok ? null : errorMessage,
-      updated_at: new Date().toISOString(),
-    })
-    .eq('id', 'google_calendar')
+  try {
+    const db = getAdminDbClient()
+    const { error } = await db
+      .from('google_calendar_settings')
+      .update({
+        last_freebusy_at: new Date().toISOString(),
+        last_freebusy_ok: ok,
+        last_freebusy_error: ok ? null : errorMessage,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', 'google_calendar')
+
+    if (error) {
+      console.warn('Google FreeBusy-Status konnte nicht gespeichert werden:', error.message)
+    }
+  } catch (error) {
+    console.warn('Google FreeBusy-Status konnte nicht gespeichert werden:', error)
+  }
 }
 
 async function fetchBusyIntervals(
@@ -336,47 +419,52 @@ export async function getGoogleBlockedDatesForRange(
   fromDate: string,
   toDate: string
 ): Promise<string[]> {
-  const settings = await getGoogleCalendarSettings()
-  if (
-    !settings?.blocking_enabled ||
-    !settings.is_connected ||
-    !settings.calendar_id
-  ) {
-    return []
-  }
-
-  const timeZone = settings.timezone || 'Europe/Berlin'
-  const calendarId = settings.calendar_id
-
-  if (cacheCoversRange(fromDate, toDate, calendarId) && freeBusyCache) {
-    return freeBusyCache.blockedDates.filter((d) => d >= fromDate && d <= toDate)
-  }
-
   try {
-    const timeMin = `${fromDate}T00:00:00`
-    const endExclusive = isoDateRangeEndExclusive(toDate, 1)
-    const timeMax = `${endExclusive}T00:00:00`
-    const busyIntervals = await fetchBusyIntervals(calendarId, timeMin, timeMax, timeZone)
-    const blockedDates = busyIntervalsToBlockedIsoDates(
-      busyIntervals,
-      fromDate,
-      toDate,
-      timeZone
-    )
-
-    freeBusyCache = {
-      fromDate,
-      toDate,
-      calendarId,
-      blockedDates,
-      fetchedAt: Date.now(),
+    const settings = await getGoogleCalendarSettingsForAvailability()
+    if (
+      !settings?.blocking_enabled ||
+      !settings.is_connected ||
+      !settings.calendar_id
+    ) {
+      return []
     }
 
-    await recordGoogleFreeBusyResult(true, null)
-    return blockedDates
+    const timeZone = settings.timezone || 'Europe/Berlin'
+    const calendarId = settings.calendar_id
+
+    if (cacheCoversRange(fromDate, toDate, calendarId) && freeBusyCache) {
+      return freeBusyCache.blockedDates.filter((d) => d >= fromDate && d <= toDate)
+    }
+
+    try {
+      const timeMin = `${fromDate}T00:00:00`
+      const endExclusive = isoDateRangeEndExclusive(toDate, 1)
+      const timeMax = `${endExclusive}T00:00:00`
+      const busyIntervals = await fetchBusyIntervals(calendarId, timeMin, timeMax, timeZone)
+      const blockedDates = busyIntervalsToBlockedIsoDates(
+        busyIntervals,
+        fromDate,
+        toDate,
+        timeZone
+      )
+
+      freeBusyCache = {
+        fromDate,
+        toDate,
+        calendarId,
+        blockedDates,
+        fetchedAt: Date.now(),
+      }
+
+      await recordGoogleFreeBusyResult(true, null)
+      return blockedDates
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'FreeBusy fehlgeschlagen'
+      await recordGoogleFreeBusyResult(false, message)
+      return []
+    }
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'FreeBusy fehlgeschlagen'
-    await recordGoogleFreeBusyResult(false, message)
+    console.warn('Google-Kalender-Blockierung übersprungen (fail-open):', error)
     return []
   }
 }

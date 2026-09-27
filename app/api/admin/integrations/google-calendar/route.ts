@@ -2,8 +2,10 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireAdmin } from '@/lib/admin-auth'
 import {
   clearGoogleCalendarConnection,
+  getGoogleCalendarAdminSnapshot,
   getGoogleCalendarRedirectUri,
   getGoogleCalendarSettings,
+  isGoogleCalendarInfrastructureError,
   setGoogleOAuthCredentials,
   updateGoogleCalendarSettings,
 } from '@/lib/google-calendar'
@@ -17,17 +19,13 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const settings = await getGoogleCalendarSettings()
-    return NextResponse.json({
-      settings,
-      redirectUri: getGoogleCalendarRedirectUri(),
-    })
+    const snapshot = await getGoogleCalendarAdminSnapshot()
+    return NextResponse.json(snapshot)
   } catch (error) {
     console.error('Google Calendar settings GET failed:', error)
-    return NextResponse.json(
-      { error: 'Google-Kalender-Einstellungen konnten nicht geladen werden' },
-      { status: 500 }
-    )
+    const message =
+      error instanceof Error ? error.message : 'Google-Kalender-Einstellungen konnten nicht geladen werden'
+    return NextResponse.json({ error: message }, { status: 500 })
   }
 }
 
@@ -56,19 +54,14 @@ export async function POST(request: NextRequest) {
 
   try {
     await setGoogleOAuthCredentials(clientId, clientSecret, auth.user.id)
-    const settings = await getGoogleCalendarSettings()
-    return NextResponse.json({ settings, redirectUri: getGoogleCalendarRedirectUri() })
+    const snapshot = await getGoogleCalendarAdminSnapshot()
+    return NextResponse.json(snapshot)
   } catch (error) {
     console.error('Google Calendar OAuth credentials POST failed:', error)
-    return NextResponse.json(
-      {
-        error:
-          error instanceof Error
-            ? error.message
-            : 'OAuth-Daten konnten nicht gespeichert werden',
-      },
-      { status: 500 }
-    )
+    const message =
+      error instanceof Error ? error.message : 'OAuth-Daten konnten nicht gespeichert werden'
+    const status = isGoogleCalendarInfrastructureError(error) ? 503 : 500
+    return NextResponse.json({ error: message }, { status })
   }
 }
 

@@ -70,7 +70,7 @@ export async function loadAvailabilityContextForRange(
         .eq('status', 'approved')
         .lte('start_date', endDate)
         .or(`end_date.gte.${startDate},end_date.is.null`),
-      getGoogleBlockedDatesForRange(startDate, endDate),
+      getGoogleBlockedDatesForRange(startDate, endDate).catch(() => []),
     ])
 
   if (settingsResult.error) {

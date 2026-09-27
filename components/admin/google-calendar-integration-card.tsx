@@ -61,6 +61,8 @@ export function GoogleCalendarIntegrationCard() {
   const [loadingCalendars, setLoadingCalendars] = useState(false)
   const [savingCalendar, setSavingCalendar] = useState(false)
   const [blockingSaving, setBlockingSaving] = useState(false)
+  const [migrationRequired, setMigrationRequired] = useState(false)
+  const [setupMessage, setSetupMessage] = useState<string | null>(null)
 
   const loadSettings = useCallback(async () => {
     const response = await authenticatedFetch('/api/admin/integrations/google-calendar')
@@ -70,6 +72,8 @@ export function GoogleCalendarIntegrationCard() {
     }
     setSettings(data.settings ?? null)
     setRedirectUri(data.redirectUri ?? '')
+    setMigrationRequired(Boolean(data.migrationRequired))
+    setSetupMessage(typeof data.setupMessage === 'string' ? data.setupMessage : null)
     if (data.settings?.client_id) {
       setClientIdInput(data.settings.client_id)
     }
@@ -307,6 +311,9 @@ export function GoogleCalendarIntegrationCard() {
   }
 
   const statusBadge = (() => {
+    if (migrationRequired) {
+      return { label: 'Migration ausstehend', variant: 'secondary' as const }
+    }
     if (settings?.blocking_enabled && settings.is_connected && settings.calendar_id) {
       return { label: 'Blockierung aktiv', variant: 'default' as const }
     }
@@ -345,6 +352,13 @@ export function GoogleCalendarIntegrationCard() {
         </div>
       </CardHeader>
       <CardContent className="space-y-6">
+        {migrationRequired && setupMessage && (
+          <div className="rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950 max-w-2xl">
+            <p className="font-medium">Datenbank-Migration fehlt</p>
+            <p className="mt-1">{setupMessage}</p>
+          </div>
+        )}
+
         <CollapsibleAdminCard title="Einrichtungs-Anleitung (Google Cloud Console)" defaultExpanded={!settings?.oauth_configured}>
           <ol className="list-decimal list-inside space-y-3 text-sm text-sage-700 max-w-2xl">
             <li>
@@ -379,11 +393,9 @@ export function GoogleCalendarIntegrationCard() {
                 </Button>
               </div>
               <p className="text-xs text-sage-500 mt-2">
-                Für lokale Entwicklung zusätzlich{' '}
-                <code className="bg-sage-100 px-1 rounded">
-                  http://localhost:3000/api/admin/integrations/google-calendar/oauth/callback
-                </code>{' '}
-                eintragen.
+                Die Weiterleitungs-URI muss exakt mit der Domain übereinstimmen, unter der du das
+                Admin einrichtest (Produktion: www.tierischgutbetreut.de). Optional für lokale Tests
+                eine zweite URI mit localhost eintragen.
               </p>
             </li>
             <li>Client-ID und Client-Geheimnis unten speichern.</li>
@@ -452,6 +464,7 @@ export function GoogleCalendarIntegrationCard() {
           <Button
             onClick={handleSaveCredentials}
             disabled={
+              migrationRequired ||
               savingCredentials ||
               clientIdInput.trim().length < 10 ||
               clientSecretInput.trim().length < 10
@@ -463,7 +476,7 @@ export function GoogleCalendarIntegrationCard() {
           <Button
             variant="secondary"
             onClick={handleConnectGoogle}
-            disabled={!settings?.oauth_configured}
+            disabled={migrationRequired || !settings?.oauth_configured}
           >
             Mit Google verbinden
           </Button>

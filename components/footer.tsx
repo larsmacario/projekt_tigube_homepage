@@ -107,6 +107,9 @@ export function Footer() {
             <Link href="/login" className="hover:text-white transition-colors">
               Login
             </Link>
+            <Link href="/registrieren" className="hover:text-white transition-colors">
+              Konto aktivieren
+            </Link>
             <Link href="/impressum" className="hover:text-white transition-colors">
               Impressum
             </Link>

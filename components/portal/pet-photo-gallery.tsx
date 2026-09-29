@@ -34,6 +34,8 @@ type PetPhotoGalleryProps = {
   readOnly?: boolean
   apiBase?: 'portal' | 'admin'
   onPhotoCountChange?: (count: number) => void
+  /** Tier ist in der DB – Uploads werden sofort persistiert */
+  autoSaveEnabled?: boolean
 }
 
 async function uploadPetPhotoViaApi(
@@ -65,7 +67,7 @@ async function uploadPetPhotoViaApi(
 
 export const PetPhotoGallery = forwardRef<PetPhotoGalleryHandle, PetPhotoGalleryProps>(
   function PetPhotoGallery(
-    { petId, readOnly = false, apiBase = 'portal', onPhotoCountChange },
+    { petId, readOnly = false, apiBase = 'portal', onPhotoCountChange, autoSaveEnabled = false },
     ref
   ) {
     const { toast } = useToast()
@@ -335,7 +337,15 @@ export const PetPhotoGallery = forwardRef<PetPhotoGalleryHandle, PetPhotoGallery
 
         {!petId && !readOnly && pendingPhotos.length > 0 && (
           <p className="text-sm text-sage-600 bg-sage-50 border border-sage-200 rounded-md px-3 py-2">
-            Die ausgewählten Fotos werden beim Speichern des Tieres automatisch hochgeladen.
+            {autoSaveEnabled
+              ? 'Die Fotos werden automatisch hochgeladen.'
+              : 'Trage Name und Tierart ein – dann werden die Fotos automatisch gespeichert.'}
+          </p>
+        )}
+
+        {autoSaveEnabled && petId && !readOnly && (
+          <p className="text-sm text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-md px-3 py-2">
+            Tierfotos werden automatisch gespeichert.
           </p>
         )}
 
@@ -365,7 +375,7 @@ export const PetPhotoGallery = forwardRef<PetPhotoGalleryHandle, PetPhotoGallery
                   className="h-full w-full object-cover"
                 />
                 <span className="absolute bottom-2 left-2 rounded bg-black/60 px-2 py-0.5 text-[10px] text-white">
-                  Wird mitgespeichert
+                  {autoSaveEnabled ? 'Wird hochgeladen…' : 'Automatisch gespeichert (bald)'}
                 </span>
                 <Button
                   type="button"

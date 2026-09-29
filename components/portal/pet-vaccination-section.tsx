@@ -37,6 +37,7 @@ type PetVaccinationSectionProps = {
   impfpassGalleryRef?: RefObject<PetImpfpassGalleryHandle | null>
   onImpfpassCountChange?: (count: number) => void
   customer?: CatCustomerContext | null
+  impfpassAutoSaveEnabled?: boolean
 }
 
 export function PetVaccinationSection({
@@ -49,6 +50,7 @@ export function PetVaccinationSection({
   impfpassGalleryRef,
   onImpfpassCountChange,
   customer = null,
+  impfpassAutoSaveEnabled = false,
 }: PetVaccinationSectionProps) {
   const today = new Date().toISOString().split('T')[0]
   const isDogPet = isDog(values.tierart)
@@ -75,6 +77,7 @@ export function PetVaccinationSection({
           documents={documents}
           onDocumentsChange={onDocumentsChange}
           onImpfpassCountChange={onImpfpassCountChange}
+          autoSaveEnabled={impfpassAutoSaveEnabled}
         />
       )}
 

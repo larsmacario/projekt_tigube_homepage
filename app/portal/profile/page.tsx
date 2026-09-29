@@ -1,6 +1,6 @@
 'use client'
 
-import { Suspense, useEffect, useState, useRef } from 'react'
+import { Suspense, useCallback, useEffect, useState, useRef } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -142,6 +142,39 @@ function ProfileContent() {
   const petImpfpassGalleryRef = useRef<PetImpfpassGalleryHandle>(null)
   const [photoGalleryKey, setPhotoGalleryKey] = useState('new-pet')
   const [carePlan, setCarePlan] = useState<PetCarePlan>(() => carePlanFromPet())
+  const [petFormSaveStatus, setPetFormSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle')
+  const [profileAutoSaveStatus, setProfileAutoSaveStatus] = useState<'idle' | 'saving' | 'saved'>(
+    'idle'
+  )
+
+  const petDraftCreatingRef = useRef(false)
+  const skipPetAutoSaveRef = useRef(false)
+  const skipProfileAutoSaveRef = useRef(true)
+  const editingPetIdRef = useRef<string | null>(null)
+  const petFormDataRef = useRef(petFormData)
+  const carePlanRef = useRef(carePlan)
+  const wurmtestFilesRef = useRef(wurmtestFiles)
+  const formPhotoCountRef = useRef(formPhotoCount)
+
+  useEffect(() => {
+    petFormDataRef.current = petFormData
+  }, [petFormData])
+
+  useEffect(() => {
+    carePlanRef.current = carePlan
+  }, [carePlan])
+
+  useEffect(() => {
+    wurmtestFilesRef.current = wurmtestFiles
+  }, [wurmtestFiles])
+
+  useEffect(() => {
+    formPhotoCountRef.current = formPhotoCount
+  }, [formPhotoCount])
+
+  useEffect(() => {
+    editingPetIdRef.current = editingPetId
+  }, [editingPetId])
 
   useEffect(() => {
     console.log('Component mounted, loading profile...')
@@ -305,6 +338,275 @@ function ProfileContent() {
     } catch (error) {
       console.error('Error loading pets:', error)
     }
+  }
+
+  const flushPetPendingUploads = useCallback(
+    async (petId: string): Promise<number> => {
+      let photoCount = formPhotoCountRef.current
+      const pendingWurmtests = wurmtestFilesRef.current
+
+      if (pendingWurmtests.length > 0) {
+        const { documents: uploaded, errors } = await uploadPortalDocuments({
+          files: pendingWurmtests,
+          documentType: 'wurmtest',
+          petId,
+          description: 'Wurmtest-Befund',
+        })
+        if (uploaded.length > 0) {
+          setWurmtestFiles([])
+          wurmtestFilesRef.current = []
+        }
+        if (errors.length > 0 && uploaded.length === 0) {
+          toast({
+            title: 'Warnung',
+            description: errors[0],
+            variant: 'destructive',
+          })
+        }
+      }
+
+      if (petImpfpassGalleryRef.current) {
+        try {
+          await petImpfpassGalleryRef.current.flushPendingUploads(petId)
+        } catch {
+          // Fehlertoast kommt aus der Galerie
+        }
+      }
+
+      if (petPhotoGalleryRef.current) {
+        try {
+          photoCount = await petPhotoGalleryRef.current.flushPendingUploads(petId)
+          setFormPhotoCount(photoCount)
+          formPhotoCountRef.current = photoCount
+        } catch {
+          // Fehlertoast kommt aus der Galerie
+        }
+      }
+
+      return photoCount
+    },
+    [toast]
+  )
+
+  const savePetFieldsToServer = useCallback(
+    async (petId: string): Promise<Pet | null> => {
+      const response = await authenticatedFetch(`/api/portal/pets/${petId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(
+          buildPetSaveBody(petFormDataRef.current, carePlanRef.current)
+        ),
+      })
+
+      const { data: petData, error: saveApiError } = await readApiResponse<{
+        pet?: Pet
+        error?: string
+      }>(response)
+
+      if (saveApiError || !petData?.pet) {
+        throw new Error(saveApiError || 'Fehler beim Speichern')
+      }
+
+      return petData.pet
+    },
+    []
+  )
+
+  const ensurePetDraft = useCallback(async (): Promise<string | null> => {
+    if (editingPetIdRef.current) return editingPetIdRef.current
+    if (petDraftCreatingRef.current) return null
+
+    const form = petFormDataRef.current
+    const name = form.name?.trim()
+    const tierart = form.tierart?.trim()
+    if (!name || !tierart) return null
+
+    petDraftCreatingRef.current = true
+    setPetFormSaveStatus('saving')
+
+    try {
+      const response = await authenticatedFetch('/api/portal/pets', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(
+          buildPetSaveBody({ ...form, name, tierart }, carePlanRef.current)
+        ),
+      })
+
+      const { data: petData, error: saveApiError } = await readApiResponse<{
+        pet?: Pet
+        error?: string
+      }>(response)
+
+      if (saveApiError || !petData?.pet?.id) {
+        throw new Error(saveApiError || 'Tier konnte nicht angelegt werden')
+      }
+
+      const savedPetId = petData.pet.id
+      skipPetAutoSaveRef.current = true
+      editingPetIdRef.current = savedPetId
+      setEditingPetId(savedPetId)
+      await flushPetPendingUploads(savedPetId)
+      await loadPets()
+      setPetFormSaveStatus('saved')
+      return savedPetId
+    } catch (error) {
+      console.error('Error creating pet draft:', error)
+      setPetFormSaveStatus('idle')
+      toast({
+        title: 'Fehler',
+        description:
+          error instanceof Error
+            ? mapPortalApiError(error.message)
+            : 'Tier konnte nicht automatisch gespeichert werden',
+        variant: 'destructive',
+      })
+      return null
+    } finally {
+      petDraftCreatingRef.current = false
+    }
+  }, [flushPetPendingUploads, toast])
+
+  const autosavePersonalData = useCallback(async () => {
+    if (loading || !customer) return
+
+    setProfileAutoSaveStatus('saving')
+    try {
+      const response = await authenticatedFetch('/api/portal/profile', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(personalData),
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        setCustomer(data.customer)
+        setEmailChange(data.emailChange || null)
+        if (data.emailChange) {
+          setPersonalData((current) => ({ ...current, email: data.customer.email || '' }))
+        }
+        setProfileAutoSaveStatus('saved')
+      } else {
+        setProfileAutoSaveStatus('idle')
+      }
+    } catch (error) {
+      console.error('Error autosaving profile:', error)
+      setProfileAutoSaveStatus('idle')
+    }
+  }, [customer, loading, personalData])
+
+  useEffect(() => {
+    if (!showPetForm || editingPetId) return
+
+    const name = petFormData.name?.trim()
+    const tierart = petFormData.tierart?.trim()
+    if (!name || !tierart) return
+
+    const timer = setTimeout(() => {
+      void ensurePetDraft()
+    }, 800)
+
+    return () => clearTimeout(timer)
+  }, [showPetForm, editingPetId, petFormData.name, petFormData.tierart, ensurePetDraft])
+
+  useEffect(() => {
+    if (!showPetForm || !editingPetId) return
+    if (skipPetAutoSaveRef.current) {
+      skipPetAutoSaveRef.current = false
+      return
+    }
+
+    const petId = editingPetId
+    const timer = setTimeout(() => {
+      void (async () => {
+        setPetFormSaveStatus('saving')
+        try {
+          await savePetFieldsToServer(petId)
+          await flushPetPendingUploads(petId)
+          setPetFormSaveStatus('saved')
+        } catch (error) {
+          console.error('Error autosaving pet:', error)
+          setPetFormSaveStatus('idle')
+        }
+      })()
+    }, 800)
+
+    return () => clearTimeout(timer)
+  }, [
+    showPetForm,
+    editingPetId,
+    petFormData,
+    carePlan,
+    wurmtestFiles,
+    savePetFieldsToServer,
+    flushPetPendingUploads,
+  ])
+
+  useEffect(() => {
+    if (loading || step !== 1 || !customer) return
+    if (skipProfileAutoSaveRef.current) {
+      skipProfileAutoSaveRef.current = false
+      return
+    }
+
+    const timer = setTimeout(() => {
+      void autosavePersonalData()
+    }, 1000)
+
+    return () => clearTimeout(timer)
+  }, [personalData, loading, step, customer, autosavePersonalData])
+
+  function resetEmptyPetFormFields() {
+    setPetFormData({
+      name: '',
+      tierart: '',
+      rasse: '',
+      farbe: '',
+      wiedererkennungsmerkmal: '',
+      geschlecht: '',
+      letzte_impfung: '',
+      letzte_impfung_zusatz: '',
+      futtermenge: '',
+      medikamente: '',
+      besonderheiten: '',
+      intervall_impfung: '',
+      intervall_entwurmung: '',
+      letzte_stuhlprobe: '',
+      naechste_stuhlprobe: '',
+      deceased_at: '',
+    })
+    setCarePlan(carePlanFromPet())
+    setWurmtestFiles([])
+    setFormPhotoCount(0)
+    setFormImpfpassCount(0)
+    setPetFormSaveStatus('idle')
+  }
+
+  async function closePetFormKeepDraft() {
+    if (editingPetId) {
+      try {
+        await savePetFieldsToServer(editingPetId)
+        await flushPetPendingUploads(editingPetId)
+        await loadPets()
+        toast({
+          title: 'Gespeichert',
+          description:
+            'Dein Tier bleibt in der Liste – du kannst jederzeit weiter ergänzen oder später fortfahren.',
+        })
+      } catch (error) {
+        console.error('Error saving before close:', error)
+        toast({
+          title: 'Hinweis',
+          description:
+            'Das Formular wird geschlossen. Bereits gespeicherte Daten findest du in der Tierliste.',
+        })
+        await loadPets()
+      }
+    }
+
+    setShowPetForm(false)
+    setEditingPetId(null)
+    resetEmptyPetFormFields()
   }
 
   // Polling für mobile Unterschrift
@@ -717,113 +1019,25 @@ function ProfileContent() {
     try {
       setUploadingDocuments(true)
       const wasEditing = !!editingPetId
-      
-      const url = editingPetId 
-        ? `/api/portal/pets/${editingPetId}`
-        : '/api/portal/pets'
-      const method = editingPetId ? 'PUT' : 'POST'
-      
-      const response = await authenticatedFetch(url, {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(buildPetSaveBody(petFormData, carePlan)),
-      })
 
-      const { data: petData, error: saveApiError } = await readApiResponse<{
-        pet?: Pet
-        error?: string
-      }>(response)
-
-      if (saveApiError || !petData?.pet) {
-        toast({
-          title: 'Fehler',
-          description: saveApiError || 'Fehler beim Speichern',
-          variant: 'destructive',
-        })
+      let savedPetId = editingPetId
+      if (!savedPetId) {
+        savedPetId = await ensurePetDraft()
+      }
+      if (!savedPetId) {
         setUploadingDocuments(false)
         return
       }
 
-      const savedPetId = petData.pet.id || editingPetId
-      let photoCount = formPhotoCount
-
-      // Lade Dokumente hoch, falls vorhanden
-      if (savedPetId) {
-        const uploadPromises: Promise<void>[] = []
-
-        if (wurmtestFiles.length > 0) {
-          uploadPromises.push(
-            uploadPortalDocuments({
-              files: wurmtestFiles,
-              documentType: 'wurmtest',
-              petId: savedPetId,
-              description: 'Wurmtest-Befund',
-            }).then(({ documents: uploaded, errors }) => {
-              if (errors.length > 0) {
-                toast({
-                  title: 'Warnung',
-                  description:
-                    errors.length === wurmtestFiles.length
-                      ? errors[0]
-                      : `${uploaded.length} von ${wurmtestFiles.length} Wurmtest-Dateien hochgeladen.`,
-                  variant: 'destructive',
-                })
-              }
-            })
-          )
-        }
-
-        await Promise.all(uploadPromises)
-
-        if (petImpfpassGalleryRef.current) {
-          try {
-            await petImpfpassGalleryRef.current.flushPendingUploads(savedPetId)
-          } catch {
-            // Fehlertoast kommt aus der Galerie
-          }
-        }
-
-        if (petPhotoGalleryRef.current) {
-          try {
-            photoCount = await petPhotoGalleryRef.current.flushPendingUploads(savedPetId)
-            setFormPhotoCount(photoCount)
-          } catch {
-            // Fehlertoast kommt aus der Galerie
-          }
-        }
-
-        if (!editingPetId) {
-          setEditingPetId(savedPetId)
-        }
-      }
-
+      await savePetFieldsToServer(savedPetId)
+      const photoCount = await flushPetPendingUploads(savedPetId)
       await loadPets()
 
       const missingPhoto = photoCount === 0
 
-      setPetFormData({
-        name: '',
-        tierart: '',
-        rasse: '',
-        farbe: '',
-        wiedererkennungsmerkmal: '',
-        geschlecht: '',
-        letzte_impfung: '',
-        letzte_impfung_zusatz: '',
-        futtermenge: '',
-        medikamente: '',
-        besonderheiten: '',
-        intervall_impfung: '',
-        intervall_entwurmung: '',
-        letzte_stuhlprobe: '',
-        naechste_stuhlprobe: '',
-        deceased_at: '',
-      })
-      setWurmtestFiles([])
+      resetEmptyPetFormFields()
       setShowPetForm(false)
       setEditingPetId(null)
-      setFormPhotoCount(0)
-      setFormImpfpassCount(0)
       toast({
         title: 'Erfolg',
         description: wasEditing ? 'Tier erfolgreich aktualisiert' : 'Tier erfolgreich hinzugefügt',
@@ -849,6 +1063,8 @@ function ProfileContent() {
   }
 
   function openPetForm(pet?: Pet) {
+    skipPetAutoSaveRef.current = true
+    setPetFormSaveStatus('idle')
     if (pet) {
       setEditingPetId(pet.id)
       setPetFormData({
@@ -1206,6 +1422,19 @@ function ProfileContent() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
+            {(profileAutoSaveStatus === 'saving' || profileAutoSaveStatus === 'saved') && (
+              <p
+                className={`text-sm rounded-md px-3 py-2 border ${
+                  profileAutoSaveStatus === 'saved'
+                    ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                    : 'bg-sage-50 border-sage-200 text-sage-700'
+                }`}
+              >
+                {profileAutoSaveStatus === 'saving'
+                  ? 'Persönliche Daten werden automatisch gespeichert…'
+                  : 'Persönliche Daten automatisch gespeichert'}
+              </p>
+            )}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="vorname">Vorname *</Label>
@@ -1427,11 +1656,27 @@ function ProfileContent() {
               {showPetForm && (
                 <div className="p-4 border border-sage-200 rounded-lg bg-sage-50 space-y-4">
                   <p className="text-sm text-sage-600">
-                    Speichere zuerst Name und Tierart –{' '}
-                    {isCatCustomer(customer)
-                      ? 'Wurmtest und weitere Angaben kannst du danach jederzeit ergänzen.'
-                      : 'Impfpass, Wurmtest und weitere Angaben kannst du danach jederzeit ergänzen.'}
+                    {editingPetId
+                      ? 'Deine Angaben und hochgeladenen Dateien werden automatisch gespeichert – du kannst jederzeit unterbrechen und später weitermachen.'
+                      : `Trage Name und Tierart ein – danach wird das Tier automatisch angelegt. ${
+                          isCatCustomer(customer)
+                            ? 'Wurmtest und weitere Angaben kannst du danach jederzeit ergänzen.'
+                            : 'Impfpass, Wurmtest und weitere Angaben kannst du danach jederzeit ergänzen.'
+                        }`}
                   </p>
+                  {(petFormSaveStatus === 'saving' || petFormSaveStatus === 'saved') && (
+                    <p
+                      className={`text-sm rounded-md px-3 py-2 border ${
+                        petFormSaveStatus === 'saved'
+                          ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                          : 'bg-sage-50 border-sage-200 text-sage-700'
+                      }`}
+                    >
+                      {petFormSaveStatus === 'saving'
+                        ? 'Wird automatisch gespeichert…'
+                        : 'Automatisch gespeichert'}
+                    </p>
+                  )}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                       <Label htmlFor="pet-name">Name *</Label>
@@ -1509,6 +1754,7 @@ function ProfileContent() {
                     ref={petPhotoGalleryRef}
                     key={photoGalleryKey}
                     petId={editingPetId}
+                    autoSaveEnabled={!!editingPetId}
                     onPhotoCountChange={(count) => {
                       setFormPhotoCount(count)
                       if (count > 0) void loadPets()
@@ -1567,6 +1813,7 @@ function ProfileContent() {
                       impfpassGalleryRef={petImpfpassGalleryRef}
                       onImpfpassCountChange={setFormImpfpassCount}
                       customer={customer}
+                      impfpassAutoSaveEnabled={!!editingPetId}
                     />
 
                     {/* Wurmtest Bereich */}
@@ -1642,41 +1889,17 @@ function ProfileContent() {
                       loading={uploadingDocuments}
                       className="bg-sage-600 hover:bg-sage-700"
                     >
-                      {uploadingDocuments 
-                        ? 'Wird gespeichert...' 
-                        : editingPetId 
-                        ? 'Tier aktualisieren' 
-                        : 'Tier speichern'}
+                      {uploadingDocuments
+                        ? 'Wird gespeichert...'
+                        : editingPetId
+                          ? 'Fertig – Formular schließen'
+                          : 'Tier speichern'}
                     </Button>
                     <Button
                       variant="outline"
-                      onClick={() => {
-                        setShowPetForm(false)
-                        setEditingPetId(null)
-                        setPetFormData({
-                          name: '',
-                          tierart: '',
-                          rasse: '',
-                          farbe: '',
-                          wiedererkennungsmerkmal: '',
-                          geschlecht: '',
-                          letzte_impfung: '',
-                          letzte_impfung_zusatz: '',
-                          futtermenge: '',
-                          medikamente: '',
-                          besonderheiten: '',
-                          intervall_impfung: '',
-                          intervall_entwurmung: '',
-                          letzte_stuhlprobe: '',
-                          naechste_stuhlprobe: '',
-                          deceased_at: '',
-                        })
-                        setWurmtestFiles([])
-                        setFormPhotoCount(0)
-                        setFormImpfpassCount(0)
-                      }}
+                      onClick={() => void closePetFormKeepDraft()}
                     >
-                      Abbrechen
+                      {editingPetId ? 'Schließen (Daten bleiben gespeichert)' : 'Abbrechen'}
                     </Button>
                   </div>
                 </div>

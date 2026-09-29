@@ -74,6 +74,8 @@ type PetImpfpassGalleryProps = {
   onImpfpassCountChange?: (count: number) => void
   /** documents: Dokumente-Seite – Beispiele immer sichtbar, ohne Einführungsbox */
   variant?: 'pet-form' | 'documents'
+  /** Tier ist in der DB – Uploads werden sofort persistiert */
+  autoSaveEnabled?: boolean
 }
 
 function isImageFile(file: File): boolean {
@@ -82,7 +84,15 @@ function isImageFile(file: File): boolean {
 
 export const PetImpfpassGallery = forwardRef<PetImpfpassGalleryHandle, PetImpfpassGalleryProps>(
   function PetImpfpassGallery(
-    { petId, documents, pets, onDocumentsChange, onImpfpassCountChange, variant = 'pet-form' },
+    {
+      petId,
+      documents,
+      pets,
+      onDocumentsChange,
+      onImpfpassCountChange,
+      variant = 'pet-form',
+      autoSaveEnabled = false,
+    },
     ref
   ) {
     const { toast } = useToast()
@@ -827,8 +837,16 @@ export const PetImpfpassGallery = forwardRef<PetImpfpassGalleryHandle, PetImpfpa
 
         {!petId && (pendingPhotos.length > 0 || sessionPendingItems.length > 0) && (
           <p className="text-sm text-sage-700 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2">
-            <strong>Hinweis:</strong> Die Fotos werden erst beim Speichern des Tieres endgültig
-            verknüpft.
+            <strong>Hinweis:</strong>{' '}
+            {autoSaveEnabled
+              ? 'Die Impfpass-Fotos werden automatisch hochgeladen.'
+              : 'Trage Name und Tierart ein – dann werden die Impfpass-Fotos automatisch gespeichert.'}
+          </p>
+        )}
+
+        {autoSaveEnabled && petId && (
+          <p className="text-sm text-emerald-800 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2">
+            Impfpass-Fotos werden automatisch gespeichert.
           </p>
         )}
 
@@ -862,7 +880,7 @@ export const PetImpfpassGallery = forwardRef<PetImpfpassGalleryHandle, PetImpfpa
                     <FileText className="h-10 w-10 text-sage-400" />
                   )}
                   <span className="absolute top-2 left-2 rounded bg-black/60 px-2 py-0.5 text-[10px] text-white">
-                    Wird mitgespeichert
+                    {autoSaveEnabled ? 'Wird hochgeladen…' : 'Automatisch gespeichert (bald)'}
                   </span>
                   <Button
                     type="button"
@@ -913,7 +931,11 @@ export const PetImpfpassGallery = forwardRef<PetImpfpassGalleryHandle, PetImpfpa
                     <p className="text-xs text-sage-600 line-clamp-2">{item.description}</p>
                   )}
                   {!petId && (
-                    <p className="text-[10px] text-blue-700">Wird beim Speichern verknüpft</p>
+                    <p className="text-[10px] text-blue-700">
+                      {autoSaveEnabled
+                        ? 'Wird automatisch verknüpft'
+                        : 'Wird nach Name & Tierart gespeichert'}
+                    </p>
                   )}
                 </div>
               </div>

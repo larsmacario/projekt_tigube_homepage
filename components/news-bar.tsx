@@ -1,6 +1,7 @@
 "use client"
 
 import React, { useState, useEffect } from "react"
+import { readApiResponse } from "@/lib/read-api-response"
 import { Calendar } from "lucide-react"
 import {
   Dialog,
@@ -40,12 +41,15 @@ export function NewsBar() {
   async function loadNewsBar() {
     try {
       const response = await fetch('/api/newsbar')
-      const data = await response.json()
-      
-      if (data.settings) {
+      const { data } = await readApiResponse<{
+        settings?: NewsBarSettings | null
+        vacationDates?: VacationDate[]
+      }>(response)
+
+      if (data?.settings) {
         setSettings(data.settings)
       }
-      if (data.vacationDates) {
+      if (data?.vacationDates) {
         setVacationDates(data.vacationDates)
       }
     } catch (error) {

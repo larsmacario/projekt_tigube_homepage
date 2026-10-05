@@ -20,12 +20,12 @@ import { authenticatedFetch } from '@/lib/authenticated-fetch'
 import { readApiResponse } from '@/lib/read-api-response'
 import { getBookingHorizonEndIso } from '@/lib/booking-horizon'
 import { startOfDay, toIsoDate } from '@/lib/vacation-dates'
-import { getVacationPeriodsInRange } from '@/lib/booking-availability'
-import type { VacationDate } from '@/lib/vacation-dates'
+import { fetchPortalAvailabilitySnapshot } from '@/lib/portal-availability-client'
 import { groupBookingsForDisplay } from '@/lib/booking-request-groups'
 import { formatDayCareBookingSummary } from '@/lib/day-care-booking'
 import { BookingGroupListCard } from '@/components/booking/booking-group-list-card'
 import { BookingCancellationDialog } from '@/components/portal/booking-cancellation-dialog'
+import { BookingModificationDialog } from '@/components/booking/booking-modification-dialog'
 
 interface PortalAvailability {
   vacationPeriods: Array<{ start_date: string; end_date: string; label: string }>
@@ -81,6 +81,7 @@ export default function BookingsPage() {
   const [loading, setLoading] = useState(true)
   const [selectedBooking, setSelectedBooking] = useState<BookingRequest | null>(null)
   const [cancellationBooking, setCancellationBooking] = useState<BookingRequest | null>(null)
+  const [modificationBooking, setModificationBooking] = useState<BookingRequest | null>(null)
   const { toast } = useToast()
 
   const [availability, setAvailability] = useState<PortalAvailability>({
@@ -94,33 +95,14 @@ export default function BookingsPage() {
     try {
       const todayIso = toIsoDate(today)
       const rangeEnd = getBookingHorizonEndIso(today)
-
-      const response = await authenticatedFetch(
-        `/api/portal/bookings/availability?from_date=${todayIso}&to_date=${rangeEnd}`
-      )
-
-      const { data, error } = await readApiResponse<{
-        vacationPeriods?: PortalAvailability['vacationPeriods']
-        closedDates?: string[]
-        error?: string
-      }>(response)
-
-      let vacationPeriods = data?.vacationPeriods || []
-      const closedDates = data?.closedDates || []
-
-      if (vacationPeriods.length === 0) {
-        const newsbarRes = await fetch('/api/newsbar')
-        const newsbarJson = await newsbarRes.json().catch(() => ({}))
-        const rawDates = (newsbarJson.vacationDates || []) as VacationDate[]
-        vacationPeriods = getVacationPeriodsInRange(rawDates, todayIso, rangeEnd)
-      }
-
-      if (error && vacationPeriods.length === 0 && closedDates.length === 0) {
-        console.error('Error loading availability:', error)
-        return
-      }
-
-      setAvailability({ vacationPeriods, closedDates })
+      const snapshot = await fetchPortalAvailabilitySnapshot({
+        fromDate: todayIso,
+        toDate: rangeEnd,
+      })
+      setAvailability({
+        vacationPeriods: snapshot.vacationPeriods,
+        closedDates: snapshot.closedDates,
+      })
     } catch (error) {
       console.error('Error loading availability:', error)
     }
@@ -171,6 +153,15 @@ export default function BookingsPage() {
 
   function canCancelBooking(booking: BookingRequest): boolean {
     return booking.status === 'approved' || booking.status === 'pending'
+  }
+
+  function canModifyBooking(booking: BookingRequest): boolean {
+    return booking.status === 'approved' || booking.status === 'pending'
+  }
+
+  function handleBookingModified(updated: BookingRequest) {
+    setBookings((current) => current.map((b) => (b.id === updated.id ? updated : b)))
+    setSelectedBooking((current) => (current?.id === updated.id ? updated : current))
   }
 
   const grouped = useMemo(() => groupBookingsForDisplay(bookings), [bookings])
@@ -398,17 +389,29 @@ export default function BookingsPage() {
                         </p>
                         <p className="text-sage-600">{getServiceLabel(booking.service_type)}</p>
                       </div>
-                      {canCancelBooking(booking) ? (
-                        <Button
-                          variant="outline"
-                          className="border-red-200 text-red-700 hover:bg-red-50"
-                          onClick={() => setCancellationBooking(booking)}
-                        >
-                          {booking.service_type === 'tagesbetreuung' &&
-                          booking.day_care_mode === 'recurring'
-                            ? 'Urlaub / Platz freigeben'
-                            : 'Stornieren'}
-                        </Button>
+                      {canModifyBooking(booking) || canCancelBooking(booking) ? (
+                        <div className="flex flex-wrap justify-end gap-2">
+                          {canModifyBooking(booking) && (
+                            <Button
+                              variant="outline"
+                              onClick={() => setModificationBooking(booking)}
+                            >
+                              Zeitraum anpassen
+                            </Button>
+                          )}
+                          {canCancelBooking(booking) && (
+                            <Button
+                              variant="outline"
+                              className="border-red-200 text-red-700 hover:bg-red-50"
+                              onClick={() => setCancellationBooking(booking)}
+                            >
+                              {booking.service_type === 'tagesbetreuung' &&
+                              booking.day_care_mode === 'recurring'
+                                ? 'Urlaub / Platz freigeben'
+                                : 'Stornieren'}
+                            </Button>
+                          )}
+                        </div>
                       ) : (
                         <Badge className={getStatusColor(booking.status)}>
                           {getStatusLabel(booking.status)}
@@ -417,17 +420,29 @@ export default function BookingsPage() {
                     </div>
                   ))}
                 </div>
-              ) : canCancelBooking(selectedBooking) ? (
-                <Button
-                  variant="outline"
-                  className="border-red-200 text-red-700 hover:bg-red-50"
-                  onClick={() => setCancellationBooking(selectedBooking)}
-                >
-                  {selectedBooking.service_type === 'tagesbetreuung' &&
-                  selectedBooking.day_care_mode === 'recurring'
-                    ? 'Urlaub / Platz freigeben'
-                    : 'Buchung stornieren'}
-                </Button>
+              ) : canModifyBooking(selectedBooking) || canCancelBooking(selectedBooking) ? (
+                <div className="flex flex-wrap gap-2">
+                  {canModifyBooking(selectedBooking) && (
+                    <Button
+                      variant="outline"
+                      onClick={() => setModificationBooking(selectedBooking)}
+                    >
+                      Zeitraum anpassen
+                    </Button>
+                  )}
+                  {canCancelBooking(selectedBooking) && (
+                    <Button
+                      variant="outline"
+                      className="border-red-200 text-red-700 hover:bg-red-50"
+                      onClick={() => setCancellationBooking(selectedBooking)}
+                    >
+                      {selectedBooking.service_type === 'tagesbetreuung' &&
+                      selectedBooking.day_care_mode === 'recurring'
+                        ? 'Urlaub / Platz freigeben'
+                        : 'Buchung stornieren'}
+                    </Button>
+                  )}
+                </div>
               ) : null}
             </div>
           </DialogContent>
@@ -441,6 +456,16 @@ export default function BookingsPage() {
           if (!open) setCancellationBooking(null)
         }}
         onCancelled={handleBookingCancelled}
+      />
+
+      <BookingModificationDialog
+        booking={modificationBooking}
+        open={!!modificationBooking}
+        mode="portal"
+        onOpenChange={(open) => {
+          if (!open) setModificationBooking(null)
+        }}
+        onUpdated={handleBookingModified}
       />
     </div>
   )

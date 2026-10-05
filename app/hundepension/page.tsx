@@ -122,8 +122,8 @@ const defaultAdditionalServices = [
 ]
 
 const defaultPickupTimes = [
-  { days: "Montag - Freitag", times: "7-8h / 12-14h (nur mit festem Termin) / 17-18h" },
-  { days: "Samstag - Sonn-/Feiertag", times: "9-10h / 17-18h" }
+  { days: "Montag - Freitag", times: "7-8h / 12-14h (mit Termin) / 17-18h" },
+  { days: "Samstag, Sonntag, Feiertag", times: "9-10h / 17-18h" },
 ]
 
 export default async function HundepensionPage() {

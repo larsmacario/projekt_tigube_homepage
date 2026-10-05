@@ -17,6 +17,11 @@ const REFERRED_MESSAGE_PREFIX =
 
 export const TIGUBE_URL = 'https://tigube.de'
 
+/** Kalendertage für Buchungen/Ferien (Anzeige = Europe/Berlin). */
+export const BOOKING_CALENDAR_TIME_ZONE = 'Europe/Berlin'
+
+const ISO_DATE_PREFIX = /^(\d{4})-(\d{2})-(\d{2})/
+
 export function parseVacationPeriod(
   periodStr: string
 ): ResolvedVacationBounds | null {
@@ -56,17 +61,17 @@ export function parseVacationPeriod(
 
 export function parseIsoDate(dateString: string): Date | null {
   if (!dateString) return null
-  const parts = dateString.split('-')
-  if (parts.length !== 3) {
-    const parsed = new Date(dateString)
-    return isNaN(parsed.getTime()) ? null : parsed
+  const match = ISO_DATE_PREFIX.exec(dateString.trim())
+  if (match) {
+    const date = new Date(
+      parseInt(match[1], 10),
+      parseInt(match[2], 10) - 1,
+      parseInt(match[3], 10)
+    )
+    return isNaN(date.getTime()) ? null : date
   }
-  const date = new Date(
-    parseInt(parts[0], 10),
-    parseInt(parts[1], 10) - 1,
-    parseInt(parts[2], 10)
-  )
-  return isNaN(date.getTime()) ? null : date
+  const parsed = new Date(dateString)
+  return isNaN(parsed.getTime()) ? null : parsed
 }
 
 export function startOfDay(date: Date): Date {
@@ -180,6 +185,14 @@ export function toIsoDate(date: Date): string {
   const month = String(date.getMonth() + 1).padStart(2, '0')
   const day = String(date.getDate()).padStart(2, '0')
   return `${year}-${month}-${day}`
+}
+
+/** ISO-Kalendertag aus react-day-picker (bevorzugt `isoDate` des Pickers). */
+export function isoDateFromCalendarDay(day: { date: Date; isoDate?: string }): string {
+  if (typeof day.isoDate === 'string' && ISO_DATE_PREFIX.test(day.isoDate)) {
+    return day.isoDate.slice(0, 10)
+  }
+  return toIsoDate(day.date)
 }
 
 export function buildReferredLeadMessage(message: string): string {

@@ -32,6 +32,11 @@ export function DayCareRepeatSection({
   return (
     <div className="space-y-3 rounded-lg border border-sage-200/80 bg-sage-50/40 p-3">
       <Label className="text-sm">Wiederholen</Label>
+      <p className="text-xs text-sage-600">
+        <strong>Einzelne Tage:</strong> nur die im Kalender angeklickten Termine.{' '}
+        <strong>Wöchentlich / 14-tägig:</strong> fester Rhythmus ab Starttag (nicht nur diese
+        konkreten Kalendertage).
+      </p>
       <div className="flex flex-wrap gap-2">
         <Button
           type="button"
@@ -40,7 +45,7 @@ export function DayCareRepeatSection({
           className={schedule.repeat === 'none' ? 'bg-sage-600 hover:bg-sage-700' : ''}
           onClick={() => setRepeat('none')}
         >
-          Nein
+          Einzelne Tage
         </Button>
         <Button
           type="button"

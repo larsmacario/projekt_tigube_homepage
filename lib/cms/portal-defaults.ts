@@ -70,8 +70,7 @@ export const defaultKundenportalData: KundenportalData = {
     { days: 'Montag - Freitag', times: '7-8h / 12-14h (mit Termin) / 17-18h' },
     { days: 'Samstag, Sonntag, Feiertag', times: '9-10h / 17-18h' },
   ],
-  pickupTimesNote:
-    'Außerhalb der offiziellen Zeiten nur mit Termin und gegen Aufpreis.',
+  pickupTimesNote: 'Andere Zeiten nur auf Anfrage.',
   pickupTimeDefaults: defaultPickupTimeDefaults,
   documentsTitle: 'Nötige Unterlagen für den Hundeurlaub und die Tagesbetreuung',
   documentsIntro:

@@ -20,7 +20,10 @@ import { getGoogleBlockedDatesForRange } from '@/lib/google-calendar'
 
 async function loadVacationDates(adminClient: SupabaseClient): Promise<VacationDate[]> {
   try {
-    return await loadPublicVacationDates()
+    const publicDates = await loadPublicVacationDates()
+    if (publicDates.length > 0) {
+      return publicDates
+    }
   } catch (publicError) {
     console.error('Public vacation load failed, trying admin client:', publicError)
   }
@@ -46,6 +49,25 @@ async function loadVacationDates(adminClient: SupabaseClient): Promise<VacationD
   }
 
   return (data || []) as VacationDate[]
+}
+
+/** Public newsbar first; admin fallback if empty or public load failed. */
+export async function loadVacationsForSnapshot(): Promise<VacationDate[]> {
+  try {
+    const publicDates = await loadPublicVacationDates()
+    if (publicDates.length > 0) {
+      return publicDates
+    }
+  } catch (error) {
+    console.error('Failed to load public vacation dates:', error)
+  }
+
+  try {
+    return await loadVacationDates(getAdminDbClient())
+  } catch (adminError) {
+    console.error('Failed to load vacation dates via admin:', adminError)
+    return []
+  }
 }
 
 export async function loadAvailabilityContextForRange(
@@ -136,54 +158,51 @@ export async function getPortalAvailabilitySnapshot(
   serviceType?: ServiceType | null,
   _userClient?: SupabaseClient
 ): Promise<PortalAvailabilitySnapshot> {
-  let vacations: VacationDate[] = []
-
   try {
-    vacations = await loadPublicVacationDates()
-  } catch (error) {
-    console.error('Failed to load public vacation dates:', error)
+    const vacations = await loadVacationsForSnapshot()
+    const vacationPeriods = getVacationPeriodsInRange(vacations, fromDate, toDate)
+
+    let publicHolidays: PublicHolidayEntry[] = []
     try {
-      vacations = await loadVacationDates(getAdminDbClient())
-    } catch (adminError) {
-      console.error('Failed to load vacation dates via admin:', adminError)
+      publicHolidays = await getPublicHolidaysInRange(fromDate, toDate)
+    } catch (error) {
+      console.error('Failed to load public holidays:', error)
     }
-  }
 
-  const vacationPeriods = getVacationPeriodsInRange(vacations, fromDate, toDate)
-
-  let publicHolidays: PublicHolidayEntry[] = []
-  try {
-    publicHolidays = await getPublicHolidaysInRange(fromDate, toDate)
-  } catch (error) {
-    console.error('Failed to load public holidays:', error)
-  }
-
-  if (!serviceType) {
-    return {
-      vacationPeriods,
-      closedDates: [],
-      publicHolidays,
+    if (!serviceType) {
+      return {
+        vacationPeriods,
+        closedDates: [],
+        publicHolidays,
+      }
     }
-  }
 
-  try {
-    const context = await loadAvailabilityContextForRange(
-      fromDate,
-      toDate,
-      getAdminDbClient()
-    )
+    try {
+      const context = await loadAvailabilityContextForRange(
+        fromDate,
+        toDate,
+        getAdminDbClient()
+      )
 
-    return {
-      vacationPeriods,
-      closedDates: getBlockedDatesForService(context, serviceType, fromDate, toDate),
-      publicHolidays,
+      return {
+        vacationPeriods,
+        closedDates: getBlockedDatesForService(context, serviceType, fromDate, toDate),
+        publicHolidays,
+      }
+    } catch (error) {
+      console.error('Failed to load closed dates for service:', error)
+      return {
+        vacationPeriods,
+        closedDates: [],
+        publicHolidays,
+      }
     }
   } catch (error) {
-    console.error('Failed to load closed dates for service:', error)
+    console.error('getPortalAvailabilitySnapshot failed:', error)
     return {
-      vacationPeriods,
+      vacationPeriods: [],
       closedDates: [],
-      publicHolidays,
+      publicHolidays: [],
     }
   }
 }

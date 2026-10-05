@@ -8,7 +8,10 @@ import { Calendar } from '@/components/ui/calendar'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { isDateInVacationPeriods } from '@/lib/booking-availability'
-import { toIsoDate } from '@/lib/vacation-dates'
+import {
+  BOOKING_CALENDAR_TIME_ZONE,
+  isoDateFromCalendarDay,
+} from '@/lib/vacation-dates'
 
 export type BookingVacationPeriod = {
   start_date: string
@@ -44,7 +47,7 @@ export function createBookingVacationDayButton(
     className,
     ...props
   }: ComponentProps<typeof DayButton>) {
-    const isoDate = toIsoDate(day.date)
+    const isoDate = isoDateFromCalendarDay(day)
     const isVacation = isDateInVacationPeriods(isoDate, vacationPeriods)
     const isClosed = !isVacation && closedDates.includes(isoDate)
     const holidayName = publicHolidayByDate.get(isoDate)
@@ -68,10 +71,14 @@ export function createBookingVacationDayButton(
         data-range-middle={modifiers.range_middle}
         className={cn(
           'flex h-[--cell-size] min-h-[--cell-size] w-full min-w-[--cell-size] flex-col items-center justify-center gap-0.5 rounded-md bg-background p-0 font-normal leading-none',
-          'data-[selected-single=true]:bg-primary data-[selected-single=true]:text-primary-foreground',
-          'data-[range-middle=true]:bg-accent data-[range-middle=true]:text-accent-foreground',
-          'data-[range-start=true]:bg-primary data-[range-start=true]:text-primary-foreground',
-          'data-[range-end=true]:bg-primary data-[range-end=true]:text-primary-foreground',
+          !isVacation &&
+            'data-[selected-single=true]:bg-primary data-[selected-single=true]:text-primary-foreground',
+          !isVacation &&
+            'data-[range-middle=true]:bg-accent data-[range-middle=true]:text-accent-foreground',
+          !isVacation &&
+            'data-[range-start=true]:bg-primary data-[range-start=true]:text-primary-foreground',
+          !isVacation &&
+            'data-[range-end=true]:bg-primary data-[range-end=true]:text-primary-foreground',
           isVacation &&
             '!cursor-not-allowed border border-amber-300 !bg-amber-100 !text-amber-950 hover:!bg-amber-100 hover:!text-amber-950 opacity-100',
           isClosed &&
@@ -85,7 +92,7 @@ export function createBookingVacationDayButton(
         {...props}
       >
         <span className={cn('text-sm font-semibold leading-none', isVacation && 'text-amber-950')}>
-          {day.date.getDate()}
+          {Number.parseInt(isoDate.slice(8, 10), 10)}
         </span>
         {isVacation ? (
           <span className="max-w-[3.1rem] text-center text-[0.48rem] font-bold leading-tight text-amber-900">
@@ -167,6 +174,7 @@ export function BookingRangeCalendar({
     <div className="relative isolate overflow-hidden rounded-xl bg-white">
       <Calendar
         mode="range"
+        timeZone={BOOKING_CALENDAR_TIME_ZONE}
         locale={deDayPicker}
         weekStartsOn={1}
         selected={selected}

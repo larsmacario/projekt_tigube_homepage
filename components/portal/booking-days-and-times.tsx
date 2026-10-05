@@ -1,5 +1,6 @@
 'use client'
 
+import { useMemo } from 'react'
 import { Plus } from 'lucide-react'
 import { type DateRange } from 'react-day-picker'
 
@@ -22,6 +23,12 @@ import type { BookingExtraCategory, BookingExtraPrice } from '@/lib/booking-extr
 import { cn } from '@/lib/utils'
 import { startOfDay, toIsoDate } from '@/lib/vacation-dates'
 import type { PortalBookingStep2DateBlockUI } from '@/lib/portal-booking-step2-validation'
+import { buildPublicHolidayDateSet } from '@/lib/public-holidays-de'
+import {
+  collectDayCareIsoDatesForWizard,
+  pickupChipOptionsForSpan,
+  pickupChipOptionsUnionForDates,
+} from '@/lib/pickup-time-chip-options'
 
 export type PetServiceLineUI = {
   pet_id: string
@@ -60,6 +67,8 @@ export function BookingDaysAndTimes({
   onRemoveDateBlock,
   onDayCareDatesSelect,
   onDayCareScheduleChange,
+  pickupSpan,
+  dayCareRecurring,
 }: {
   pets: Pet[]
   resolvedPetLines: PetServiceLineUI[]
@@ -96,7 +105,43 @@ export function BookingDaysAndTimes({
   onRemoveDateBlock: (index: number) => void
   onDayCareDatesSelect: (petId: string, dates: Date[] | undefined) => void
   onDayCareScheduleChange: (petId: string, patch: Partial<DayCareScheduleUI>) => void
+  pickupSpan?: { start: string; end: string } | null
+  dayCareRecurring?: Record<
+    string,
+    {
+      weekdays: number[]
+      startDate?: Date
+      endDate?: Date
+      unbefristet?: boolean
+      intervalWeeks?: 1 | 2
+    }
+  >
 }) {
+  const holidaySet = useMemo(
+    () => buildPublicHolidayDateSet(availability.publicHolidays),
+    [availability.publicHolidays]
+  )
+
+  const rangeSpan = useMemo(() => {
+    if (pickupSpan) return pickupSpan
+    const block = dateBlocks.find((b) => b.from)
+    if (!block?.from) return null
+    return {
+      start: toIsoDate(startOfDay(block.from)),
+      end: toIsoDate(startOfDay(block.to ?? block.from)),
+    }
+  }, [pickupSpan, dateBlocks])
+
+  const rangeDropOffChipOptions = useMemo(
+    () => pickupChipOptionsForSpan(rangeSpan, holidaySet, 'drop_off'),
+    [rangeSpan, holidaySet]
+  )
+
+  const rangePickUpChipOptions = useMemo(
+    () => pickupChipOptionsForSpan(rangeSpan, holidaySet, 'pick_up'),
+    [rangeSpan, holidaySet]
+  )
+
   const calendarProps = {
     disabled: isDateUnavailable,
     vacationPeriods: availability.vacationPeriods,
@@ -180,6 +225,9 @@ export function BookingDaysAndTimes({
                   label="Bringen (am ersten Tag)"
                   value={dropOffTime}
                   onChange={onDropOffChange}
+                  options={rangeDropOffChipOptions}
+                  evaluationIsoDate={rangeSpan?.start}
+                  publicHolidayDates={holidaySet}
                   prices={catalogPrices}
                   categories={priceCategories}
                 />
@@ -187,6 +235,9 @@ export function BookingDaysAndTimes({
                   label="Abholen (am letzten Tag)"
                   value={pickUpTime}
                   onChange={onPickUpChange}
+                  options={rangePickUpChipOptions}
+                  evaluationIsoDate={rangeSpan?.end}
+                  publicHolidayDates={holidaySet}
                   showOvernightHint={hundepensionRange}
                   prices={catalogPrices}
                   categories={priceCategories}
@@ -208,6 +259,13 @@ export function BookingDaysAndTimes({
           unbefristet: true,
         }
         const dates = dayCareOnceDates[line.pet_id] || []
+        const petIsoDates = collectDayCareIsoDatesForWizard({
+          onceDates: dates,
+          schedule,
+          recurring: dayCareRecurring?.[line.pet_id],
+        })
+        const petChipOptions = pickupChipOptionsUnionForDates(petIsoDates, holidaySet)
+        const sortedPetDates = [...petIsoDates].sort()
 
         return (
           <div
@@ -220,9 +278,13 @@ export function BookingDaysAndTimes({
           >
             <Label>Tagesbetreuung{pet ? ` – ${pet.name}` : ''}</Label>
             <p className="text-sm text-sage-600">
-              Wähle einen oder mehrere Tage im Kalender. Bei Wiederholung dienen die Tage als
-              Muster für Wochentage und Start.
+              Im Kalender beliebig viele Einzeltage wählen – auch verteilt über Monate (z.&nbsp;B. Mo
+              in Woche&nbsp;1, Fr in Woche&nbsp;2, Mi in Woche&nbsp;3). Dafür bei „Wiederholen“{' '}
+              <strong>Einzelne Tage</strong> aktiv lassen. Alle gewählten Tage gehen in{' '}
+              <strong>einer Anfrage</strong> raus; Bring-/Holzeit gilt vorerst für jeden Tag gleich
+              (später im Portal unter „Zeitraum anpassen“ Tage ändern).
             </p>
+            <BookingCalendarLegend className="mb-2" />
             <div className="rounded-xl border border-sage-200/80 bg-white p-3">
               <div className="flex w-full justify-center">
                 <BookingMultiDayCalendar
@@ -252,6 +314,9 @@ export function BookingDaysAndTimes({
                   label="Bringen (Standard pro Betreuungstag)"
                   value={dropOffTime}
                   onChange={onDropOffChange}
+                  options={petChipOptions}
+                  evaluationIsoDate={sortedPetDates[0]}
+                  publicHolidayDates={holidaySet}
                   prices={catalogPrices}
                   categories={priceCategories}
                 />
@@ -259,10 +324,16 @@ export function BookingDaysAndTimes({
                   label="Abholen (Standard pro Betreuungstag)"
                   value={pickUpTime}
                   onChange={onPickUpChange}
+                  options={petChipOptions}
+                  evaluationIsoDate={sortedPetDates[sortedPetDates.length - 1]}
+                  publicHolidayDates={holidaySet}
                   showOvernightHint
                   prices={catalogPrices}
                   categories={priceCategories}
                 />
+                {pickupTimesNote?.trim() && (
+                  <p className="text-sm text-sage-600">{pickupTimesNote.trim()}</p>
+                )}
               </div>
             )}
 
@@ -283,6 +354,9 @@ export function BookingDaysAndTimes({
             label="Bringen"
             value={dropOffTime}
             onChange={onDropOffChange}
+            options={rangeDropOffChipOptions}
+            evaluationIsoDate={rangeSpan?.start}
+            publicHolidayDates={holidaySet}
             prices={catalogPrices}
             categories={priceCategories}
           />
@@ -290,10 +364,16 @@ export function BookingDaysAndTimes({
             label="Abholen"
             value={pickUpTime}
             onChange={onPickUpChange}
+            options={rangePickUpChipOptions}
+            evaluationIsoDate={rangeSpan?.end}
+            publicHolidayDates={holidaySet}
             showOvernightHint
             prices={catalogPrices}
             categories={priceCategories}
           />
+          {pickupTimesNote?.trim() && (
+            <p className="text-sm text-sage-600">{pickupTimesNote.trim()}</p>
+          )}
         </div>
       )}
 

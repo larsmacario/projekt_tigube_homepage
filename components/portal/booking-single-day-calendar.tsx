@@ -6,6 +6,7 @@ import type { Matcher } from 'react-day-picker'
 
 import { Calendar } from '@/components/ui/calendar'
 import { cn } from '@/lib/utils'
+import { BOOKING_CALENDAR_TIME_ZONE } from '@/lib/vacation-dates'
 import {
   bookingRangeCalendarClassName,
   bookingRangeCalendarClassNames,
@@ -79,6 +80,7 @@ export function BookingSingleDayCalendar({
     >
       <Calendar
         mode="single"
+        timeZone={BOOKING_CALENDAR_TIME_ZONE}
         locale={deDayPicker}
         weekStartsOn={1}
         selected={selected}

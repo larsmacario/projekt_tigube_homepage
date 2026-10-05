@@ -25,6 +25,7 @@ import { expandBookingOccupiedDates } from '@/lib/day-care-booking'
 import { getBookingHorizonEndIso } from '@/lib/booking-horizon'
 import { startOfDay, toIsoDate } from '@/lib/vacation-dates'
 import { BookingDetailSheet } from '@/components/admin/booking-detail-sheet'
+import { BookingModificationDialog } from '@/components/booking/booking-modification-dialog'
 import { useAdminMetrics } from '@/components/admin/admin-metrics-provider'
 import { BookingGroupListCard } from '@/components/booking/booking-group-list-card'
 import { InvoiceSyncPanel } from '@/components/admin/invoice-sync-panel'
@@ -54,6 +55,7 @@ export default function AdminBookingsPage() {
   const [isDetailOpen, setIsDetailOpen] = useState(false)
   const [isOverrideDialogOpen, setIsOverrideDialogOpen] = useState(false)
   const [adminNotes, setAdminNotes] = useState('')
+  const [modificationBooking, setModificationBooking] = useState<BookingRequest | null>(null)
   const [filterStatus, setFilterStatus] = useState<string>('all')
   const [filterService, setFilterService] = useState<string>('all')
   const [overrideForm, setOverrideForm] = useState({
@@ -652,10 +654,31 @@ export default function AdminBookingsPage() {
         onAdminNotesChange={setAdminNotes}
         onStatusChange={handleStatusChange}
         onMarkCancellationProcessed={handleMarkCancellationProcessed}
+        onOpenModification={
+          selectedBooking &&
+          (selectedBooking.status === 'pending' || selectedBooking.status === 'approved')
+            ? () => setModificationBooking(selectedBooking)
+            : undefined
+        }
         onClose={() => {
           setIsDetailOpen(false)
           setSelectedBooking(null)
           setAdminNotes('')
+        }}
+      />
+
+      <BookingModificationDialog
+        booking={modificationBooking}
+        open={!!modificationBooking}
+        mode="admin"
+        onOpenChange={(open) => {
+          if (!open) setModificationBooking(null)
+        }}
+        onUpdated={(updated) => {
+          setBookings((current) => current.map((b) => (b.id === updated.id ? updated : b)))
+          setSelectedBooking((current) => (current?.id === updated.id ? updated : current))
+          setModificationBooking(null)
+          void loadData()
         }}
       />
         </TabsContent>

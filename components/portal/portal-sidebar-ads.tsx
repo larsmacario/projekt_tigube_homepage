@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState } from "react"
 import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
 import { authenticatedFetch } from "@/lib/authenticated-fetch"
+import { readApiResponse } from "@/lib/read-api-response"
 import {
   getNextAdIndex,
   groupAdsByFormat,
@@ -121,9 +122,14 @@ export function PortalSidebarAds() {
     async function loadAds() {
       try {
         const response = await authenticatedFetch("/api/portal/ads")
-        const data = (await response.json()) as PortalAdsResponse & { error?: string }
-        if (!response.ok) {
-          throw new Error(data.error || "Fehler beim Laden der Werbeanzeigen")
+        const { data, error } = await readApiResponse<
+          PortalAdsResponse & { error?: string }
+        >(response)
+        if (error) {
+          throw new Error(error)
+        }
+        if (!data) {
+          throw new Error("Fehler beim Laden der Werbeanzeigen")
         }
         setPayload({
           formats: data.formats || [],

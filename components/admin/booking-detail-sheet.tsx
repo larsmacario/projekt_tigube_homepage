@@ -69,6 +69,7 @@ export interface BookingDetailSheetProps {
   onAdminNotesChange: (value: string) => void
   onStatusChange: (status: 'approved' | 'rejected') => void
   onMarkCancellationProcessed?: () => void
+  onOpenModification?: () => void
   onClose: () => void
 }
 
@@ -80,6 +81,7 @@ export function BookingDetailSheet({
   onAdminNotesChange,
   onStatusChange,
   onMarkCancellationProcessed,
+  onOpenModification,
   onClose,
 }: BookingDetailSheetProps) {
   if (!booking) {
@@ -256,6 +258,11 @@ export function BookingDetailSheet({
         <div className="shrink-0 border-t border-sage-200 bg-background px-6 py-4">
           {booking.status === 'pending' ? (
             <div className="flex flex-wrap justify-end gap-2">
+              {onOpenModification && (
+                <Button type="button" variant="secondary" onClick={onOpenModification}>
+                  Zeitraum anpassen
+                </Button>
+              )}
               <Button type="button" variant="outline" onClick={onClose}>
                 Schließen
               </Button>
@@ -272,6 +279,11 @@ export function BookingDetailSheet({
             </div>
           ) : (
             <div className="flex flex-wrap justify-end gap-2">
+              {(booking.status === 'approved' && onOpenModification) && (
+                <Button type="button" variant="secondary" onClick={onOpenModification}>
+                  Zeitraum anpassen
+                </Button>
+              )}
               {booking.cancellation_financial_status === 'pending' &&
                 onMarkCancellationProcessed && (
                   <Button type="button" onClick={onMarkCancellationProcessed}>

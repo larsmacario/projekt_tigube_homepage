@@ -54,11 +54,17 @@ export async function fetchPublicHolidaysForYearUncached(
     next: { revalidate: 86400 },
   })
 
+  const text = await response.text()
   if (!response.ok) {
     throw new Error(`Feiertags-API Fehler (${response.status}) für ${year}`)
   }
 
-  const data = (await response.json()) as NagerHoliday[]
+  let data: NagerHoliday[]
+  try {
+    data = JSON.parse(text) as NagerHoliday[]
+  } catch {
+    throw new Error(`Feiertags-API Antwort ungültig für ${year}`)
+  }
   return mapNagerHolidays(data, region)
 }
 

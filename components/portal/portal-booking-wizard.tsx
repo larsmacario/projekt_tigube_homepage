@@ -40,10 +40,8 @@ import { resolvePickupDateSpan } from '@/lib/pickup-date-span'
 import { readApiResponse } from '@/lib/read-api-response'
 import type { BookingExtraCategory, BookingExtraPrice } from '@/lib/booking-extras'
 import { getServicesForPetType } from '@/lib/booking-service'
-import {
-  isDateInVacationPeriods,
-  iterateIsoDateRange,
-} from '@/lib/booking-availability'
+import { isDateInVacationPeriods, iterateIsoDateRange } from '@/lib/booking-availability'
+import { fetchPortalAvailabilitySnapshot } from '@/lib/portal-availability-client'
 import { VatPriceDisplay } from '@/components/vat-price-display'
 import { cn } from '@/lib/utils'
 import { isRangeService } from '@/lib/day-care-booking'
@@ -324,21 +322,30 @@ export function PortalBookingWizard({
   }, [dayCareLines, dayCareScheduleByPet, dayCareOnceDates, availability])
 
   useEffect(() => {
-    setPetLines((prev) =>
-      prev.map((line) => {
+    setPetLines((prev) => {
+      let changed = false
+      const next = prev.map((line) => {
         if (line.service_type !== 'tagesbetreuung') {
+          if (!line.day_care_mode) return line
+          changed = true
           return { ...line, day_care_mode: '' }
         }
         const schedule = dayCareScheduleByPet[line.pet_id] ?? {
           repeat: 'none' as const,
           unbefristet: true,
         }
-        return { ...line, day_care_mode: dayCareModeFromSchedule(schedule.repeat) }
+        const mode = dayCareModeFromSchedule(schedule.repeat)
+        if (line.day_care_mode === mode) return line
+        changed = true
+        return { ...line, day_care_mode: mode }
       })
-    )
+      return changed ? next : prev
+    })
 
     setDayCareRecurring((prev) => {
       const next = { ...prev }
+      let changed = false
+
       for (const line of resolvedPetLines.filter((l) => l.service_type === 'tagesbetreuung')) {
         const schedule = dayCareScheduleByPet[line.pet_id] ?? {
           repeat: 'none' as const,
@@ -346,20 +353,35 @@ export function PortalBookingWizard({
         }
         const dates = dayCareOnceDates[line.pet_id] || []
         if (schedule.repeat === 'none') {
-          delete next[line.pet_id]
+          if (line.pet_id in next) {
+            delete next[line.pet_id]
+            changed = true
+          }
           continue
         }
         const cfg = buildRecurringConfigFromSchedule(dates, schedule)
         if (!cfg) continue
-        next[line.pet_id] = {
+        const entry = {
           weekdays: cfg.weekdays,
           startDate: cfg.startDate,
           endDate: cfg.endDate,
           unbefristet: cfg.unbefristet,
           intervalWeeks: cfg.intervalWeeks,
         }
+        const existing = prev[line.pet_id]
+        const same =
+          existing &&
+          existing.weekdays.length === entry.weekdays.length &&
+          existing.weekdays.every((d, i) => d === entry.weekdays[i]) &&
+          existing.startDate?.getTime() === entry.startDate?.getTime() &&
+          existing.endDate?.getTime() === entry.endDate?.getTime() &&
+          existing.unbefristet === entry.unbefristet &&
+          existing.intervalWeeks === entry.intervalWeeks
+        if (same) continue
+        next[line.pet_id] = entry
+        changed = true
       }
-      return next
+      return changed ? next : prev
     })
   }, [resolvedPetLines, dayCareScheduleByPet, dayCareOnceDates])
 
@@ -369,30 +391,12 @@ export function PortalBookingWizard({
     try {
       const todayIso = toIsoDate(today)
       const rangeEnd = getBookingHorizonEndIso(today)
-
-      const query =
-        serviceTypes.length > 0
-          ? `/api/portal/bookings/availability?service_types=${serviceTypes.join(',')}&from_date=${todayIso}&to_date=${rangeEnd}`
-          : `/api/portal/bookings/availability?from_date=${todayIso}&to_date=${rangeEnd}`
-
-      const response = await authenticatedFetch(query)
-      const { data, error } = await readApiResponse<{
-        vacationPeriods?: PortalAvailability['vacationPeriods']
-        closedDates?: string[]
-        publicHolidays?: PortalAvailability['publicHolidays']
-        error?: string
-      }>(response)
-
-      if (error && !data?.vacationPeriods?.length) {
-        console.error('Error loading availability:', error)
-        return
-      }
-
-      setAvailability({
-        vacationPeriods: data?.vacationPeriods || [],
-        closedDates: data?.closedDates || [],
-        publicHolidays: data?.publicHolidays || [],
+      const snapshot = await fetchPortalAvailabilitySnapshot({
+        fromDate: todayIso,
+        toDate: rangeEnd,
+        serviceTypes,
       })
+      setAvailability(snapshot)
     } catch (error) {
       console.error('Error loading availability:', error)
     }
@@ -402,8 +406,8 @@ export function PortalBookingWizard({
     setAddonsLoading(true)
     try {
       const response = await authenticatedFetch('/api/portal/addon-services')
-      const data = await response.json()
-      setAddonServices((data.addonServices || []) as AddonService[])
+      const { data } = await readApiResponse<{ addonServices?: AddonService[] }>(response)
+      setAddonServices(data?.addonServices ?? [])
     } catch (error) {
       console.error('Error loading addon services:', error)
       setAddonServices([])
@@ -422,18 +426,25 @@ export function PortalBookingWizard({
     setPricesLoading(true)
     try {
       const response = await authenticatedFetch('/api/prices')
-      const data = await response.json()
-      const categories = (data.categories || []) as BookingExtraCategory[]
-      const prices = (data.prices || []) as BookingExtraPrice[]
+      const { data } = await readApiResponse<{
+        categories?: BookingExtraCategory[]
+        prices?: BookingExtraPrice[]
+      }>(response)
+      const categories = data?.categories ?? []
+      const prices = data?.prices ?? []
       setPriceCategories(categories)
       setCatalogPrices(prices)
 
       const activePetIds = resolvedPetLines.map((line) => line.pet_id)
       const petPriceEntries = await Promise.all(
         activePetIds.map(async (petId) => {
-          const petResponse = await authenticatedFetch(`/api/prices?pet_id=${encodeURIComponent(petId)}`)
-          const petData = await petResponse.json()
-          return [petId, (petData.prices || []) as BookingExtraPrice[]] as const
+          const petResponse = await authenticatedFetch(
+            `/api/prices?pet_id=${encodeURIComponent(petId)}`
+          )
+          const { data: petData } = await readApiResponse<{ prices?: BookingExtraPrice[] }>(
+            petResponse
+          )
+          return [petId, petData?.prices ?? []] as const
         })
       )
       setCatalogPricesByPet(Object.fromEntries(petPriceEntries))
@@ -487,10 +498,8 @@ export function PortalBookingWizard({
   ])
 
   useEffect(() => {
-    if (step >= 2) {
-      loadAvailability()
-    }
-  }, [step, loadAvailability])
+    void loadAvailability()
+  }, [loadAvailability])
 
   useEffect(() => {
     const needsPriceCatalog =
@@ -536,6 +545,11 @@ export function PortalBookingWizard({
     }
     return today
   }, [availability.vacationPeriods, dateBlocks, rangeDateRange?.from, today])
+
+  useEffect(() => {
+    if (step !== 2) return
+    setCalendarMonth(calendarDefaultMonth)
+  }, [step, calendarDefaultMonth])
 
   function updatePetLine(index: number, patch: Partial<PetServiceLine>) {
     setPetLines((prev) =>
@@ -1036,6 +1050,8 @@ export function PortalBookingWizard({
               },
             }))
           }
+          pickupSpan={pickupSpan}
+          dayCareRecurring={dayCareRecurring}
         />
       )}
 

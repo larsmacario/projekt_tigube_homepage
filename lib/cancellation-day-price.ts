@@ -1,5 +1,6 @@
 import type { BookingLineItem, BookingRequest } from '@/lib/types'
 import { getBookingLineItems } from '@/lib/cancellation-booking-total'
+import { iterateIsoDateRange } from '@/lib/booking-availability'
 import { isSurchargeCalendarDay } from '@/lib/booking-sunday-holiday-surcharge'
 import { FIXED_PERCENTAGE_SURCHARGE_RATE } from '@/lib/price-catalog-policy'
 import { isoWeekdayFromIsoDate } from '@/lib/day-care-interval'
@@ -160,6 +161,39 @@ export function resolveScopeTotalForCancelledDates(input: {
         dayCount: dates.length,
         method: 'ratio',
       },
+    }
+  }
+
+  if (
+    dates.length > 0 &&
+    input.booking.end_date &&
+    input.booking.service_type !== 'tagesbetreuung'
+  ) {
+    const totalDays = iterateIsoDateRange(
+      input.booking.start_date,
+      input.booking.end_date
+    ).length
+    const ratio = totalDays > 0 ? dates.length / totalDays : 1
+    return {
+      scopeTotal: roundMoney(input.bookingTotal * ratio),
+      priceSnapshot: { perDay: [], dayCount: dates.length, method: 'ratio' },
+    }
+  }
+
+  if (
+    dates.length > 0 &&
+    input.booking.end_date &&
+    input.booking.service_type === 'tagesbetreuung' &&
+    !input.booking.selected_dates?.length
+  ) {
+    const totalDays = iterateIsoDateRange(
+      input.booking.start_date,
+      input.booking.end_date
+    ).length
+    const ratio = totalDays > 0 ? dates.length / totalDays : 1
+    return {
+      scopeTotal: roundMoney(input.bookingTotal * ratio),
+      priceSnapshot: { perDay: [], dayCount: dates.length, method: 'ratio' },
     }
   }
 

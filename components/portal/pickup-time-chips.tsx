@@ -6,7 +6,12 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { cn } from '@/lib/utils'
-import { isValidTimeHHmm } from '@/lib/pickup-time-surcharge'
+import { defaultPickupChipOptions } from '@/lib/pickup-time-chip-options'
+import {
+  evaluatePickupTimeOnDate,
+  isValidTimeHHmm,
+  PICKUP_TIME_MIDDAY_NOTE,
+} from '@/lib/pickup-time-surcharge'
 import {
   needsOvernightOnLastDay,
   OVERNIGHT_PICKUP_NOTE,
@@ -15,22 +20,7 @@ import {
 import type { BookingExtraCategory, BookingExtraPrice } from '@/lib/booking-extras'
 import { formatEuro } from '@/lib/price-override'
 
-const STEP_MINUTES = 30
-
-function buildTimeOptions(startHour: number, endHour: number): string[] {
-  const options: string[] = []
-  for (let h = startHour; h <= endHour; h++) {
-    for (const m of [0, 30]) {
-      if (h === endHour && m > 0) break
-      options.push(`${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`)
-    }
-  }
-  return options
-}
-
-export function defaultPickupChipOptions(): string[] {
-  return buildTimeOptions(6, 21)
-}
+export { defaultPickupChipOptions } from '@/lib/pickup-time-chip-options'
 
 export function PickupTimeChips({
   label,
@@ -41,6 +31,8 @@ export function PickupTimeChips({
   prices,
   categories,
   className,
+  evaluationIsoDate,
+  publicHolidayDates,
 }: {
   label: string
   value: string
@@ -50,15 +42,25 @@ export function PickupTimeChips({
   prices?: BookingExtraPrice[]
   categories?: BookingExtraCategory[]
   className?: string
+  /** Für Hinweise (Mittagsfenster); z. B. erster Bringtag. */
+  evaluationIsoDate?: string
+  publicHolidayDates?: Set<string>
 }) {
   const [customOpen, setCustomOpen] = useState(false)
   const chips = options ?? defaultPickupChipOptions()
+  const holidaySet = publicHolidayDates ?? new Set<string>()
 
   const overnightFee = useMemo(() => {
     if (!showOvernightHint || !prices?.length || !categories?.length) return null
     if (!needsOvernightOnLastDay(value)) return null
     return resolveOvernightUnitPrice(prices, categories)
   }, [showOvernightHint, value, prices, categories])
+
+  const middayNote = useMemo(() => {
+    if (!value || !evaluationIsoDate) return false
+    const evaluation = evaluatePickupTimeOnDate(evaluationIsoDate, value, holidaySet)
+    return evaluation.middayAppointmentNote
+  }, [value, evaluationIsoDate, holidaySet])
 
   const inChips = value && chips.includes(value)
 
@@ -88,7 +90,7 @@ export function PickupTimeChips({
           className={customOpen || (value && !inChips) ? 'bg-sage-600 hover:bg-sage-700' : ''}
           onClick={() => setCustomOpen(true)}
         >
-          Andere Uhrzeit
+          Andere Zeit (auf Anfrage)
         </Button>
       </div>
       {(customOpen || (value && !inChips)) && (
@@ -98,6 +100,9 @@ export function PickupTimeChips({
           onChange={(e) => onChange(e.target.value)}
           className="max-w-[10rem] bg-white"
         />
+      )}
+      {middayNote && (
+        <p className="text-sm text-sage-700">{PICKUP_TIME_MIDDAY_NOTE}</p>
       )}
       {overnightFee != null && (
         <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">

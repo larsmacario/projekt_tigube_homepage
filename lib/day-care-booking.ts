@@ -124,7 +124,7 @@ export function validateDayCarePetPayload(
   }
 
   if (!line.day_care_mode) {
-    return { valid: false, error: 'Bitte wähle einmalig oder feste Wochentage für die Tagesbetreuung.' }
+    return { valid: false, error: 'Bitte wähle Termine für die Tagesbetreuung.' }
   }
 
   if (line.day_care_mode === 'once') {

@@ -15,6 +15,12 @@ import {
   mergeKundenportalData,
   type KundenportalData,
 } from '@/lib/cms/portal-defaults'
+import type { CancellationSection } from '@/lib/cms/cancellation-policy'
+import { CANCELLATION_POLICY_V2_CONFIG } from '@/lib/cancellation-policy-seed-v2'
+import {
+  getPolicyDisplayTitle,
+  policyToCancellationSections,
+} from '@/lib/cancellation-policy-display'
 import { PickupTimesReference } from '@/components/portal/pickup-times-reference'
 import { isCustomerProfileComplete } from '@/lib/customer-profile-complete'
 import { isCatCustomer } from '@/lib/cat-customer'
@@ -26,6 +32,15 @@ export default function PortalPage() {
   const [bookings, setBookings] = useState<BookingRequest[]>([])
   const [loading, setLoading] = useState(true)
   const [portalCms, setPortalCms] = useState<KundenportalData>(defaultKundenportalData)
+  const [cancellationTitle, setCancellationTitle] = useState(
+    getPolicyDisplayTitle(CANCELLATION_POLICY_V2_CONFIG, 'hundepension', 'portal')
+  )
+  const [cancellationSections, setCancellationSections] = useState<CancellationSection[]>(
+    policyToCancellationSections(CANCELLATION_POLICY_V2_CONFIG, 'hundepension', 'portal')
+  )
+  const [cancellationNotes, setCancellationNotes] = useState<string[]>(
+    CANCELLATION_POLICY_V2_CONFIG.generalNotes
+  )
 
   useEffect(() => {
     loadData()
@@ -33,20 +48,24 @@ export default function PortalPage() {
 
   async function loadData() {
     try {
-      const [profileRes, petsRes, docsRes, bookingsRes, cmsRes] = await Promise.all([
+      const [profileRes, petsRes, docsRes, bookingsRes, cmsRes, cancellationRes] =
+        await Promise.all([
         authenticatedFetch('/api/portal/profile'),
         authenticatedFetch('/api/portal/pets'),
         authenticatedFetch('/api/portal/documents'),
         authenticatedFetch('/api/portal/bookings'),
         fetch('/api/cms?key=kundenportal'),
+        fetch('/api/cancellation-policy?scope=hundepension&channel=portal'),
       ])
 
-      const [profileData, petsData, docsData, bookingsData, cmsJson] = await Promise.all([
+      const [profileData, petsData, docsData, bookingsData, cmsJson, cancellationJson] =
+        await Promise.all([
         profileRes.json(),
         petsRes.json(),
         docsRes.json(),
         bookingsRes.json(),
         cmsRes.json(),
+        cancellationRes.json().catch(() => ({})),
       ])
 
       setCustomer(profileData.customer)
@@ -54,6 +73,11 @@ export default function PortalPage() {
       setDocuments(docsData.documents || [])
       setBookings(bookingsData.bookings || [])
       setPortalCms(mergeKundenportalData(cmsJson.data as KundenportalData | null))
+      if (cancellationRes.ok && cancellationJson?.sections) {
+        setCancellationTitle(cancellationJson.title ?? cancellationTitle)
+        setCancellationSections(cancellationJson.sections)
+        setCancellationNotes(cancellationJson.generalNotes ?? cancellationNotes)
+      }
     } catch (error) {
       console.error('Error loading data:', error)
     } finally {
@@ -401,9 +425,9 @@ export default function PortalPage() {
           </div>
 
           <div className="border-t pt-6">
-            <h3 className="text-lg font-semibold text-sage-900 mb-3">{portalCms.cancellationTitle}</h3>
+            <h3 className="text-lg font-semibold text-sage-900 mb-3">{cancellationTitle}</h3>
             <div className="space-y-6 text-sage-700">
-              {(portalCms.cancellationSections ?? []).map((section, sectionIdx) => (
+              {cancellationSections.map((section, sectionIdx) => (
                 <div key={sectionIdx} className="space-y-3">
                   {section.title ? (
                     <p className="font-semibold text-sage-900">{section.title}</p>
@@ -424,7 +448,7 @@ export default function PortalPage() {
                 </div>
               ))}
               <div className="mt-4 space-y-2 text-sm text-sage-600">
-                {(portalCms.cancellationNotes ?? []).map((note, idx) => (
+                {cancellationNotes.map((note, idx) => (
                   <p key={idx}>{note}</p>
                 ))}
               </div>

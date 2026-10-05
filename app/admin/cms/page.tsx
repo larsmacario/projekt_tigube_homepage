@@ -14,15 +14,13 @@ import { LegalContent } from "@/components/legal-content"
 import { adminFetch } from "@/lib/admin-fetch"
 import { mergeKundenportalData, type KundenportalData } from "@/lib/cms/portal-defaults"
 import { defaultPickupTimeDefaults, type PickupTimeDefaults } from "@/lib/pickup-time-defaults"
-import { CancellationSectionsEditor } from "@/components/admin/cms/cancellation-sections-editor"
+import { CancellationPolicyEditor } from '@/components/admin/cancellation-policy-editor'
 import { PickupTimeDefaultsFields } from "@/components/admin/cms/pickup-time-defaults-fields"
 import {
-  defaultKatzenCancellationSections,
-  defaultPensionCancellationSections,
-  defaultPortalCancellationSections,
-  getCancellationSectionsForEditor,
-  type CancellationSection,
-} from "@/lib/cms/cancellation-policy"
+  DEFAULT_CANCELLATION_POLICY_CONFIG,
+  normalizeCancellationPolicyConfig,
+  type CancellationPolicyConfig,
+} from '@/lib/cancellation-policy-config'
 
 // Types matching page constants
 interface HomepageData {
@@ -135,6 +133,15 @@ interface WaitlistData {
   successMessage?: string
   emailSubject?: string
   emailIntro?: string
+}
+
+function CentralCancellationNotice() {
+  return (
+    <p className="text-sm text-sage-600 rounded-lg border border-sage-200 bg-sage-50/60 p-4">
+      Stornobedingungen werden zentral im Reiter <strong>Stornobedingungen</strong> gepflegt und
+      erscheinen automatisch auf den Landingpages, in AGB/Vertrag und im Kundenportal.
+    </p>
+  )
 }
 
 const CMS_SECTION_LABELS: Record<string, string> = {
@@ -260,14 +267,22 @@ export default function CMSPage() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [cmsData, setCmsData] = useState<Record<string, any>>({})
+  const [cancellationConfig, setCancellationConfig] = useState<CancellationPolicyConfig>(
+    DEFAULT_CANCELLATION_POLICY_CONFIG
+  )
+  const [cancellationVersion, setCancellationVersion] = useState<number | null>(null)
+  const [savingCancellation, setSavingCancellation] = useState(false)
 
   // Fetch all CMS content on load
   useEffect(() => {
     async function loadCMSData() {
       try {
-        const res = await adminFetch('/api/admin/cms')
-        const result = await res.json()
-        if (res.ok) {
+        const [cmsRes, cancellationRes] = await Promise.all([
+          adminFetch('/api/admin/cms'),
+          adminFetch('/api/admin/cancellation-policy'),
+        ])
+        const result = await cmsRes.json()
+        if (cmsRes.ok) {
           const data = result.data || {}
           setCmsData({
             ...data,
@@ -279,6 +294,17 @@ export default function CMSPage() {
             description: result.error || 'Die CMS-Inhalte konnten nicht geladen werden.',
             variant: 'destructive',
           })
+        }
+
+        const cancellationData = await cancellationRes.json().catch(() => ({}))
+        if (cancellationRes.ok) {
+          setCancellationConfig(
+            normalizeCancellationPolicyConfig(
+              cancellationData.config,
+              DEFAULT_CANCELLATION_POLICY_CONFIG
+            )
+          )
+          setCancellationVersion(cancellationData.policy?.version ?? null)
         }
       } catch (err: any) {
         toast({
@@ -292,6 +318,35 @@ export default function CMSPage() {
     }
     loadCMSData()
   }, [])
+
+  async function handleSaveCancellationPolicy() {
+    setSavingCancellation(true)
+    try {
+      const response = await adminFetch('/api/admin/cancellation-policy', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ config: cancellationConfig }),
+      })
+      const data = await response.json()
+      if (!response.ok) {
+        throw new Error(data.error || 'Fehler beim Speichern')
+      }
+      setCancellationConfig(normalizeCancellationPolicyConfig(data.config))
+      setCancellationVersion(data.policy?.version ?? null)
+      toast({
+        title: 'Erfolg',
+        description: `Stornierungsbedingungen Version ${data.policy?.version ?? ''} gespeichert.`,
+      })
+    } catch (error) {
+      toast({
+        title: 'Fehler',
+        description: error instanceof Error ? error.message : 'Fehler beim Speichern',
+        variant: 'destructive',
+      })
+    } finally {
+      setSavingCancellation(false)
+    }
+  }
 
   // Save specific key to Supabase
   const handleSave = async (key: string) => {
@@ -428,6 +483,7 @@ export default function CMSPage() {
           <TabsTrigger value="hundepension" className="data-[state=active]:bg-sage-600 data-[state=active]:text-white">Hundepension</TabsTrigger>
           <TabsTrigger value="katzenbetreuung" className="data-[state=active]:bg-sage-600 data-[state=active]:text-white">Katzenbetreuung</TabsTrigger>
           <TabsTrigger value="kundenportal" className="data-[state=active]:bg-sage-600 data-[state=active]:text-white">Kundenportal</TabsTrigger>
+          <TabsTrigger value="stornobedingungen" className="data-[state=active]:bg-sage-600 data-[state=active]:text-white">Stornobedingungen</TabsTrigger>
           <TabsTrigger value="waitlist" className="data-[state=active]:bg-sage-600 data-[state=active]:text-white">Warteliste</TabsTrigger>
           <TabsTrigger value="agb" className="data-[state=active]:bg-sage-600 data-[state=active]:text-white">AGB</TabsTrigger>
           <TabsTrigger value="datenschutz" className="data-[state=active]:bg-sage-600 data-[state=active]:text-white">Datenschutz</TabsTrigger>
@@ -783,13 +839,7 @@ export default function CMSPage() {
 
               <div className="space-y-4 pt-4 border-t">
                 <h3 className="text-lg font-bold border-b pb-2 text-sage-800">Stornierungsbedingungen</h3>
-                <CancellationSectionsEditor
-                  mainTitleLabel="Stornierung – Hauptüberschrift"
-                  mainTitle={dData.cancellationPolicyTitle || ''}
-                  onMainTitleChange={(val) => updateData('hundepension', 'cancellationPolicyTitle', val)}
-                  sections={getCancellationSectionsForEditor(dData, defaultPensionCancellationSections)}
-                  onSectionsChange={(val) => updateData('hundepension', 'cancellationSections', val)}
-                />
+                <CentralCancellationNotice />
               </div>
 
               <div className="space-y-4 pt-4 border-t">
@@ -912,13 +962,7 @@ export default function CMSPage() {
 
               <div className="space-y-4 pt-4 border-t">
                 <h3 className="text-lg font-bold border-b pb-2 text-sage-800">Stornierungsbedingungen</h3>
-                <CancellationSectionsEditor
-                  mainTitleLabel="Stornierung – Hauptüberschrift"
-                  mainTitle={cData.cancellationPolicyTitle || ''}
-                  onMainTitleChange={(val) => updateData('katzenbetreuung', 'cancellationPolicyTitle', val)}
-                  sections={getCancellationSectionsForEditor(cData, defaultKatzenCancellationSections)}
-                  onSectionsChange={(val) => updateData('katzenbetreuung', 'cancellationSections', val)}
-                />
+                <CentralCancellationNotice />
               </div>
 
               <div className="space-y-4 pt-4 border-t">
@@ -1028,16 +1072,7 @@ export default function CMSPage() {
                   defaultObj={{ title: '', description: '' }}
                   onChange={(val) => updateData('kundenportal', 'documentsItems', val)}
                 />
-                <CancellationSectionsEditor
-                  mainTitleLabel="Stornierung – Hauptüberschrift"
-                  mainTitle={kpData.cancellationTitle || ''}
-                  onMainTitleChange={(val) => updateData('kundenportal', 'cancellationTitle', val)}
-                  sections={getCancellationSectionsForEditor(kpData, defaultPortalCancellationSections)}
-                  onSectionsChange={(val) => updateData('kundenportal', 'cancellationSections', val)}
-                  globalNotesLabel="Storno-Zusatzhinweise (Absätze am Ende)"
-                  globalNotes={kpData.cancellationNotes || []}
-                  onGlobalNotesChange={(val) => updateData('kundenportal', 'cancellationNotes', val)}
-                />
+                <CentralCancellationNotice />
               </div>
 
               <div className="flex justify-end pt-6 border-t">
@@ -1045,6 +1080,34 @@ export default function CMSPage() {
                   {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Kundenportal Speichern
                 </Button>
               </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="stornobedingungen" className="space-y-6 mt-6">
+          <Card className="border-sage-200">
+            <CardHeader className="bg-sage-50/50 border-b border-sage-100 flex flex-row items-start justify-between gap-4">
+              <div>
+                <CardTitle className="text-xl text-sage-900 font-raleway">Stornobedingungen</CardTitle>
+                <CardDescription>
+                  Zentrale Quelle für Landingpages, AGB/Vertrag, Kundenportal und Stornoberechnung.
+                  {cancellationVersion ? ` Aktive Version: ${cancellationVersion}.` : null}
+                </CardDescription>
+              </div>
+              <Button
+                disabled={savingCancellation}
+                onClick={() => void handleSaveCancellationPolicy()}
+                className="bg-sage-600 hover:bg-sage-700 text-white"
+              >
+                {savingCancellation && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Stornobedingungen speichern
+              </Button>
+            </CardHeader>
+            <CardContent className="pt-6">
+              <CancellationPolicyEditor
+                config={cancellationConfig}
+                onChange={setCancellationConfig}
+              />
             </CardContent>
           </Card>
         </TabsContent>
@@ -1061,6 +1124,9 @@ export default function CMSPage() {
                   </CardTitle>
                   <CardDescription>
                     Bearbeite Titel und Text wie in einem Textverarbeitungsprogramm – ohne HTML-Kenntnisse.
+                    {lKey === 'agb' ? (
+                      <> Der Abschnitt „Stornierung“ wird beim Anzeigen automatisch aus den zentralen Stornobedingungen erzeugt.</>
+                    ) : null}
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="pt-6 space-y-6">

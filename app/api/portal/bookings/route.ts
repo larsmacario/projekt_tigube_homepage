@@ -1,6 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerClient, getAdminDbClient } from '@/lib/admin-auth'
-import { validateBookingAvailabilityForRange, validateBookingAvailabilityForDateListServer } from '@/lib/booking-availability-server'
+import {
+  getBlockedDatesForService,
+  getVacationPeriodsInRange,
+} from '@/lib/booking-availability'
+import {
+  loadAvailabilityContextForRange,
+  validateBookingAvailabilityForRange,
+  validateBookingAvailabilityForDateListServer,
+} from '@/lib/booking-availability-server'
 import type { ServiceType } from '@/lib/types'
 import { isServiceAllowedForPetType } from '@/lib/booking-service'
 import {
@@ -9,7 +17,6 @@ import {
   validatePortalPetLines,
 } from '@/lib/booking-batch-create'
 import { envelopeFromBlocks, normalizeDateBlocksFromRequest } from '@/lib/booking-date-blocks'
-import { expandRecurringDayCareDates } from '@/lib/day-care-interval'
 import { isRangeService } from '@/lib/day-care-booking'
 import {
   buildLineItemsForRequest,
@@ -28,8 +35,20 @@ import { buildBookingRequestEmailContent } from '@/lib/booking-request-email'
 import { sendBookingRequestEmails } from '@/lib/email'
 import { isValidTimeHHmm } from '@/lib/pickup-time-surcharge'
 import { resolvePickupDateSpanFromPortalLines } from '@/lib/pickup-date-span'
-import { buildPickupSurchargeLineItems } from '@/lib/pickup-surcharge-line-items'
-import { buildOvernightSurchargeLineItems } from '@/lib/overnight-surcharge-line-items'
+import {
+  buildDayCarePlanSection,
+  buildVacationBlockPlans,
+  pickupEventsFromAppointmentPlan,
+  pickupEventsFromDayCareDates,
+  expandRecurringDayCareBookableDates,
+  type BookingAppointmentPlan,
+  BOOKING_APPOINTMENT_PLAN_VERSION,
+} from '@/lib/booking-appointment-plan'
+import { isAfterBookingHorizon } from '@/lib/booking-horizon'
+import {
+  buildOvernightSurchargeLineItemsFromEvents,
+  buildPickupSurchargeLineItemsFromEvents,
+} from '@/lib/pickup-charge-events'
 import { buildWeekendTravelSurchargeLineItems } from '@/lib/weekend-travel-surcharge-line-items'
 import { getPublicHolidaysInRange } from '@/lib/public-holidays-de'
 import type { SupabaseClient } from '@supabase/supabase-js'
@@ -272,6 +291,7 @@ export async function POST(request: NextRequest) {
       drop_off_time: dropOffTimePayload,
       pick_up_time: pickUpTimePayload,
       date_blocks: dateBlocksPayload,
+      appointment_plan: appointmentPlanPayload,
     } = bookingData
 
     const isBatch = Array.isArray(petsPayload) && petsPayload.length > 0
@@ -423,16 +443,33 @@ export async function POST(request: NextRequest) {
         }
 
         if (line.day_care_mode === 'recurring' && line.start_date) {
-          const expanded = expandRecurringDayCareDates(
+          const context = await loadAvailabilityContextForRange(
             line.start_date,
-            line.end_date ?? null,
-            line.day_care_weekdays,
-            line.day_care_interval_weeks
+            line.end_date ?? line.start_date,
+            getAdminDbClient()
           )
-          if (expanded.length > 0) {
+          const vacationPeriods = getVacationPeriodsInRange(
+            context.vacations,
+            line.start_date,
+            line.end_date ?? line.start_date
+          )
+          const closedDates = getBlockedDatesForService(
+            context,
+            'tagesbetreuung',
+            line.start_date,
+            line.end_date ?? line.start_date
+          )
+          const { bookable } = expandRecurringDayCareBookableDates({
+            startDate: line.start_date,
+            endDate: line.end_date ?? null,
+            weekdays: line.day_care_weekdays ?? [],
+            intervalWeeks: line.day_care_interval_weeks === 2 ? 2 : 1,
+            availability: { closedDates, vacationPeriods },
+          })
+          if (bookable.length > 0) {
             const availability = await validateBookingAvailabilityForDateListServer(
               'tagesbetreuung',
-              expanded,
+              bookable,
               false
             )
             if (!availability.valid) {
@@ -440,24 +477,19 @@ export async function POST(request: NextRequest) {
                 {
                   error:
                     availability.error ||
-                    'Mindestens ein Termin der festen Tagesbetreuung ist nicht verfügbar.',
+                    'Mindestens ein Termin der Tagesbetreuung ist nicht verfügbar.',
                 },
                 { status: 400 }
               )
             }
           } else {
-            const availability = await validateBookingAvailabilityForRange({
-              serviceType: 'tagesbetreuung',
-              startDate: line.start_date,
-              endDate: line.start_date,
-              checkCapacity: false,
-            })
-            if (!availability.valid) {
-              return NextResponse.json(
-                { error: availability.error || 'Das Startdatum ist nicht verfügbar.' },
-                { status: 400 }
-              )
-            }
+            return NextResponse.json(
+              {
+                error:
+                  'In der gewählten Wiederholung bleibt kein buchbarer Termin übrig (Betriebsferien/Schließtage).',
+              },
+              { status: 400 }
+            )
           }
         }
       }
@@ -487,13 +519,22 @@ export async function POST(request: NextRequest) {
             }
           : null
 
-      if (needsPickupTimes && pickupTimesForEmail) {
+      const appointmentPlan =
+        appointmentPlanPayload &&
+        typeof appointmentPlanPayload === 'object' &&
+        (appointmentPlanPayload as BookingAppointmentPlan).version ===
+          BOOKING_APPOINTMENT_PLAN_VERSION
+          ? (appointmentPlanPayload as BookingAppointmentPlan)
+          : null
+
+      {
         const adminClient = getAdminDbClient()
         const { error: groupError } = await adminClient.from('booking_request_groups').insert({
           id: requestGroupId,
           customer_id: customer.id,
-          drop_off_time: pickupTimesForEmail.drop_off_time,
-          pick_up_time: pickupTimesForEmail.pick_up_time,
+          drop_off_time: pickupTimesForEmail?.drop_off_time ?? null,
+          pick_up_time: pickupTimesForEmail?.pick_up_time ?? null,
+          appointment_plan: appointmentPlan,
         })
         if (groupError) {
           throw groupError
@@ -577,19 +618,54 @@ export async function POST(request: NextRequest) {
             null
           )
           const publicHolidays = await getPublicHolidaysInRange(pickupSpan.start, pickupSpan.end)
-          pickupSurchargeLineItems = buildPickupSurchargeLineItems({
+          const chargeEvents = [
+            ...pickupEventsFromAppointmentPlan(appointmentPlan),
+          ]
+          if (appointmentPlan?.day_care) {
+            for (const line of petLines) {
+              if (line.service_type !== 'tagesbetreuung') continue
+              if (line.day_care_mode === 'once' && line.selected_dates?.length) {
+                chargeEvents.push(
+                  ...pickupEventsFromDayCareDates(
+                    appointmentPlan.day_care,
+                    line.selected_dates
+                  )
+                )
+              }
+            }
+          }
+          if (
+            chargeEvents.length === 0 &&
+            pickupTimesForEmail &&
+            pickupSpan
+          ) {
+            chargeEvents.push(
+              { kind: 'drop_off', date: pickupSpan.start, time: pickupTimesForEmail.drop_off_time },
+              { kind: 'pick_up', date: pickupSpan.end, time: pickupTimesForEmail.pick_up_time }
+            )
+          }
+
+          const holidayFrom =
+            chargeEvents.length > 0
+              ? chargeEvents.map((e) => e.date).sort()[0]
+              : pickupSpan.start
+          const holidayTo =
+            chargeEvents.length > 0
+              ? chargeEvents.map((e) => e.date).sort().slice(-1)[0]
+              : pickupSpan.end
+          const publicHolidaysForCharges = await getPublicHolidaysInRange(holidayFrom, holidayTo)
+
+          pickupSurchargeLineItems = buildPickupSurchargeLineItemsFromEvents({
             requestGroupId,
-            dropOffTime: pickupTimesForEmail.drop_off_time,
-            pickUpTime: pickupTimesForEmail.pick_up_time,
-            pickupSpan,
-            publicHolidays,
+            events: chargeEvents,
+            publicHolidays: publicHolidaysForCharges,
             prices: catalog.prices,
             categories: catalog.categories,
             createdBy: userData.id,
           })
-          overnightSurchargeLineItems = buildOvernightSurchargeLineItems({
+          overnightSurchargeLineItems = buildOvernightSurchargeLineItemsFromEvents({
             requestGroupId,
-            pickUpTime: pickupTimesForEmail.pick_up_time,
+            events: chargeEvents,
             prices: catalog.prices,
             categories: catalog.categories,
             createdBy: userData.id,

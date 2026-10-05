@@ -24,7 +24,20 @@ interface BookingSingleDayCalendarProps {
   defaultMonth?: Date
   month?: Date
   onMonthChange?: (month: Date) => void
+  horizonEnd?: Date
   className?: string
+}
+
+function mergeDisabled(
+  disabled: Matcher | Matcher[] | undefined,
+  horizonEnd?: Date
+): Matcher | Matcher[] | undefined {
+  const extra: Matcher[] = []
+  if (horizonEnd) extra.push({ after: horizonEnd })
+  if (!disabled && extra.length === 0) return undefined
+  if (!disabled) return extra.length === 1 ? extra[0] : extra
+  if (extra.length === 0) return disabled
+  return Array.isArray(disabled) ? [...disabled, ...extra] : [disabled, ...extra]
 }
 
 export function BookingSingleDayCalendar({
@@ -37,8 +50,13 @@ export function BookingSingleDayCalendar({
   defaultMonth,
   month,
   onMonthChange,
+  horizonEnd,
   className,
 }: BookingSingleDayCalendarProps) {
+  const disabledMatcher = useMemo(
+    () => mergeDisabled(disabled, horizonEnd),
+    [disabled, horizonEnd]
+  )
   const holidayMap = useMemo(() => {
     const map = new Map<string, string>()
     for (const h of publicHolidays) {
@@ -68,7 +86,8 @@ export function BookingSingleDayCalendar({
         month={month}
         onMonthChange={onMonthChange}
         onSelect={onSelect}
-        disabled={disabled}
+        disabled={disabledMatcher}
+        endMonth={horizonEnd}
         classNames={bookingRangeCalendarClassNames}
         className={cn(bookingRangeCalendarClassName, 'w-full')}
         components={{

@@ -198,16 +198,18 @@ function ProfileContent() {
     async function loadContractLegal() {
       setContractLegalLoading(true)
       try {
-        const [agbRes, portalRes] = await Promise.all([
-          fetch('/api/cms?key=agb'),
-          fetch('/api/cms?key=kundenportal'),
-        ])
-        const [agbJson, portalJson] = await Promise.all([
-          agbRes.json().catch(() => ({})),
-          portalRes.json().catch(() => ({})),
-        ])
-        const resolved = resolveBetreuungsvertragLegal(agbJson.data ?? null, portalJson.data ?? null)
-        if (!cancelled) setContractLegal(resolved)
+        const legalRes = await fetch('/api/betreuungsvertrag-legal')
+        const legalJson = await legalRes.json().catch(() => ({}))
+        if (!legalRes.ok || !legalJson?.content) {
+          throw new Error(legalJson?.error || 'Vertragstext konnte nicht geladen werden')
+        }
+        if (!cancelled) {
+          setContractLegal({
+            title: legalJson.title,
+            content: legalJson.content,
+            cancellationPolicyVersion: legalJson.cancellationPolicyVersion ?? null,
+          })
+        }
       } catch (error) {
         console.error('Error loading contract legal content:', error)
         if (!cancelled) {

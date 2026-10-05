@@ -18,6 +18,7 @@ import { useToast } from '@/hooks/use-toast'
 import type { BookingRequest } from '@/lib/types'
 import { authenticatedFetch } from '@/lib/authenticated-fetch'
 import { readApiResponse } from '@/lib/read-api-response'
+import { getBookingHorizonEndIso } from '@/lib/booking-horizon'
 import { startOfDay, toIsoDate } from '@/lib/vacation-dates'
 import { getVacationPeriodsInRange } from '@/lib/booking-availability'
 import type { VacationDate } from '@/lib/vacation-dates'
@@ -92,9 +93,7 @@ export default function BookingsPage() {
   async function loadAvailability() {
     try {
       const todayIso = toIsoDate(today)
-      const defaultEnd = new Date(today)
-      defaultEnd.setFullYear(defaultEnd.getFullYear() + 1)
-      const rangeEnd = toIsoDate(defaultEnd)
+      const rangeEnd = getBookingHorizonEndIso(today)
 
       const response = await authenticatedFetch(
         `/api/portal/bookings/availability?from_date=${todayIso}&to_date=${rangeEnd}`

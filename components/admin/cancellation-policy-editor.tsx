@@ -15,13 +15,47 @@ import { Plus, Trash2 } from 'lucide-react'
 import {
   emptyCancellationPolicyRuleSet,
   emptyCancellationPolicyTier,
+  refundTextFromChargePercent,
+  type CancellationDisplayChannel,
   type CancellationPolicyConfig,
   type CancellationPolicyRuleSet,
+  type CancellationPolicyTier,
+  type CancellationServiceScope,
 } from '@/lib/cancellation-policy-config'
 
 type Props = {
   config: CancellationPolicyConfig
   onChange: (config: CancellationPolicyConfig) => void
+}
+
+const SERVICE_SCOPE_OPTIONS: { value: CancellationServiceScope; label: string }[] = [
+  { value: 'hundepension', label: 'Hundepension' },
+  { value: 'tagesbetreuung', label: 'Tagesbetreuung' },
+  { value: 'katzenbetreuung', label: 'Katzenbetreuung' },
+]
+
+const DISPLAY_CHANNELS: { value: CancellationDisplayChannel; label: string }[] = [
+  { value: 'landing', label: 'Landingpage' },
+  { value: 'contract', label: 'Vertrag / AGB' },
+  { value: 'portal', label: 'Kundenportal' },
+]
+
+function suggestTierLabels(tier: CancellationPolicyTier) {
+  const base = tier.label.trim() || 'Frist'
+  return {
+    landing: {
+      period: base,
+      refund: refundTextFromChargePercent(tier.chargePercent, 'landing'),
+    },
+    contract: {
+      period: base.endsWith(':') ? base : `${base}:`,
+      refund: refundTextFromChargePercent(tier.chargePercent, 'contract'),
+    },
+    portal: {
+      period: base.endsWith(':') ? base : `${base}:`,
+      refund: refundTextFromChargePercent(tier.chargePercent, 'portal'),
+    },
+  }
 }
 
 function TierEditor({
@@ -95,7 +129,7 @@ function TierEditor({
               />
             </div>
             <div>
-              <Label className="text-xs text-sage-600">Anzeige-Label</Label>
+              <Label className="text-xs text-sage-600">Label (Berechnung / E-Mails)</Label>
               <Input
                 value={tier.label}
                 onChange={(e) => {
@@ -105,6 +139,71 @@ function TierEditor({
                 }}
               />
             </div>
+          </div>
+
+          <div className="space-y-2 border-t border-sage-100 pt-3">
+            <div className="flex items-center justify-between gap-2">
+              <Label className="text-xs text-sage-600">Textvarianten je Ausgabeort</Label>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  const tiers = [...ruleSet.tiers]
+                  tiers[idx] = {
+                    ...tier,
+                    display: suggestTierLabels(tier),
+                  }
+                  onChange({ ...ruleSet, tiers })
+                }}
+              >
+                Vorschläge aus Zahlen
+              </Button>
+            </div>
+            {DISPLAY_CHANNELS.map((channel) => (
+              <div key={channel.value} className="grid md:grid-cols-2 gap-2">
+                <div>
+                  <Label className="text-[11px] text-sage-500">{channel.label} – Frist</Label>
+                  <Input
+                    value={tier.display?.[channel.value]?.period ?? ''}
+                    onChange={(e) => {
+                      const tiers = [...ruleSet.tiers]
+                      tiers[idx] = {
+                        ...tier,
+                        display: {
+                          ...tier.display,
+                          [channel.value]: {
+                            period: e.target.value,
+                            refund: tier.display?.[channel.value]?.refund ?? '',
+                          },
+                        },
+                      }
+                      onChange({ ...ruleSet, tiers })
+                    }}
+                  />
+                </div>
+                <div>
+                  <Label className="text-[11px] text-sage-500">{channel.label} – Erstattung</Label>
+                  <Input
+                    value={tier.display?.[channel.value]?.refund ?? ''}
+                    onChange={(e) => {
+                      const tiers = [...ruleSet.tiers]
+                      tiers[idx] = {
+                        ...tier,
+                        display: {
+                          ...tier.display,
+                          [channel.value]: {
+                            period: tier.display?.[channel.value]?.period ?? tier.label,
+                            refund: e.target.value,
+                          },
+                        },
+                      }
+                      onChange({ ...ruleSet, tiers })
+                    }}
+                  />
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       ))}
@@ -125,6 +224,18 @@ function TierEditor({
   )
 }
 
+function toggleServiceScope(
+  ruleSet: CancellationPolicyRuleSet,
+  scope: CancellationServiceScope
+): CancellationServiceScope[] {
+  const current = ruleSet.serviceScopes ?? []
+  if (current.includes(scope)) {
+    const next = current.filter((item) => item !== scope)
+    return next.length > 0 ? next : current
+  }
+  return [...current, scope]
+}
+
 export function CancellationPolicyEditor({ config, onChange }: Props) {
   function updateRuleSet(index: number, next: CancellationPolicyRuleSet) {
     const ruleSets = [...config.ruleSets]
@@ -136,7 +247,7 @@ export function CancellationPolicyEditor({ config, onChange }: Props) {
     <div className="space-y-6">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
-          <Label>Titel</Label>
+          <Label>Titel (Standard)</Label>
           <Input
             value={config.title}
             onChange={(e) => onChange({ ...config, title: e.target.value })}
@@ -154,10 +265,74 @@ export function CancellationPolicyEditor({ config, onChange }: Props) {
         </div>
       </div>
 
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div>
+          <Label>Überschrift Landing Hundepension</Label>
+          <Input
+            value={config.displayTitles?.landing?.hundepension ?? ''}
+            onChange={(e) =>
+              onChange({
+                ...config,
+                displayTitles: {
+                  ...config.displayTitles,
+                  landing: {
+                    ...config.displayTitles?.landing,
+                    hundepension: e.target.value,
+                  },
+                },
+              })
+            }
+          />
+        </div>
+        <div>
+          <Label>Überschrift Landing Katzen</Label>
+          <Input
+            value={config.displayTitles?.landing?.katzenbetreuung ?? ''}
+            onChange={(e) =>
+              onChange({
+                ...config,
+                displayTitles: {
+                  ...config.displayTitles,
+                  landing: {
+                    ...config.displayTitles?.landing,
+                    katzenbetreuung: e.target.value,
+                  },
+                },
+              })
+            }
+          />
+        </div>
+        <div>
+          <Label>Überschrift Portal / Vertrag</Label>
+          <div className="grid grid-cols-2 gap-2">
+            <Input
+              placeholder="Portal"
+              value={config.displayTitles?.portal ?? ''}
+              onChange={(e) =>
+                onChange({
+                  ...config,
+                  displayTitles: { ...config.displayTitles, portal: e.target.value },
+                })
+              }
+            />
+            <Input
+              placeholder="Vertrag"
+              value={config.displayTitles?.contract ?? ''}
+              onChange={(e) =>
+                onChange({
+                  ...config,
+                  displayTitles: { ...config.displayTitles, contract: e.target.value },
+                })
+              }
+            />
+          </div>
+        </div>
+      </div>
+
       <div>
         <Label>Allgemeine Hinweise</Label>
         <Textarea
-          rows={4}
+          rows={5}
           value={config.generalNotes.join('\n')}
           onChange={(e) =>
             onChange({
@@ -227,6 +402,52 @@ export function CancellationPolicyEditor({ config, onChange }: Props) {
             )}
           </div>
 
+          <div>
+            <Label className="mb-2 block">Betreuungsarten</Label>
+            <div className="flex flex-wrap gap-2">
+              {SERVICE_SCOPE_OPTIONS.map((option) => {
+                const active = ruleSet.serviceScopes?.includes(option.value)
+                return (
+                  <Button
+                    key={option.value}
+                    type="button"
+                    size="sm"
+                    variant={active ? 'default' : 'outline'}
+                    className={active ? 'bg-sage-600 hover:bg-sage-700' : ''}
+                    onClick={() =>
+                      updateRuleSet(index, {
+                        ...ruleSet,
+                        serviceScopes: toggleServiceScope(ruleSet, option.value),
+                      })
+                    }
+                  >
+                    {option.label}
+                  </Button>
+                )
+              })}
+            </div>
+          </div>
+
+          <div className="grid md:grid-cols-3 gap-3">
+            {DISPLAY_CHANNELS.map((channel) => (
+              <div key={channel.value}>
+                <Label>Abschnittstitel ({channel.label})</Label>
+                <Input
+                  value={ruleSet.sectionTitles?.[channel.value] ?? ''}
+                  onChange={(e) =>
+                    updateRuleSet(index, {
+                      ...ruleSet,
+                      sectionTitles: {
+                        ...ruleSet.sectionTitles,
+                        [channel.value]: e.target.value,
+                      },
+                    })
+                  }
+                />
+              </div>
+            ))}
+          </div>
+
           <TierEditor ruleSet={ruleSet} onChange={(next) => updateRuleSet(index, next)} />
         </div>
       ))}
@@ -243,6 +464,11 @@ export function CancellationPolicyEditor({ config, onChange }: Props) {
       >
         <Plus className="mr-1 h-4 w-4" /> Regelwerk hinzufügen
       </Button>
+
+      <p className="text-sm text-sage-600">
+        Änderungen gelten für Landingpages, AGB/Vertrag, Kundenportal und die Stornoberechnung. Beim
+        Speichern wird eine neue Version angelegt.
+      </p>
     </div>
   )
 }

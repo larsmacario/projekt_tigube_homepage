@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerClient } from '@/lib/admin-auth'
 import { getPortalAvailabilitySnapshot, getPortalAvailabilitySnapshotForServices } from '@/lib/booking-availability-server'
+import { getBookingHorizonEndIso, isAfterBookingHorizon } from '@/lib/booking-horizon'
 import { toIsoDate } from '@/lib/vacation-dates'
 import type { ServiceType } from '@/lib/types'
 
@@ -55,14 +56,20 @@ export async function GET(request: NextRequest) {
     }
 
     const today = toIsoDate(new Date())
-    const defaultEnd = new Date()
-    defaultEnd.setFullYear(defaultEnd.getFullYear() + 1)
+    const horizonEnd = getBookingHorizonEndIso()
 
     const rangeStart = fromDate || today
-    const rangeEnd = toDate || toIsoDate(defaultEnd)
+    const rangeEnd = toDate || horizonEnd
 
     if (rangeEnd < rangeStart) {
       return NextResponse.json({ error: 'Ungültiger Datumsbereich' }, { status: 400 })
+    }
+
+    if (isAfterBookingHorizon(rangeEnd)) {
+      return NextResponse.json(
+        { error: `Buchungen sind nur bis ${horizonEnd} möglich.` },
+        { status: 400 }
+      )
     }
 
     const availability =

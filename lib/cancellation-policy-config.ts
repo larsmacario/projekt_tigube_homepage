@@ -1,12 +1,24 @@
+import { CANCELLATION_POLICY_V2_CONFIG } from '@/lib/cancellation-policy-seed-v2'
+
 export type CancellationRuleSetCondition =
   | { type: 'default' }
   | { type: 'school_holidays_bw' }
+
+export type CancellationServiceScope = 'hundepension' | 'katzenbetreuung' | 'tagesbetreuung'
+
+export type CancellationDisplayChannel = 'landing' | 'contract' | 'portal'
+
+export interface CancellationDisplayTexts {
+  period: string
+  refund: string
+}
 
 export interface CancellationPolicyTier {
   minDaysBefore: number
   maxDaysBefore: number | null
   chargePercent: number
   label: string
+  display?: Partial<Record<CancellationDisplayChannel, CancellationDisplayTexts>>
 }
 
 export interface CancellationPolicyRuleSet {
@@ -14,12 +26,19 @@ export interface CancellationPolicyRuleSet {
   name: string
   condition: CancellationRuleSetCondition
   priority: number
+  serviceScopes: CancellationServiceScope[]
+  sectionTitles?: Partial<Record<CancellationDisplayChannel, string>>
   tiers: CancellationPolicyTier[]
   notes?: string[]
 }
 
 export interface CancellationPolicyConfig {
   title: string
+  displayTitles?: {
+    landing?: Partial<Record<'hundepension' | 'katzenbetreuung', string>>
+    portal?: string
+    contract?: string
+  }
   cutoffHour: number
   generalNotes: string[]
   ruleSets: CancellationPolicyRuleSet[]
@@ -34,39 +53,29 @@ export interface CancellationPolicyRecord {
   updated_at: string
 }
 
-export const DEFAULT_CANCELLATION_POLICY_CONFIG: CancellationPolicyConfig = {
-  title: 'Stornierungsbedingungen',
-  cutoffHour: 18,
-  generalNotes: [
-    'Absagen werden jeweils bis 18 Uhr berücksichtigt – auch an Sonn-/Feiertagen oder in Betriebsferien.',
-    'Die Stornierung erfolgt über das Kundenportal in schriftlicher Form.',
-  ],
-  ruleSets: [
-    {
-      id: 'standard',
-      name: 'Standard',
-      condition: { type: 'default' },
-      priority: 0,
-      tiers: [
-        { minDaysBefore: 15, maxDaysBefore: null, chargePercent: 0, label: '15 Tage und mehr vor Check-In' },
-        { minDaysBefore: 7, maxDaysBefore: 14, chargePercent: 50, label: '14 - 7 Tage vor Check-In' },
-        { minDaysBefore: 0, maxDaysBefore: 6, chargePercent: 100, label: '6 Tage und weniger vor Check-In' },
-      ],
-      notes: [],
-    },
-    {
-      id: 'school_holidays_bw',
-      name: 'Schulferien Baden-Württemberg',
-      condition: { type: 'school_holidays_bw' },
-      priority: 10,
-      tiers: [
-        { minDaysBefore: 56, maxDaysBefore: null, chargePercent: 0, label: '56 Tage und mehr vor Check-In' },
-        { minDaysBefore: 21, maxDaysBefore: 55, chargePercent: 50, label: '55 - 21 Tage vor Check-In' },
-        { minDaysBefore: 0, maxDaysBefore: 20, chargePercent: 100, label: '20 Tage und weniger vor Check-In' },
-      ],
-      notes: [],
-    },
-  ],
+export const DEFAULT_CANCELLATION_POLICY_CONFIG: CancellationPolicyConfig = CANCELLATION_POLICY_V2_CONFIG
+
+export function refundTextFromChargePercent(
+  chargePercent: number,
+  channel: CancellationDisplayChannel = 'contract'
+): string {
+  if (channel === 'landing') {
+    if (chargePercent === 0) return '100% Rückerstattung'
+    if (chargePercent === 100) return 'keine Rückerstattung'
+    return `${chargePercent}% Rückerstattung`
+  }
+  if (chargePercent === 0) return 'kostenlos'
+  if (chargePercent === 100) return '100% der Buchungssumme'
+  return `${chargePercent}% der Buchungssumme`
+}
+
+function normalizeDisplayTexts(value: unknown): CancellationDisplayTexts | null {
+  if (!value || typeof value !== 'object') return null
+  const row = value as Record<string, unknown>
+  const period = typeof row.period === 'string' ? row.period : ''
+  const refund = typeof row.refund === 'string' ? row.refund : ''
+  if (!period && !refund) return null
+  return { period, refund }
 }
 
 function normalizeTier(value: unknown): CancellationPolicyTier | null {
@@ -76,12 +85,53 @@ function normalizeTier(value: unknown): CancellationPolicyTier | null {
   const chargePercent = typeof row.chargePercent === 'number' ? row.chargePercent : null
   const label = typeof row.label === 'string' ? row.label : ''
   if (minDaysBefore == null || chargePercent == null) return null
+
+  const displayRaw = row.display as Record<string, unknown> | undefined
+  const display: CancellationPolicyTier['display'] = {}
+  if (displayRaw) {
+    for (const channel of ['landing', 'contract', 'portal'] as const) {
+      const texts = normalizeDisplayTexts(displayRaw[channel])
+      if (texts) display[channel] = texts
+    }
+  }
+
   return {
     minDaysBefore,
     maxDaysBefore: typeof row.maxDaysBefore === 'number' ? row.maxDaysBefore : null,
     chargePercent,
     label,
+    display: Object.keys(display).length > 0 ? display : undefined,
   }
+}
+
+function defaultScopesForRuleSet(
+  id: string,
+  condition: CancellationRuleSetCondition
+): CancellationServiceScope[] {
+  if (id === 'standard_katzen') return ['katzenbetreuung']
+  if (condition.type === 'school_holidays_bw' || id === 'standard' || id === 'school_holidays_bw') {
+    return ['hundepension', 'tagesbetreuung']
+  }
+  return ['hundepension', 'tagesbetreuung']
+}
+
+function normalizeServiceScopes(value: unknown, ruleSetId: string, condition: CancellationRuleSetCondition) {
+  if (!Array.isArray(value)) return defaultScopesForRuleSet(ruleSetId, condition)
+  const scopes = value.filter(
+    (item): item is CancellationServiceScope =>
+      item === 'hundepension' || item === 'katzenbetreuung' || item === 'tagesbetreuung'
+  )
+  return scopes.length > 0 ? scopes : defaultScopesForRuleSet(ruleSetId, condition)
+}
+
+function normalizeSectionTitles(value: unknown): CancellationPolicyRuleSet['sectionTitles'] {
+  if (!value || typeof value !== 'object') return undefined
+  const row = value as Record<string, unknown>
+  const out: NonNullable<CancellationPolicyRuleSet['sectionTitles']> = {}
+  for (const channel of ['landing', 'contract', 'portal'] as const) {
+    if (typeof row[channel] === 'string') out[channel] = row[channel]
+  }
+  return Object.keys(out).length > 0 ? out : undefined
 }
 
 function normalizeRuleSet(value: unknown): CancellationPolicyRuleSet | null {
@@ -106,7 +156,41 @@ function normalizeRuleSet(value: unknown): CancellationPolicyRuleSet | null {
     ? row.notes.filter((note): note is string => typeof note === 'string')
     : []
 
-  return { id, name, condition, priority, tiers, notes }
+  return {
+    id,
+    name,
+    condition,
+    priority,
+    serviceScopes: normalizeServiceScopes(row.serviceScopes, id, condition),
+    sectionTitles: normalizeSectionTitles(row.sectionTitles),
+    tiers,
+    notes,
+  }
+}
+
+function normalizeDisplayTitles(value: unknown): CancellationPolicyConfig['displayTitles'] {
+  if (!value || typeof value !== 'object') return undefined
+  const row = value as Record<string, unknown>
+  const landingRaw = row.landing
+  const landing =
+    landingRaw && typeof landingRaw === 'object'
+      ? {
+          hundepension:
+            typeof (landingRaw as Record<string, unknown>).hundepension === 'string'
+              ? ((landingRaw as Record<string, unknown>).hundepension as string)
+              : undefined,
+          katzenbetreuung:
+            typeof (landingRaw as Record<string, unknown>).katzenbetreuung === 'string'
+              ? ((landingRaw as Record<string, unknown>).katzenbetreuung as string)
+              : undefined,
+        }
+      : undefined
+
+  return {
+    landing,
+    portal: typeof row.portal === 'string' ? row.portal : undefined,
+    contract: typeof row.contract === 'string' ? row.contract : undefined,
+  }
 }
 
 export function normalizeCancellationPolicyConfig(
@@ -126,6 +210,7 @@ export function normalizeCancellationPolicyConfig(
 
   return {
     title: typeof row.title === 'string' && row.title.trim() ? row.title : fallback.title,
+    displayTitles: normalizeDisplayTitles(row.displayTitles) ?? fallback.displayTitles,
     cutoffHour:
       typeof row.cutoffHour === 'number' && row.cutoffHour >= 0 && row.cutoffHour <= 23
         ? row.cutoffHour
@@ -145,23 +230,46 @@ export function emptyCancellationPolicyRuleSet(): CancellationPolicyRuleSet {
     name: '',
     condition: { type: 'default' },
     priority: 0,
+    serviceScopes: ['hundepension', 'tagesbetreuung'],
     tiers: [emptyCancellationPolicyTier()],
     notes: [],
   }
 }
 
+/** @deprecated Nutze policyToCancellationSections aus cancellation-policy-display */
 export function configToDisplaySections(config: CancellationPolicyConfig) {
   return config.ruleSets.map((ruleSet) => ({
-    title: ruleSet.condition.type === 'school_holidays_bw' ? ruleSet.name : '',
+    title: ruleSet.sectionTitles?.contract ?? (ruleSet.condition.type === 'school_holidays_bw' ? ruleSet.name : ''),
     policy: ruleSet.tiers.map((tier) => ({
       period: tier.label,
-      refund:
-        tier.chargePercent === 0
-          ? 'kostenlos'
-          : tier.chargePercent === 100
-            ? '100% der Buchungssumme'
-            : `${tier.chargePercent}% der Buchungssumme`,
+      refund: refundTextFromChargePercent(tier.chargePercent, 'contract'),
     })),
     notes: ruleSet.notes ?? [],
   }))
+}
+
+export function validateCancellationPolicyConfig(config: CancellationPolicyConfig): string | null {
+  if (!config.title.trim()) return 'Titel ist erforderlich.'
+  if (config.ruleSets.length === 0) return 'Mindestens ein Regelwerk ist erforderlich.'
+
+  for (const ruleSet of config.ruleSets) {
+    if (!ruleSet.id.trim() || !ruleSet.name.trim()) {
+      return 'Jedes Regelwerk braucht ID und Name.'
+    }
+    if (ruleSet.serviceScopes.length === 0) {
+      return `Regelwerk "${ruleSet.name}" braucht mindestens eine Betreuungsart.`
+    }
+    if (ruleSet.tiers.length === 0) {
+      return `Regelwerk "${ruleSet.name}" braucht mindestens eine Staffel.`
+    }
+    for (const tier of ruleSet.tiers) {
+      if (tier.minDaysBefore < 0) return 'Fristen dürfen nicht negativ sein.'
+      if (tier.chargePercent < 0 || tier.chargePercent > 100) {
+        return 'Storno-Anteil muss zwischen 0 und 100 liegen.'
+      }
+      if (!tier.label.trim()) return 'Jede Staffel braucht ein Anzeige-Label.'
+    }
+  }
+
+  return null
 }

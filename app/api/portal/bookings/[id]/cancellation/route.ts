@@ -141,6 +141,7 @@ async function computeCancellationPreview(
     bookingTotal,
     scopeTotalOverride: datesToCancel?.length ? scope.scopeTotal : undefined,
     policy: config,
+    serviceType: booking.service_type,
     schoolHolidays,
   })
 

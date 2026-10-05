@@ -6,7 +6,6 @@ import { Plus, Trash2 } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
-import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useSidebar } from '@/components/ui/sidebar'
 import {
@@ -16,13 +15,19 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { BookingDaysAndTimes } from '@/components/portal/booking-days-and-times'
 import {
-  BookingCalendarLegend,
-  BookingRangeCalendar,
-} from '@/components/portal/booking-range-calendar'
-import { BookingMultiDayCalendar } from '@/components/portal/booking-multi-day-calendar'
-import { BookingSingleDayCalendar } from '@/components/portal/booking-single-day-calendar'
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
+  BOOKING_APPOINTMENT_PLAN_VERSION,
+  buildDayCarePlanSection,
+  buildVacationBlockPlans,
+  expandRecurringDayCareBookableDates,
+} from '@/lib/booking-appointment-plan'
+import { getBookingHorizonEndDate, getBookingHorizonEndIso } from '@/lib/booking-horizon'
+import {
+  buildRecurringConfigFromSchedule,
+  dayCareModeFromSchedule,
+  type DayCareScheduleUI,
+} from '@/lib/portal-day-care-schedule'
 import { useToast } from '@/hooks/use-toast'
 import { authenticatedFetch } from '@/lib/authenticated-fetch'
 import { mergeKundenportalData } from '@/lib/cms/portal-defaults'
@@ -32,14 +37,6 @@ import {
   resolveDefaultPickupTimesForSpan,
 } from '@/lib/pickup-time-defaults'
 import { resolvePickupDateSpan } from '@/lib/pickup-date-span'
-import {
-  evaluatePickupTimeOnDate,
-  isValidTimeHHmm,
-  needsOutOfHoursPickupFee,
-  PICKUP_TIME_EARLY_ARRIVAL_NOTE,
-  PICKUP_TIME_MIDDAY_NOTE,
-  resolveOutOfHoursPickupUnitPrice,
-} from '@/lib/pickup-time-surcharge'
 import { readApiResponse } from '@/lib/read-api-response'
 import type { BookingExtraCategory, BookingExtraPrice } from '@/lib/booking-extras'
 import { getServicesForPetType } from '@/lib/booking-service'
@@ -47,16 +44,9 @@ import {
   isDateInVacationPeriods,
   iterateIsoDateRange,
 } from '@/lib/booking-availability'
-import { formatEuro } from '@/lib/price-override'
 import { VatPriceDisplay } from '@/components/vat-price-display'
 import { cn } from '@/lib/utils'
-import { formatDateRangeDE } from '@/lib/format-date-range-de'
-import {
-  DAY_CARE_WEEKDAY_OPTIONS,
-  formatSelectedDatesDE,
-  formatWeekdayList,
-  isRangeService,
-} from '@/lib/day-care-booking'
+import { isRangeService } from '@/lib/day-care-booking'
 import type { DayCareMode } from '@/lib/types'
 import { startOfDay, toIsoDate, parseIsoDate } from '@/lib/vacation-dates'
 import type { BookingRequest, AddonService, Pet, ServiceType } from '@/lib/types'
@@ -73,153 +63,10 @@ import {
   type PortalBookingStep2DateBlockUI,
   validatePortalBookingStep2,
 } from '@/lib/portal-booking-step2-validation'
-import { PickupTimesReference } from '@/components/portal/pickup-times-reference'
 import type { KundenportalPickupRow } from '@/lib/cms/portal-defaults'
 
 const OVERVIEW_STEP = 4
 const ADDON_STEP = 3
-
-function normalizeRecurringWeekdays(weekdays: number[] | undefined): number[] {
-  if (!weekdays?.length) return []
-  const unique = new Set<number>()
-  for (const value of weekdays) {
-    const day = Number(value)
-    if (day >= 1 && day <= 7) unique.add(day)
-  }
-  return [...unique].sort((a, b) => a - b)
-}
-
-function PickupTimesFields({
-  dropOffTime,
-  pickUpTime,
-  onDropOffChange,
-  onPickUpChange,
-  compact = false,
-  pickupSpan,
-  publicHolidays,
-  prices,
-  categories,
-  pickupTimesNote,
-  pickupTimesList,
-}: {
-  dropOffTime: string
-  pickUpTime: string
-  onDropOffChange: (value: string) => void
-  onPickUpChange: (value: string) => void
-  compact?: boolean
-  pickupSpan?: { start: string; end: string } | null
-  publicHolidays?: Array<{ date: string }>
-  prices?: BookingExtraPrice[]
-  categories?: BookingExtraCategory[]
-  pickupTimesNote?: string
-  pickupTimesList?: KundenportalPickupRow[]
-}) {
-  const holidaySet = useMemo(
-    () => buildPublicHolidayDateSet(publicHolidays ?? []),
-    [publicHolidays]
-  )
-
-  const outOfHoursFee = useMemo(() => {
-    if (!prices?.length || !categories?.length) return null
-    return resolveOutOfHoursPickupUnitPrice(prices, categories)
-  }, [prices, categories])
-
-  const dropEval =
-    pickupSpan && dropOffTime && isValidTimeHHmm(dropOffTime)
-      ? evaluatePickupTimeOnDate(pickupSpan.start, dropOffTime, holidaySet)
-      : null
-  const pickEval =
-    pickupSpan && pickUpTime && isValidTimeHHmm(pickUpTime)
-      ? evaluatePickupTimeOnDate(pickupSpan.end, pickUpTime, holidaySet)
-      : null
-
-  const dropFee = dropEval && needsOutOfHoursPickupFee(dropEval)
-  const pickFee = pickEval && needsOutOfHoursPickupFee(pickEval)
-  const middayNote =
-    (dropEval?.middayAppointmentNote || pickEval?.middayAppointmentNote) ?? false
-  const earlyNote =
-    (dropEval?.earlyArrivalNote || pickEval?.earlyArrivalNote) ?? false
-
-  const hint = (
-    <div className="space-y-3 text-sm text-sage-600">
-      <p>Wann möchtest du deinen Hund bringen und wieder abholen?</p>
-      <PickupTimesReference rows={pickupTimesList} className="text-sm" />
-      <p>Bei Tagesbetreuung gilt: erster bzw. letzter Betreuungstag.</p>
-    </div>
-  )
-
-  const notes = (
-    <div className="space-y-2 md:col-span-2">
-      {pickupTimesNote?.trim() && (
-        <p className="text-sm text-sage-600">{pickupTimesNote.trim()}</p>
-      )}
-      {middayNote && (
-        <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
-          {PICKUP_TIME_MIDDAY_NOTE}
-        </p>
-      )}
-      {earlyNote && (
-        <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
-          {PICKUP_TIME_EARLY_ARRIVAL_NOTE}
-        </p>
-      )}
-      {(dropFee || pickFee) && outOfHoursFee != null && (
-        <p className="rounded-md border border-sage-300 bg-sage-100 px-3 py-2 text-sm text-sage-900">
-          {dropFee && pickFee
-            ? `Bringen und Abholen außerhalb der Standardzeiten: je ${formatEuro(outOfHoursFee)} Zuschlag (${formatEuro(outOfHoursFee * 2)} gesamt).`
-            : dropFee
-              ? `Bringen außerhalb der Standardzeit: ${formatEuro(outOfHoursFee)} Zuschlag pro Termin.`
-              : `Abholen außerhalb der Standardzeit: ${formatEuro(outOfHoursFee)} Zuschlag pro Termin.`}
-        </p>
-      )}
-    </div>
-  )
-
-  const fields = (
-    <>
-      <div className="space-y-1">
-        <Label htmlFor="drop-off-time">Bringen (am ersten Tag)</Label>
-        <Input
-          id="drop-off-time"
-          type="time"
-          value={dropOffTime}
-          onChange={(e) => onDropOffChange(e.target.value)}
-          className="bg-white"
-          required
-        />
-      </div>
-      <div className="space-y-1">
-        <Label htmlFor="pick-up-time">Abholen (am letzten Tag)</Label>
-        <Input
-          id="pick-up-time"
-          type="time"
-          value={pickUpTime}
-          onChange={(e) => onPickUpChange(e.target.value)}
-          className="bg-white"
-          required
-        />
-      </div>
-    </>
-  )
-
-  if (compact) {
-    return (
-      <div className="space-y-4">
-        {hint}
-        {fields}
-        {notes}
-      </div>
-    )
-  }
-
-  return (
-    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-      <div className="md:col-span-2">{hint}</div>
-      {fields}
-      {notes}
-    </div>
-  )
-}
 
 export interface PetServiceLine {
   pet_id: string
@@ -305,6 +152,10 @@ export function PortalBookingWizard({
   }, [])
 
   const today = useMemo(() => startOfDay(new Date()), [])
+  const horizonEnd = useMemo(() => getBookingHorizonEndDate(today), [today])
+  const [dayCareScheduleByPet, setDayCareScheduleByPet] = useState<
+    Record<string, DayCareScheduleUI>
+  >({})
 
   const resolvedPetLines = useMemo(
     () => petLines.filter((line) => line.pet_id && line.service_type),
@@ -419,6 +270,11 @@ export function PortalBookingWizard({
     return steps
   }, [hasAddonStep])
 
+  const dayCareLines = useMemo(
+    () => resolvedPetLines.filter((l) => l.service_type === 'tagesbetreuung'),
+    [resolvedPetLines]
+  )
+
   const dayCareOnceLines = useMemo(
     () =>
       resolvedPetLines.filter(
@@ -435,14 +291,84 @@ export function PortalBookingWizard({
     [resolvedPetLines]
   )
 
+  const skippedPreviewByPet = useMemo(() => {
+    const out: Record<string, number> = {}
+    for (const line of dayCareLines) {
+      const schedule = dayCareScheduleByPet[line.pet_id] ?? {
+        repeat: 'none' as const,
+        unbefristet: true,
+      }
+      if (schedule.repeat === 'none') continue
+      const cfg = buildRecurringConfigFromSchedule(
+        dayCareOnceDates[line.pet_id] || [],
+        schedule
+      )
+      if (!cfg?.startDate || !cfg.weekdays.length) continue
+      const startIso = toIsoDate(startOfDay(cfg.startDate))
+      const endIso =
+        cfg.unbefristet !== false && !cfg.endDate
+          ? null
+          : cfg.endDate
+            ? toIsoDate(startOfDay(cfg.endDate))
+            : null
+      const { skipped } = expandRecurringDayCareBookableDates({
+        startDate: startIso,
+        endDate: endIso,
+        weekdays: cfg.weekdays,
+        intervalWeeks: cfg.intervalWeeks === 2 ? 2 : 1,
+        availability,
+      })
+      out[line.pet_id] = skipped.length
+    }
+    return out
+  }, [dayCareLines, dayCareScheduleByPet, dayCareOnceDates, availability])
+
+  useEffect(() => {
+    setPetLines((prev) =>
+      prev.map((line) => {
+        if (line.service_type !== 'tagesbetreuung') {
+          return { ...line, day_care_mode: '' }
+        }
+        const schedule = dayCareScheduleByPet[line.pet_id] ?? {
+          repeat: 'none' as const,
+          unbefristet: true,
+        }
+        return { ...line, day_care_mode: dayCareModeFromSchedule(schedule.repeat) }
+      })
+    )
+
+    setDayCareRecurring((prev) => {
+      const next = { ...prev }
+      for (const line of resolvedPetLines.filter((l) => l.service_type === 'tagesbetreuung')) {
+        const schedule = dayCareScheduleByPet[line.pet_id] ?? {
+          repeat: 'none' as const,
+          unbefristet: true,
+        }
+        const dates = dayCareOnceDates[line.pet_id] || []
+        if (schedule.repeat === 'none') {
+          delete next[line.pet_id]
+          continue
+        }
+        const cfg = buildRecurringConfigFromSchedule(dates, schedule)
+        if (!cfg) continue
+        next[line.pet_id] = {
+          weekdays: cfg.weekdays,
+          startDate: cfg.startDate,
+          endDate: cfg.endDate,
+          unbefristet: cfg.unbefristet,
+          intervalWeeks: cfg.intervalWeeks,
+        }
+      }
+      return next
+    })
+  }, [resolvedPetLines, dayCareScheduleByPet, dayCareOnceDates])
+
   const showRangeBlocksUi = rangePetLines.length > 0
 
   const loadAvailability = useCallback(async () => {
     try {
       const todayIso = toIsoDate(today)
-      const defaultEnd = new Date(today)
-      defaultEnd.setFullYear(defaultEnd.getFullYear() + 1)
-      const rangeEnd = toIsoDate(defaultEnd)
+      const rangeEnd = getBookingHorizonEndIso(today)
 
       const query =
         serviceTypes.length > 0
@@ -622,6 +548,12 @@ export function PortalBookingWizard({
         if (patch.pet_id && patch.pet_id !== line.pet_id) {
           next.day_care_mode = ''
         }
+        if (patch.service_type === 'tagesbetreuung' && patch.pet_id) {
+          setDayCareScheduleByPet((sched) => ({
+            ...sched,
+            [patch.pet_id!]: sched[patch.pet_id!] ?? { repeat: 'none', unbefristet: true },
+          }))
+        }
         return next
       })
     )
@@ -651,16 +583,6 @@ export function PortalBookingWizard({
         variant: 'destructive',
       })
       return false
-    }
-    for (const line of resolvedPetLines) {
-      if (line.service_type === 'tagesbetreuung' && !line.day_care_mode) {
-        toast({
-          title: 'Fehler',
-          description: 'Bitte wähle bei Tagesbetreuung einmalig oder feste Wochentage.',
-          variant: 'destructive',
-        })
-        return false
-      }
     }
     return true
   }
@@ -758,20 +680,6 @@ export function PortalBookingWizard({
     setDateBlocks((prev) => (prev.length <= 1 ? prev : prev.filter((_, i) => i !== index)))
   }
 
-  function toggleRecurringWeekday(petId: string, isoWeekday: number, selected: boolean) {
-    setDayCareRecurring((prev) => {
-      const current = prev[petId] ?? { weekdays: [] }
-      const normalized = normalizeRecurringWeekdays(current.weekdays)
-      const nextDays = selected
-        ? normalizeRecurringWeekdays([...normalized, isoWeekday])
-        : normalized.filter((d) => d !== isoWeekday)
-      return {
-        ...prev,
-        [petId]: { ...current, weekdays: nextDays },
-      }
-    })
-  }
-
   async function handleSubmit() {
     if (!validateStep2()) return
 
@@ -801,8 +709,74 @@ export function PortalBookingWizard({
     const petsPayload = buildPortalBookingPetsPayload(
       resolvedPetLines,
       dayCareOnceDates,
-      dayCareRecurring
+      dayCareRecurring,
+      availability
     )
+
+    const dateBlocksIso = buildPortalBookingDateBlocksPayload({
+      petLines: resolvedPetLines,
+      petNames: {},
+      dateBlocks,
+      dayCareOnceDates,
+      dayCareRecurring,
+      dropOffTime,
+      pickUpTime,
+      availability,
+    })
+
+    const skippedSerieDates: string[] = []
+    for (const line of dayCareLines) {
+      const count = skippedPreviewByPet[line.pet_id] ?? 0
+      if (count <= 0) continue
+      const schedule = dayCareScheduleByPet[line.pet_id]
+      if (!schedule || schedule.repeat === 'none') continue
+      const cfg = buildRecurringConfigFromSchedule(
+        dayCareOnceDates[line.pet_id] || [],
+        schedule
+      )
+      if (!cfg?.startDate || !cfg.weekdays.length) continue
+      const startIso = toIsoDate(startOfDay(cfg.startDate))
+      const endIso =
+        cfg.unbefristet !== false && !cfg.endDate
+          ? null
+          : cfg.endDate
+            ? toIsoDate(startOfDay(cfg.endDate))
+            : null
+      skippedSerieDates.push(
+        ...expandRecurringDayCareBookableDates({
+          startDate: startIso,
+          endDate: endIso,
+          weekdays: cfg.weekdays,
+          intervalWeeks: cfg.intervalWeeks === 2 ? 2 : 1,
+          availability,
+        }).skipped
+      )
+    }
+
+    const appointmentPlan =
+      needsPickupTimes || dateBlocksIso.length > 0
+        ? {
+            version: BOOKING_APPOINTMENT_PLAN_VERSION,
+            ...(dateBlocksIso.length > 0 && dropOffTime && pickUpTime
+              ? {
+                  vacation_blocks: buildVacationBlockPlans(
+                    dateBlocksIso,
+                    dropOffTime,
+                    pickUpTime
+                  ),
+                }
+              : {}),
+            ...(dayCareLines.length > 0 && dropOffTime && pickUpTime
+              ? {
+                  day_care: buildDayCarePlanSection({
+                    defaultDropOff: dropOffTime,
+                    defaultPickUp: pickUpTime,
+                    skippedDates: [...new Set(skippedSerieDates)].sort(),
+                  }),
+                }
+              : {}),
+          }
+        : null
 
     setSubmitting(true)
     try {
@@ -818,6 +792,7 @@ export function PortalBookingWizard({
           addon_services,
           drop_off_time: needsPickupTimes && dropOffTime ? dropOffTime : null,
           pick_up_time: needsPickupTimes && pickUpTime ? pickUpTime : null,
+          appointment_plan: appointmentPlan,
         }),
       })
 
@@ -980,36 +955,6 @@ export function PortalBookingWizard({
                     </SelectContent>
                   </Select>
                 </div>
-                {line.service_type === 'tagesbetreuung' && line.pet_id && (
-                  <div className="sm:col-span-2">
-                    <Label className="text-sm">Art der Tagesbetreuung</Label>
-                    <RadioGroup
-                      className="mt-2 flex flex-wrap gap-4"
-                      value={line.day_care_mode || ''}
-                      onValueChange={(value) =>
-                        updatePetLine(index, { day_care_mode: value as DayCareMode })
-                      }
-                    >
-                      <div className="flex items-center gap-2">
-                        <RadioGroupItem value="once" id={`dc-once-${index}`} />
-                        <Label htmlFor={`dc-once-${index}`} className="font-normal cursor-pointer">
-                          Einmalig
-                        </Label>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <RadioGroupItem value="recurring" id={`dc-rec-${index}`} />
-                        <Label htmlFor={`dc-rec-${index}`} className="font-normal cursor-pointer">
-                          Feste Wochentage
-                        </Label>
-                      </div>
-                    </RadioGroup>
-                    <p className="mt-2 text-xs text-sage-600">
-                      <span className="font-medium">Einmalig:</span> einzelne konkrete Tage.{' '}
-                      <span className="font-medium">Feste Wochentage:</span> wiederkehrend
-                      (wöchentlich oder alle 14 Tage).
-                    </p>
-                  </div>
-                )}
                 <div className="flex items-end">
                   <Button
                     type="button"
@@ -1049,386 +994,51 @@ export function PortalBookingWizard({
       )}
 
       {step === 2 && (
-        <div className="space-y-6">
-          {showRangeBlocksUi && (
-            <div className="space-y-3">
-              <Label>Betreuungsblöcke (Urlaubs- / Katzenbetreuung)</Label>
-              <p className="text-sm text-sage-600">
-                Du kannst mehrere getrennte Zeiträume in einer Anfrage angeben.
-              </p>
-              <div
-                className={
-                  rangePetLines.length > 0 && needsPickupTimes
-                    ? 'grid grid-cols-1 items-start gap-8 lg:grid-cols-[minmax(0,1fr)_min(100%,22rem)]'
-                    : undefined
-                }
-              >
-                <div className="min-w-0 space-y-4">
-                  {dateBlocks.map((block, blockIndex) => {
-                    const blockRange: DateRange | undefined =
-                      block.from != null
-                        ? { from: block.from, to: block.to }
-                        : undefined
-                    return (
-                      <div
-                        key={blockIndex}
-                        className="space-y-3 rounded-lg border border-sage-200/80 bg-white p-3"
-                      >
-                        <div className="flex items-center justify-between gap-2">
-                          <span className="text-sm font-medium text-sage-800">
-                            Block {blockIndex + 1}
-                          </span>
-                          {dateBlocks.length > 1 && (
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => removeDateBlock(blockIndex)}
-                            >
-                              Entfernen
-                            </Button>
-                          )}
-                        </div>
-                        <div className="relative isolate overflow-hidden rounded-xl border border-sage-200/80 bg-sage-50/50 p-3">
-                          <div className="flex justify-center">
-                            <BookingRangeCalendar
-                              selected={blockRange}
-                              onSelect={(range) => handleBlockRangeSelect(blockIndex, range)}
-                              disabled={isDateUnavailable}
-                              vacationPeriods={availability.vacationPeriods}
-                              closedDates={availability.closedDates}
-                              publicHolidays={availability.publicHolidays}
-                              defaultMonth={calendarDefaultMonth}
-                              month={calendarMonth}
-                              onMonthChange={setCalendarMonth}
-                            />
-                          </div>
-                        </div>
-                        {block.from && (
-                          <p className="text-center text-sm text-sage-700 lg:text-left">
-                            {formatDateRangeDE(block.from, block.to ?? block.from)}
-                          </p>
-                        )}
-                      </div>
-                    )
-                  })}
-                  <Button type="button" variant="outline" size="sm" onClick={addDateBlock}>
-                    <Plus className="mr-1 size-4" />
-                    Weiteren Block hinzufügen
-                  </Button>
-                </div>
-                {rangePetLines.length > 0 && needsPickupTimes && (
-                  <div className="w-full shrink-0 rounded-lg border border-sage-200 bg-white p-4 lg:sticky lg:top-4">
-                    <PickupTimesFields
-                      dropOffTime={dropOffTime}
-                      pickUpTime={pickUpTime}
-                      onDropOffChange={handleDropOffTimeChange}
-                      onPickUpChange={handlePickUpTimeChange}
-                      compact
-                      {...pickupTimesFieldProps}
-                    />
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {dayCareOnceLines.map((line) => {
-            const pet = pets.find((p) => p.id === line.pet_id)
-            const sectionId = `daycare-once-${line.pet_id}`
-            return (
-              <div
-                key={line.pet_id}
-                id={sectionId}
-                className={cn(
-                  'space-y-3 rounded-lg transition-shadow',
-                  highlightedSectionId === sectionId && 'ring-2 ring-destructive'
-                )}
-              >
-                <Label>
-                  Tagesbetreuung einmalig{pet ? ` – ${pet.name}` : ''}
-                </Label>
-                <p className="text-sm text-sage-600">
-                  Wähle die Betreuungstage im Kalender (mehrere möglich).
-                </p>
-                <div className="rounded-xl border border-sage-200/80 bg-white p-3">
-                  <div className="flex w-full justify-center">
-                    <BookingMultiDayCalendar
-                      selected={dayCareOnceDates[line.pet_id] || []}
-                      onSelect={(dates) =>
-                        setDayCareOnceDates((prev) => ({
-                          ...prev,
-                          [line.pet_id]: dates || [],
-                        }))
-                      }
-                      disabled={isDateUnavailable}
-                      vacationPeriods={availability.vacationPeriods}
-                      closedDates={availability.closedDates}
-                      publicHolidays={availability.publicHolidays}
-                      defaultMonth={calendarDefaultMonth}
-                      month={calendarMonth}
-                      onMonthChange={setCalendarMonth}
-                    />
-                  </div>
-                </div>
-                <div className="space-y-2 pt-1">
-                  <p className="text-xs text-sage-600">
-                    An Betriebsferien und Schließtagen ist keine Betreuung möglich.
-                  </p>
-                  <BookingCalendarLegend />
-                </div>
-                {(dayCareOnceDates[line.pet_id]?.length ?? 0) > 0 && (
-                  <p className="text-center text-sm text-sage-700">
-                    {formatSelectedDatesDE(
-                      (dayCareOnceDates[line.pet_id] || []).map((d) => toIsoDate(startOfDay(d)))
-                    )}
-                  </p>
-                )}
-              </div>
-            )
-          })}
-
-          {dayCareRecurringLines.map((line) => {
-            const pet = pets.find((p) => p.id === line.pet_id)
-            const cfg = dayCareRecurring[line.pet_id] || { weekdays: [] }
-            const selectedWeekdays = normalizeRecurringWeekdays(cfg.weekdays)
-            const sectionId = `daycare-recurring-${line.pet_id}`
-            return (
-              <div
-                key={line.pet_id}
-                id={sectionId}
-                className={cn(
-                  'space-y-3 rounded-lg border border-sage-200 p-3 transition-shadow',
-                  highlightedSectionId === sectionId && 'ring-2 ring-destructive'
-                )}
-              >
-                <Label>
-                  Feste Wochentage{pet ? ` – ${pet.name}` : ''}
-                </Label>
-                <p className="text-sm text-sage-600">
-                  An welchen Wochentagen und ab wann soll die Tagesbetreuung laufen?
-                </p>
-                <div>
-                  <Label>Wochentage (Pflicht)</Label>
-                  <div className="mt-2 flex flex-wrap gap-3">
-                    {DAY_CARE_WEEKDAY_OPTIONS.map((day) => {
-                      const active = selectedWeekdays.includes(day.iso)
-                      const inputId = `recurring-weekday-${line.pet_id}-${day.iso}`
-                      return (
-                        <label
-                          key={day.iso}
-                          htmlFor={inputId}
-                          className={cn(
-                            'flex cursor-pointer items-center gap-2 rounded-md border px-3 py-2 text-sm transition-colors',
-                            active
-                              ? 'border-sage-600 bg-sage-600 text-white'
-                              : 'border-sage-200 bg-white text-sage-800 hover:bg-sage-50'
-                          )}
-                        >
-                          <Checkbox
-                            id={inputId}
-                            checked={active}
-                            onCheckedChange={(checked) =>
-                              toggleRecurringWeekday(
-                                line.pet_id,
-                                day.iso,
-                                checked === true
-                              )
-                            }
-                            className={cn(
-                              active && 'border-white data-[state=checked]:bg-white data-[state=checked]:text-sage-700'
-                            )}
-                          />
-                          {day.label}
-                        </label>
-                      )
-                    })}
-                  </div>
-                  <div className="mt-2 min-h-[1.25rem]">
-                    {selectedWeekdays.length > 0 ? (
-                      <p className="text-sm text-sage-700">
-                        Gewählt: {formatWeekdayList(selectedWeekdays)}
-                      </p>
-                    ) : (
-                      <p className="text-sm text-amber-800">
-                        Wähle einen oder mehrere Wochentage (Mehrfachauswahl möglich).
-                      </p>
-                    )}
-                  </div>
-                </div>
-                <div>
-                  <Label>Rhythmus</Label>
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant={(cfg.intervalWeeks ?? 1) === 1 ? 'default' : 'outline'}
-                      className={(cfg.intervalWeeks ?? 1) === 1 ? 'bg-sage-600 hover:bg-sage-700' : ''}
-                      onClick={() =>
-                        setDayCareRecurring((prev) => ({
-                          ...prev,
-                          [line.pet_id]: {
-                            ...(prev[line.pet_id] || { weekdays: cfg.weekdays }),
-                            intervalWeeks: 1,
-                          },
-                        }))
-                      }
-                    >
-                      Wöchentlich
-                    </Button>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant={cfg.intervalWeeks === 2 ? 'default' : 'outline'}
-                      className={cfg.intervalWeeks === 2 ? 'bg-sage-600 hover:bg-sage-700' : ''}
-                      onClick={() =>
-                        setDayCareRecurring((prev) => ({
-                          ...prev,
-                          [line.pet_id]: {
-                            ...(prev[line.pet_id] || { weekdays: cfg.weekdays }),
-                            intervalWeeks: 2,
-                          },
-                        }))
-                      }
-                    >
-                      Alle 14 Tage
-                    </Button>
-                  </div>
-                </div>
-                <div className="flex flex-wrap items-center gap-4">
-                  <div className="flex items-center gap-2">
-                    <Checkbox
-                      id={`dc-unbefristet-${line.pet_id}`}
-                      checked={cfg.unbefristet !== false && !cfg.endDate}
-                      onCheckedChange={(checked) =>
-                        setDayCareRecurring((prev) => {
-                          const current = prev[line.pet_id] || { weekdays: cfg.weekdays }
-                          return {
-                            ...prev,
-                            [line.pet_id]: {
-                              ...current,
-                              unbefristet: checked === true,
-                              endDate: checked === true ? undefined : current.endDate,
-                            },
-                          }
-                        })
-                      }
-                    />
-                    <Label htmlFor={`dc-unbefristet-${line.pet_id}`} className="font-normal">
-                      Unbefristet (Planung ca. 12 Monate)
-                    </Label>
-                  </div>
-                </div>
-                <div>
-                  <Label>Startdatum</Label>
-                  <div className="mt-2 rounded-xl border border-sage-200/80 bg-white p-3">
-                    <div className="flex w-full justify-center">
-                      <BookingSingleDayCalendar
-                        selected={cfg.startDate}
-                        onSelect={(date) =>
-                          setDayCareRecurring((prev) => {
-                            const current = prev[line.pet_id] || { weekdays: [] }
-                            return {
-                              ...prev,
-                              [line.pet_id]: {
-                                ...current,
-                                startDate: date ? startOfDay(date) : undefined,
-                              },
-                            }
-                          })
-                        }
-                        disabled={isDateUnavailable}
-                        vacationPeriods={availability.vacationPeriods}
-                        closedDates={availability.closedDates}
-                        publicHolidays={availability.publicHolidays}
-                        defaultMonth={calendarDefaultMonth}
-                        month={calendarMonth}
-                        onMonthChange={setCalendarMonth}
-                      />
-                    </div>
-                  </div>
-                </div>
-                {cfg.unbefristet === false || cfg.endDate ? (
-                  <div>
-                    <Label>Enddatum (befristeter Block)</Label>
-                    <div className="mt-2 rounded-xl border border-sage-200/80 bg-white p-3">
-                      <div className="flex w-full justify-center">
-                        <BookingSingleDayCalendar
-                          selected={cfg.endDate}
-                          onSelect={(date) =>
-                            setDayCareRecurring((prev) => {
-                              const current = prev[line.pet_id] || { weekdays: cfg.weekdays }
-                              return {
-                                ...prev,
-                                [line.pet_id]: {
-                                  ...current,
-                                  endDate: date ? startOfDay(date) : undefined,
-                                  unbefristet: false,
-                                },
-                              }
-                            })
-                          }
-                          disabled={(date) => {
-                            if (isDateUnavailable(date)) return true
-                            if (cfg.startDate && startOfDay(date) < startOfDay(cfg.startDate)) {
-                              return true
-                            }
-                            return false
-                          }}
-                          vacationPeriods={availability.vacationPeriods}
-                          closedDates={availability.closedDates}
-                          publicHolidays={availability.publicHolidays}
-                          defaultMonth={calendarDefaultMonth}
-                          month={calendarMonth}
-                          onMonthChange={setCalendarMonth}
-                        />
-                      </div>
-                    </div>
-                  </div>
-                ) : (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() =>
-                      setDayCareRecurring((prev) => {
-                        const current = prev[line.pet_id] || { weekdays: cfg.weekdays }
-                        return {
-                          ...prev,
-                          [line.pet_id]: { ...current, unbefristet: false },
-                        }
-                      })
-                    }
-                  >
-                    Enddatum festlegen (befristeter Block)
-                  </Button>
-                )}
-                <div className="space-y-2 pt-1">
-                  <p className="text-xs text-sage-600">
-                    An Betriebsferien und Schließtagen ist keine Betreuung möglich – auch bei festen
-                    Wochentagen.
-                  </p>
-                  <BookingCalendarLegend />
-                </div>
-              </div>
-            )
-          })}
-
-          {needsPickupTimes && rangePetLines.length === 0 && (
-            <div className="rounded-lg border border-sage-200 bg-white p-4">
-              <PickupTimesFields
-                dropOffTime={dropOffTime}
-                pickUpTime={pickUpTime}
-                onDropOffChange={handleDropOffTimeChange}
-                onPickUpChange={handlePickUpTimeChange}
-                {...pickupTimesFieldProps}
-              />
-            </div>
-          )}
-
-          <BookingCalendarLegend />
-        </div>
+        <BookingDaysAndTimes
+          pets={pets}
+          resolvedPetLines={resolvedPetLines}
+          rangePetLines={rangePetLines}
+          dayCareLines={dayCareLines}
+          dateBlocks={dateBlocks}
+          dayCareOnceDates={dayCareOnceDates}
+          dayCareScheduleByPet={dayCareScheduleByPet}
+          skippedPreviewByPet={skippedPreviewByPet}
+          showRangeBlocksUi={showRangeBlocksUi}
+          needsPickupTimes={needsPickupTimes}
+          hundepensionRange={hundepensionRange}
+          dropOffTime={dropOffTime}
+          pickUpTime={pickUpTime}
+          onDropOffChange={handleDropOffTimeChange}
+          onPickUpChange={handlePickUpTimeChange}
+          pickupTimesNote={pickupTimesNote}
+          pickupTimesList={pickupTimesList}
+          catalogPrices={catalogPrices}
+          priceCategories={priceCategories}
+          availability={availability}
+          calendarDefaultMonth={calendarDefaultMonth}
+          calendarMonth={calendarMonth}
+          onMonthChange={setCalendarMonth}
+          horizonEnd={horizonEnd}
+          isDateUnavailable={isDateUnavailable}
+          highlightedSectionId={highlightedSectionId}
+          onBlockRangeSelect={handleBlockRangeSelect}
+          onAddDateBlock={addDateBlock}
+          onRemoveDateBlock={removeDateBlock}
+          onDayCareDatesSelect={(petId, dates) =>
+            setDayCareOnceDates((prev) => ({ ...prev, [petId]: dates || [] }))
+          }
+          onDayCareScheduleChange={(petId, patch) =>
+            setDayCareScheduleByPet((prev) => ({
+              ...prev,
+              [petId]: {
+                ...(prev[petId] ?? { repeat: 'none', unbefristet: true }),
+                ...patch,
+              },
+            }))
+          }
+        />
       )}
+
 
       {step === ADDON_STEP && hasAddonStep && (
         <div className="space-y-6">

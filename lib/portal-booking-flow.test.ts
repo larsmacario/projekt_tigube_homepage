@@ -143,7 +143,7 @@ describe('Portal-Buchungsflow – Schritt 2 (Client-Validierung)', () => {
       )
       expect(error?.description).toContain('Luna')
       expect(error?.description).toContain('Wochentag')
-      expect(error?.sectionId).toBe('daycare-recurring-pet-b')
+      expect(error?.sectionId).toBe('daycare-pet-b')
     })
 
     it('lehnt Schließtag bei einmaliger Tagesbetreuung ab', () => {
@@ -189,7 +189,7 @@ describe('Portal-Buchungsflow – Schritt 2 (Client-Validierung)', () => {
         })
       )
       expect(error?.description).toContain('Luna')
-      expect(error?.sectionId).toBe('daycare-recurring-pet-b')
+      expect(error?.sectionId).toBe('daycare-pet-b')
     })
 
     it('zwei Hunde Urlaubsbetreuung im gleichen Zeitraum', () => {
@@ -462,7 +462,7 @@ describe('Portal-Buchungsflow – Bring-/Holzeiten Span', () => {
       null
     )
     expect(span?.start).toBe('2026-09-11')
-    expect(span?.end).toBe('2027-09-11')
+    expect(span?.end).toBe('2027-12-31')
   })
 
   it('nutzt Enddatum bei befristeten festen Wochentagen', () => {

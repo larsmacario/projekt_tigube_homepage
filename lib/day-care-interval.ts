@@ -1,6 +1,7 @@
+import { getBookingHorizonEndIso } from '@/lib/booking-horizon'
 import { parseIsoDate, toIsoDate } from '@/lib/vacation-dates'
 
-/** Planungshorizont für unbefristete Regeltermine (12 Monate). */
+/** @deprecated Unbefristete Serien enden am Buchungshorizont (31.12. Folgejahr). */
 export const DAY_CARE_PLANNING_HORIZON_DAYS = 365
 
 export type DayCareIntervalWeeks = 1 | 2
@@ -62,14 +63,23 @@ export function matchesDayCareInterval(
 export function resolveRecurringHorizonEnd(
   startDate: string,
   endDate: string | null | undefined,
-  horizonDays = DAY_CARE_PLANNING_HORIZON_DAYS
+  horizonDays?: number
 ): string {
-  if (endDate) return endDate
-  const start = parseIsoDate(startDate)
-  if (!start) return startDate
-  const end = new Date(start)
-  end.setDate(end.getDate() + horizonDays)
-  return toIsoDate(end)
+  if (endDate) {
+    const horizonEnd = getBookingHorizonEndIso()
+    return endDate > horizonEnd ? horizonEnd : endDate
+  }
+  if (horizonDays != null) {
+    const start = parseIsoDate(startDate)
+    if (!start) return startDate
+    const end = new Date(start)
+    end.setDate(end.getDate() + horizonDays)
+    const capped = toIsoDate(end)
+    const horizonEnd = getBookingHorizonEndIso()
+    return capped > horizonEnd ? horizonEnd : capped
+  }
+  const horizonEnd = getBookingHorizonEndIso()
+  return horizonEnd >= startDate ? horizonEnd : startDate
 }
 
 /**
@@ -81,7 +91,7 @@ export function expandRecurringDayCareDates(
   endDate: string | null | undefined,
   weekdays: number[] | null | undefined,
   intervalWeeks: number | null | undefined = 1,
-  horizonDays = DAY_CARE_PLANNING_HORIZON_DAYS
+  horizonDays?: number
 ): string[] {
   if (!weekdays?.length) return startDate ? [startDate] : []
 

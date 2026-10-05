@@ -22,7 +22,8 @@ import { de } from 'date-fns/locale'
 import type { BookingRequest, CapacitySetting, CapacityOverride, ServiceType } from '@/lib/types'
 import { authenticatedFetch } from '@/lib/authenticated-fetch'
 import { expandBookingOccupiedDates } from '@/lib/day-care-booking'
-import { toIsoDate } from '@/lib/vacation-dates'
+import { getBookingHorizonEndIso } from '@/lib/booking-horizon'
+import { startOfDay, toIsoDate } from '@/lib/vacation-dates'
 import { BookingDetailSheet } from '@/components/admin/booking-detail-sheet'
 import { useAdminMetrics } from '@/components/admin/admin-metrics-provider'
 import { BookingGroupListCard } from '@/components/booking/booking-group-list-card'
@@ -63,6 +64,12 @@ export default function AdminBookingsPage() {
   })
   const { toast } = useToast()
   const { refreshMetrics } = useAdminMetrics()
+  const [calendarAvailability, setCalendarAvailability] = useState<{
+    vacationPeriods: Array<{ start_date: string; end_date: string; label: string }>
+    closedDates: string[]
+  }>({ vacationPeriods: [], closedDates: [] })
+
+  const today = useMemo(() => startOfDay(new Date()), [])
 
   useEffect(() => {
     setActiveTab(resolveBookingsTab(searchParams.get('tab')))
@@ -74,21 +81,32 @@ export default function AdminBookingsPage() {
 
   async function loadData() {
     try {
-      const [bookingsRes, capacityRes, overridesRes] = await Promise.all([
+      const todayIso = toIsoDate(today)
+      const horizonEnd = getBookingHorizonEndIso(today)
+
+      const [bookingsRes, capacityRes, overridesRes, availabilityRes] = await Promise.all([
         authenticatedFetch('/api/admin/bookings'),
         authenticatedFetch('/api/admin/capacity'),
         authenticatedFetch('/api/admin/capacity/overrides'),
+        authenticatedFetch(
+          `/api/admin/bookings/availability?from_date=${todayIso}&to_date=${horizonEnd}`
+        ),
       ])
 
-      const [bookingsData, capacityData, overridesData] = await Promise.all([
+      const [bookingsData, capacityData, overridesData, availabilityData] = await Promise.all([
         bookingsRes.json(),
         capacityRes.json(),
         overridesRes.json(),
+        availabilityRes.json(),
       ])
 
       setBookings(bookingsData.bookings || [])
       setCapacitySettings(capacityData.settings || [])
       setCapacityOverrides(overridesData.overrides || [])
+      setCalendarAvailability({
+        vacationPeriods: availabilityData.vacationPeriods || [],
+        closedDates: availabilityData.closedDates || [],
+      })
     } catch (error) {
       console.error('Error loading data:', error)
       toast({
@@ -520,12 +538,18 @@ export default function AdminBookingsPage() {
           <BookingCalendar
             bookings={filteredBookings}
             capacityData={capacityData}
+            vacationPeriods={calendarAvailability.vacationPeriods}
+            closedDates={calendarAvailability.closedDates}
             isAdmin={true}
             onSelectBooking={(booking) => {
               setSelectedBooking(booking)
               setIsDetailOpen(true)
             }}
           />
+          <p className="mt-3 text-xs text-sage-600">
+            Orange markierte Tage = Betriebsferien (Buchungen dort bleiben sichtbar). Grau =
+            Schließtage.
+          </p>
         </CardContent>
       </Card>
 

@@ -1,4 +1,6 @@
 import type { CancellationPolicyConfig, CancellationPolicyRuleSet, CancellationPolicyTier } from '@/lib/cancellation-policy-config'
+import { filterConfigForService, serviceTypeToScope } from '@/lib/cancellation-policy-display'
+import type { ServiceType } from '@/lib/types'
 import {
   bookingOverlapsSchoolHolidaysBw,
   datesOverlapSchoolHolidaysBw,
@@ -17,6 +19,7 @@ export interface CancellationCalculationInput {
   /** Wenn gesetzt, wird diese Summe statt Ratio/Gesamt genutzt (z. B. Tagespreis × Tage). */
   scopeTotalOverride?: number
   policy: CancellationPolicyConfig
+  serviceType?: ServiceType | null
   schoolHolidays: SchoolHolidayPeriod[]
 }
 
@@ -137,8 +140,12 @@ function resolveScopeTotal(input: CancellationCalculationInput): {
 export function calculateCancellationAmounts(
   input: CancellationCalculationInput
 ): CancellationCalculationResult {
-  const ruleSet = selectRuleSet(
+  const scopedPolicy = filterConfigForService(
     input.policy,
+    serviceTypeToScope(input.serviceType)
+  )
+  const ruleSet = selectRuleSet(
+    scopedPolicy,
     input.bookingStartDate,
     input.bookingEndDate,
     input.selectedDates,
@@ -147,7 +154,7 @@ export function calculateCancellationAmounts(
 
   const effectiveDate = effectiveCancellationDate(
     input.cancellationAt,
-    input.policy.cutoffHour
+    scopedPolicy.cutoffHour
   )
   const { scopeTotal, checkInDate } = resolveScopeTotal(input)
   const daysBefore = daysBeforeCheckIn(effectiveDate, checkInDate)
@@ -165,6 +172,6 @@ export function calculateCancellationAmounts(
     scopeTotal,
     cancellationChargeAmount: chargeAmount,
     cancellationRefundAmount: refundAmount,
-    policySnapshot: input.policy,
+    policySnapshot: scopedPolicy,
   }
 }

@@ -27,13 +27,7 @@ import {
   FIXED_PERCENTAGE_SURCHARGE_RATE,
   formatFixedPercentageLabel,
 } from '@/lib/price-catalog-policy'
-import { CancellationPolicyEditor } from '@/components/admin/cancellation-policy-editor'
 import { SevdeskArticleSyncBadge } from '@/components/admin/sevdesk-article-sync-badge'
-import {
-  DEFAULT_CANCELLATION_POLICY_CONFIG,
-  normalizeCancellationPolicyConfig,
-  type CancellationPolicyConfig,
-} from '@/lib/cancellation-policy-config'
 import {
   emptyPriceRuleForm,
   formToRuleRow,
@@ -132,12 +126,6 @@ export default function PricesPage() {
   const [newCatServiceType, setNewCatServiceType] = useState<'hundepension' | 'katzenbetreuung' | 'all'>('hundepension')
   const [newCatSortOrder, setNewCatSortOrder] = useState<number>(0)
   const [creatingCategory, setCreatingCategory] = useState(false)
-  const [cancellationConfig, setCancellationConfig] = useState<CancellationPolicyConfig>(
-    DEFAULT_CANCELLATION_POLICY_CONFIG
-  )
-  const [cancellationVersion, setCancellationVersion] = useState<number | null>(null)
-  const [savingCancellation, setSavingCancellation] = useState(false)
-
   // Price creation form
   const [addingPriceToCategoryId, setAddingPriceToCategoryId] = useState<string | null>(null)
   const [newPriceName, setNewPriceName] = useState('')
@@ -189,10 +177,9 @@ export default function PricesPage() {
     setLoading(true)
     setLoadError(null)
     try {
-      const [pricesRes, groupsRes, cancellationRes] = await Promise.all([
+      const [pricesRes, groupsRes] = await Promise.all([
         authenticatedFetch('/api/admin/prices'),
         authenticatedFetch('/api/admin/customer-groups'),
-        authenticatedFetch('/api/admin/cancellation-policy'),
       ])
       
       const pricesData = await pricesRes.json()
@@ -215,16 +202,6 @@ export default function PricesPage() {
         setSelectedGroupId(loadedGroups[0].id)
       }
 
-      const cancellationData = await cancellationRes.json()
-      if (cancellationRes.ok) {
-        setCancellationConfig(
-          normalizeCancellationPolicyConfig(
-            cancellationData.config,
-            DEFAULT_CANCELLATION_POLICY_CONFIG
-          )
-        )
-        setCancellationVersion(cancellationData.policy?.version ?? null)
-      }
     } catch (error) {
       console.error('Error loading prices page data:', error)
       setLoadError('Fehler beim Laden der Preisdaten')
@@ -294,35 +271,6 @@ export default function PricesPage() {
       })
     } finally {
       setSaving(false)
-    }
-  }
-
-  async function handleSaveCancellationPolicy() {
-    setSavingCancellation(true)
-    try {
-      const response = await authenticatedFetch('/api/admin/cancellation-policy', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ config: cancellationConfig }),
-      })
-      const data = await response.json()
-      if (!response.ok) {
-        throw new Error(data.error || 'Fehler beim Speichern')
-      }
-      setCancellationConfig(normalizeCancellationPolicyConfig(data.config))
-      setCancellationVersion(data.policy?.version ?? null)
-      toast({
-        title: 'Erfolg',
-        description: `Stornierungsbedingungen Version ${data.policy?.version ?? ''} gespeichert.`,
-      })
-    } catch (error) {
-      toast({
-        title: 'Fehler',
-        description: error instanceof Error ? error.message : 'Fehler beim Speichern',
-        variant: 'destructive',
-      })
-    } finally {
-      setSavingCancellation(false)
     }
   }
 
@@ -916,9 +864,6 @@ export default function PricesPage() {
           </TabsTrigger>
           <TabsTrigger value="categories" className="rounded-md px-4 py-2 text-sm font-medium transition-all data-[state=active]:bg-white data-[state=active]:text-sage-900 data-[state=active]:shadow-sm">
             Preiskategorien verwalten
-          </TabsTrigger>
-          <TabsTrigger value="cancellation" className="rounded-md px-4 py-2 text-sm font-medium transition-all data-[state=active]:bg-white data-[state=active]:text-sage-900 data-[state=active]:shadow-sm">
-            Stornierung
           </TabsTrigger>
         </TabsList>
 
@@ -1756,32 +1701,6 @@ export default function PricesPage() {
           </div>
         </TabsContent>
 
-        <TabsContent value="cancellation" className="space-y-6 mt-6">
-          <Card>
-            <CardHeader className="flex flex-row items-start justify-between gap-4">
-              <div>
-                <CardTitle>Stornierungsbedingungen</CardTitle>
-                <CardDescription>
-                  Strukturierte Regeln für die automatische Stornoberechnung im Kundenportal.
-                  {cancellationVersion ? ` Aktive Version: ${cancellationVersion}.` : null}
-                </CardDescription>
-              </div>
-              <Button
-                onClick={handleSaveCancellationPolicy}
-                loading={savingCancellation}
-                className="bg-sage-600 hover:bg-sage-700"
-              >
-                {savingCancellation ? 'Wird gespeichert…' : 'Regeln speichern'}
-              </Button>
-            </CardHeader>
-            <CardContent>
-              <CancellationPolicyEditor
-                config={cancellationConfig}
-                onChange={setCancellationConfig}
-              />
-            </CardContent>
-          </Card>
-        </TabsContent>
       </Tabs>
       )}
     </div>

@@ -1,9 +1,10 @@
+import { revalidatePath } from 'next/cache'
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAdmin } from '@/lib/admin-auth'
 import {
   DEFAULT_CANCELLATION_POLICY_CONFIG,
   normalizeCancellationPolicyConfig,
-  type CancellationPolicyConfig,
+  validateCancellationPolicyConfig,
 } from '@/lib/cancellation-policy-config'
 
 export async function GET(request: NextRequest) {
@@ -41,28 +42,6 @@ export async function GET(request: NextRequest) {
   }
 }
 
-function validateConfig(config: CancellationPolicyConfig): string | null {
-  if (!config.title.trim()) return 'Titel ist erforderlich.'
-  if (config.ruleSets.length === 0) return 'Mindestens ein Regelwerk ist erforderlich.'
-
-  for (const ruleSet of config.ruleSets) {
-    if (!ruleSet.id.trim() || !ruleSet.name.trim()) {
-      return 'Jedes Regelwerk braucht ID und Name.'
-    }
-    if (ruleSet.tiers.length === 0) {
-      return `Regelwerk "${ruleSet.name}" braucht mindestens eine Staffel.`
-    }
-    for (const tier of ruleSet.tiers) {
-      if (tier.minDaysBefore < 0) return 'Fristen dürfen nicht negativ sein.'
-      if (tier.chargePercent < 0 || tier.chargePercent > 100) {
-        return 'Storno-Anteil muss zwischen 0 und 100 liegen.'
-      }
-    }
-  }
-
-  return null
-}
-
 export async function PUT(request: NextRequest) {
   try {
     const auth = await requireAdmin(request)
@@ -73,7 +52,7 @@ export async function PUT(request: NextRequest) {
     const { client: supabase } = auth
     const body = await request.json()
     const config = normalizeCancellationPolicyConfig(body.config)
-    const validationError = validateConfig(config)
+    const validationError = validateCancellationPolicyConfig(config)
     if (validationError) {
       return NextResponse.json({ error: validationError }, { status: 400 })
     }
@@ -106,6 +85,16 @@ export async function PUT(request: NextRequest) {
       .single()
 
     if (insert.error) throw insert.error
+
+    for (const path of [
+      '/hundepension',
+      '/katzenbetreuung',
+      '/agb',
+      '/rechtliches',
+      '/portal',
+    ]) {
+      revalidatePath(path)
+    }
 
     return NextResponse.json({
       policy: insert.data,

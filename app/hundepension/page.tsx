@@ -16,11 +16,12 @@ import {
 import Image from "next/image"
 import Link from "next/link"
 import { getCMSContent } from "@/lib/cms"
+import { getAdminDbClient } from "@/lib/admin-auth"
 import {
-  defaultPensionCancellationSections,
-  getCancellationMainTitle,
-  normalizeCancellationSections,
-} from "@/lib/cms/cancellation-policy"
+  getPolicyDisplayTitle,
+  policyToCancellationSections,
+} from "@/lib/cancellation-policy-display"
+import { loadActiveCancellationPolicy } from "@/lib/cancellation-policy-loader"
 import type { Metadata } from "next"
 
 export const dynamic = 'force-dynamic'
@@ -151,8 +152,13 @@ export default async function HundepensionPage() {
   const addTitle = data?.additionalServicesTitle || "Zusätzliche Leistungen"
   const addList = data?.additionalServices || defaultAdditionalServices
 
-  const cancelTitle = getCancellationMainTitle(data, "Stornierungsbedingungen")
-  const cancelSections = normalizeCancellationSections(data, defaultPensionCancellationSections)
+  const { config: cancellationConfig } = await loadActiveCancellationPolicy(getAdminDbClient())
+  const cancelTitle = getPolicyDisplayTitle(cancellationConfig, 'hundepension', 'landing')
+  const cancelSections = policyToCancellationSections(
+    cancellationConfig,
+    'hundepension',
+    'landing'
+  )
 
   const pickTitle = data?.pickupTimesTitle || "Bring- und Holzeiten"
   const pickList = data?.pickupTimesList || defaultPickupTimes

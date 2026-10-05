@@ -1,8 +1,6 @@
-import {
-  defaultPortalCancellationSections,
-  normalizeCancellationSections,
-  type CancellationSection,
-} from '@/lib/cms/cancellation-policy'
+import { policyToCancellationSections } from '@/lib/cancellation-policy-display'
+import { CANCELLATION_POLICY_V2_CONFIG } from '@/lib/cancellation-policy-seed-v2'
+import type { CancellationSection } from '@/lib/cms/cancellation-policy'
 import {
   defaultPickupTimeDefaults,
   normalizePickupTimeDefaults,
@@ -95,17 +93,13 @@ export const defaultKundenportalData: KundenportalData = {
     },
   ],
   cancellationTitle: 'Stornierung',
-  cancellationSections: defaultPortalCancellationSections,
-  cancellationPolicy: [
-    { period: '15 Tage und mehr vor Check-In:', refund: 'kostenlos' },
-    { period: '14 - 7 Tage vor Check-In:', refund: '50% der Buchungssumme' },
-    { period: '6 Tage und weniger vor Check-In:', refund: '100% der Buchungssumme' },
-  ],
-  cancellationNotes: [
-    'Absagen werden jeweils bis 18h berücksichtigt - auch dann, wenn sie an einem Sonn-/Feiertag oder in unserem Urlaub getätigt werden. Die Stornierung muss grundsätzlich in schriftlicher Form per Mail oder WhatsApp erfolgen.',
-    'Bei frühzeitiger Abholung gibt es keine Rückerstattung der gebuchten Tage. Dies gilt auch, wenn ein Hund später als zum vereinbarten Datum in Betreuung gebracht wird.',
-    'Tagesgäste müssen spätestens bis Mittwochabend ihren nicht benötigten Platz für die kommende Woche absagen, damit wir am Donnerstag unseren Springern den Platz anbieten können. Wird der Platz später abgesagt, gelten die o.g. Stornobedingungen.',
-  ],
+  cancellationSections: policyToCancellationSections(
+    CANCELLATION_POLICY_V2_CONFIG,
+    'hundepension',
+    'portal'
+  ),
+  cancellationPolicy: [],
+  cancellationNotes: CANCELLATION_POLICY_V2_CONFIG.generalNotes,
 }
 
 function pickString(value: unknown, fallback: string): string {
@@ -154,31 +148,10 @@ function pickDocumentItems(
   return items.length > 0 ? items : fallback
 }
 
-function pickPolicyList(
-  value: unknown,
-  fallback: KundenportalPeriodRefund[]
-): KundenportalPeriodRefund[] {
-  if (!Array.isArray(value) || value.length === 0) return fallback
-  const rows = value
-    .map((item) => {
-      if (!item || typeof item !== 'object') return null
-      const row = item as Record<string, unknown>
-      const period = typeof row.period === 'string' ? row.period : ''
-      const refund = typeof row.refund === 'string' ? row.refund : ''
-      if (!period && !refund) return null
-      return { period, refund }
-    })
-    .filter((row): row is KundenportalPeriodRefund => row !== null)
-  return rows.length > 0 ? rows : fallback
-}
-
 /** Merges partial CMS JSON with canonical portal defaults. */
 export function mergeKundenportalData(partial: KundenportalData | null | undefined): KundenportalData {
   const d = defaultKundenportalData
   const p = partial ?? {}
-  const cancellationSections = Array.isArray(p.cancellationSections)
-    ? p.cancellationSections
-    : normalizeCancellationSections(p, d.cancellationSections!)
   return {
     checklistTitle: pickString(p.checklistTitle, d.checklistTitle!),
     checklistSubtitle: pickString(p.checklistSubtitle, d.checklistSubtitle!),
@@ -194,9 +167,9 @@ export function mergeKundenportalData(partial: KundenportalData | null | undefin
     documentsTitle: pickString(p.documentsTitle, d.documentsTitle!),
     documentsIntro: pickString(p.documentsIntro, d.documentsIntro!),
     documentsItems: pickDocumentItems(p.documentsItems, d.documentsItems!),
-    cancellationTitle: pickString(p.cancellationTitle, d.cancellationTitle!),
-    cancellationSections,
-    cancellationPolicy: pickPolicyList(p.cancellationPolicy, d.cancellationPolicy!),
-    cancellationNotes: pickStringArray(p.cancellationNotes, d.cancellationNotes!),
+    cancellationTitle: d.cancellationTitle!,
+    cancellationSections: d.cancellationSections!,
+    cancellationPolicy: d.cancellationPolicy!,
+    cancellationNotes: d.cancellationNotes!,
   }
 }

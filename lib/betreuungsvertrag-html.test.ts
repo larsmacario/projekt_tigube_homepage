@@ -45,23 +45,44 @@ describe('betreuungsvertrag-html', () => {
     expect(agbHtml).toContain('Der Tierhalter')
   })
 
-  it('injiziert CMS-Stornierungsbedingungen dynamisch in den Vertrag', async () => {
+  it('injiziert Policy-Stornierungsbedingungen dynamisch in den Vertrag', async () => {
     const { resolveBetreuungsvertragLegal } = await import('@/lib/betreuungsvertrag')
+    const { CANCELLATION_POLICY_V2_CONFIG } = await import('@/lib/cancellation-policy-seed-v2')
     const customResolved = resolveBetreuungsvertragLegal(null, {
-      cancellationSections: [
-        {
-          title: 'Sonder-Stornofristen',
-          policy: [{ period: '30 Tage vor Beginn', refund: 'kostenlos' }],
-          notes: ['Individuelle Notiz'],
-        },
-      ],
-      cancellationNotes: ['Allgemeiner Zusatzhinweis'],
+      config: {
+        ...CANCELLATION_POLICY_V2_CONFIG,
+        generalNotes: ['Allgemeiner Zusatzhinweis'],
+        ruleSets: [
+          {
+            id: 'custom',
+            name: 'Custom',
+            condition: { type: 'default' },
+            priority: 0,
+            serviceScopes: ['hundepension', 'tagesbetreuung'],
+            sectionTitles: { contract: 'Sonder-Stornofristen' },
+            tiers: [
+              {
+                minDaysBefore: 30,
+                maxDaysBefore: null,
+                chargePercent: 0,
+                label: '30 Tage vor Beginn',
+                display: {
+                  contract: { period: '30 Tage vor Beginn', refund: 'kostenlos' },
+                },
+              },
+            ],
+            notes: ['Individuelle Notiz'],
+          },
+        ],
+      },
+      version: 99,
     })
 
     expect(customResolved.content).toContain('Sonder-Stornofristen')
     expect(customResolved.content).toContain('30 Tage vor Beginn')
     expect(customResolved.content).toContain('Individuelle Notiz')
     expect(customResolved.content).toContain('Allgemeiner Zusatzhinweis')
+    expect(customResolved.content).toContain('Stand der Stornierungsbedingungen: Version 99')
     expect(customResolved.content).toContain('<h2>Zusicherungen und Pflichten beider Parteien</h2>')
     expect(customResolved.content).toContain('<h2>Datenschutz</h2>')
   })

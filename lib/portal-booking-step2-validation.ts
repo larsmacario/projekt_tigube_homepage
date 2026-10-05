@@ -1,4 +1,6 @@
+import { expandRecurringDayCareBookableDates } from '@/lib/booking-appointment-plan'
 import { isDateInVacationPeriods, iterateIsoDateRange } from '@/lib/booking-availability'
+import { isAfterBookingHorizon } from '@/lib/booking-horizon'
 import {
   type BookingDateBlock,
   envelopeFromBlocks,
@@ -128,7 +130,13 @@ export function validatePortalBookingStep2(
       return { description: blockValidation.error }
     }
     for (const block of isoBlocks) {
-      if (datesBlocked(iterateIsoDateRange(block.start_date, block.end_date), input.availability)) {
+      const days = iterateIsoDateRange(block.start_date, block.end_date)
+      if (days.some((d) => isAfterBookingHorizon(d))) {
+        return {
+          description: 'Ein Betreuungsblock liegt außerhalb des Buchungshorizonts (Folgejahr).',
+        }
+      }
+      if (datesBlocked(days, input.availability)) {
         return {
           description:
             'Ein gewählter Betreuungsblock ist wegen Betriebsferien oder Schließtagen nicht verfügbar.',
@@ -140,7 +148,7 @@ export function validatePortalBookingStep2(
   for (const line of dayCareOnceLines) {
     const dates = input.dayCareOnceDates[line.pet_id] || []
     const name = petName(input.petNames, line.pet_id)
-    const sectionId = `daycare-once-${line.pet_id}`
+    const sectionId = `daycare-${line.pet_id}`
     if (dates.length === 0) {
       return {
         sectionId,
@@ -148,10 +156,16 @@ export function validatePortalBookingStep2(
       }
     }
     const isoList = dates.map((d) => toIsoDate(startOfDay(d)))
-    if (datesBlocked(isoList, input.availability)) {
+    const blocked = isoList.filter(
+      (date) =>
+        isAfterBookingHorizon(date) ||
+        input.availability.closedDates.includes(date) ||
+        isDateInVacationPeriods(date, input.availability.vacationPeriods)
+    )
+    if (blocked.length > 0) {
       return {
         sectionId,
-        description: `Für ${name}: Ein gewählter Tag ist wegen Ferien oder Schließtag nicht verfügbar.`,
+        description: `Für ${name}: Ein gewählter Tag ist nicht verfügbar (Ferien, Schließtag oder außerhalb des Buchungshorizonts).`,
       }
     }
   }
@@ -159,39 +173,50 @@ export function validatePortalBookingStep2(
   for (const line of dayCareRecurringLines) {
     const cfg = input.dayCareRecurring[line.pet_id]
     const name = petName(input.petNames, line.pet_id)
-    const sectionId = `daycare-recurring-${line.pet_id}`
+    const sectionId = `daycare-${line.pet_id}`
     if (!cfg?.weekdays?.length) {
       return {
         sectionId,
-        description: `Für ${name}: Bitte wähle mindestens einen Wochentag (Mo–So) bei „Feste Wochentage“.`,
+        description: `Für ${name}: Bitte wähle mindestens einen Tag im Kalender (Wochentags-Muster).`,
       }
     }
     if (!cfg.startDate) {
       return {
         sectionId,
-        description: `Für ${name}: Bitte wähle ein Startdatum für die festen Tage.`,
+        description: `Für ${name}: Bitte wähle mindestens einen Starttag im Kalender.`,
       }
     }
     const startIso = toIsoDate(startOfDay(cfg.startDate))
     const unbefristet = cfg.unbefristet !== false && !cfg.endDate
-    if (!unbefristet && cfg.endDate) {
-      const endIso = toIsoDate(startOfDay(cfg.endDate))
-      if (endIso < startIso) {
-        return {
-          sectionId,
-          description: `Für ${name}: Das Enddatum muss am oder nach dem Startdatum liegen.`,
-        }
-      }
-      if (datesBlocked([startIso, endIso], input.availability)) {
-        return {
-          sectionId,
-          description: `Für ${name}: Start- oder Enddatum ist wegen Ferien oder Schließtag nicht verfügbar.`,
-        }
-      }
-    } else if (datesBlocked([startIso], input.availability)) {
+    const endIso =
+      !unbefristet && cfg.endDate ? toIsoDate(startOfDay(cfg.endDate)) : null
+
+    if (endIso && endIso < startIso) {
       return {
         sectionId,
-        description: `Für ${name}: Das Startdatum ist wegen Ferien oder Schließtag nicht verfügbar.`,
+        description: `Für ${name}: Das Enddatum muss am oder nach dem Startdatum liegen.`,
+      }
+    }
+
+    if (isAfterBookingHorizon(startIso) || (endIso && isAfterBookingHorizon(endIso))) {
+      return {
+        sectionId,
+        description: `Für ${name}: Termine sind nur bis zum Ende des Folgejahres buchbar.`,
+      }
+    }
+
+    const { bookable } = expandRecurringDayCareBookableDates({
+      startDate: startIso,
+      endDate: endIso,
+      weekdays: cfg.weekdays,
+      intervalWeeks: cfg.intervalWeeks === 2 ? 2 : 1,
+      availability: input.availability,
+    })
+
+    if (bookable.length === 0) {
+      return {
+        sectionId,
+        description: `Für ${name}: In der gewählten Serie bleibt kein buchbarer Termin übrig (Ferien/Schließtage).`,
       }
     }
   }
@@ -233,17 +258,27 @@ export function buildPortalBookingPetsPayload(
       unbefristet?: boolean
       intervalWeeks?: 1 | 2
     }
-  >
+  >,
+  availability?: PortalBookingStep2Availability
 ) {
   return resolvePetLines(petLines).map((line) => {
     if (line.service_type === 'tagesbetreuung' && line.day_care_mode === 'once') {
+      let selected_dates = (dayCareOnceDates[line.pet_id] || [])
+        .map((d) => toIsoDate(startOfDay(d)))
+        .sort()
+      if (availability) {
+        selected_dates = selected_dates.filter(
+          (date) =>
+            !isAfterBookingHorizon(date) &&
+            !availability.closedDates.includes(date) &&
+            !isDateInVacationPeriods(date, availability.vacationPeriods)
+        )
+      }
       return {
         pet_id: line.pet_id,
         service_type: line.service_type,
         day_care_mode: 'once' as const,
-        selected_dates: (dayCareOnceDates[line.pet_id] || [])
-          .map((d) => toIsoDate(startOfDay(d)))
-          .sort(),
+        selected_dates,
       }
     }
     if (line.service_type === 'tagesbetreuung' && line.day_care_mode === 'recurring') {

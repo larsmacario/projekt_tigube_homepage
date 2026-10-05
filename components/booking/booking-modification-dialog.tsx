@@ -38,6 +38,8 @@ type ModificationPreview = {
     cancellationChargeAmount: number
     cancellationRefundAmount: number
     tierLabel: string
+    chargePercent: number
+    ruleSetName?: string
     waivedFees?: boolean
   } | null
   estimatedAddedTotal: number
@@ -489,12 +491,23 @@ export function BookingModificationDialog({
               <p className="text-red-700">{preview.availability.error || 'Nicht verfügbar'}</p>
             )}
             {preview.cancellationPreview && preview.diff.removed.length > 0 && (
-              <p>
-                Stornogebühr: {formatEuro(preview.cancellationPreview.cancellationChargeAmount)} ·
-                Erstattung: {formatEuro(preview.cancellationPreview.cancellationRefundAmount)}
-                {preview.cancellationPreview.tierLabel &&
-                  ` (${preview.cancellationPreview.tierLabel})`}
-              </p>
+              <div className="space-y-1">
+                <p>
+                  Regelwerk: {preview.cancellationPreview.ruleSetName ?? 'Stornobedingungen'}
+                </p>
+                <p>
+                  Staffel: {preview.cancellationPreview.tierLabel}
+                </p>
+                <p>
+                  Stornogebühr:{' '}
+                  {formatEuro(preview.cancellationPreview.cancellationChargeAmount)} (
+                  {preview.cancellationPreview.chargePercent}%)
+                </p>
+                <p>
+                  Erstattung:{' '}
+                  {formatEuro(preview.cancellationPreview.cancellationRefundAmount)}
+                </p>
+              </div>
             )}
           </div>
         )}

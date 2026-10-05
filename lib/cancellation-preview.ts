@@ -7,9 +7,13 @@ import {
 } from '@/lib/cancellation-booking-total'
 import { resolveScopeTotalForCancelledDates } from '@/lib/cancellation-day-price'
 import { loadActiveCancellationPolicy } from '@/lib/cancellation-policy-loader'
-import { calculateCancellationAmounts } from '@/lib/cancellation-resolver'
+import {
+  calculateCancellationAmounts,
+  calculateCancellationAmountsForDates,
+  type CancellationPerDayAmount,
+} from '@/lib/cancellation-resolver'
 import { getPublicHolidaysInRange } from '@/lib/public-holidays-de'
-import { fetchSchoolHolidaysBw } from '@/lib/school-holidays-bw'
+import { loadSchoolHolidaysBw } from '@/lib/school-holidays-bw'
 import type { BookingLineItem, BookingRequest } from '@/lib/types'
 
 export type CancellationPreviewResult = Awaited<ReturnType<typeof computeCancellationPreview>>
@@ -22,7 +26,7 @@ export async function computeCancellationPreview(
   options?: { waiveFees?: boolean }
 ) {
   const { config } = await loadActiveCancellationPolicy(getAdminDbClient())
-  const schoolHolidays = await fetchSchoolHolidaysBw().catch(() => [])
+  const schoolHolidays = await loadSchoolHolidaysBw()
   const bookingTotal = getBookingFinancialTotal(booking.id, lineItems)
   const activeDates = getActiveBookingDates(booking)
 
@@ -65,19 +69,56 @@ export async function computeCancellationPreview(
       }
 
   const checkInDate = resolveCancellationCheckInDate(booking, datesToCancel)
-  const calculation = calculateCancellationAmounts({
-    checkInDate,
-    bookingStartDate: booking.start_date,
-    bookingEndDate: booking.end_date,
-    selectedDates: booking.selected_dates,
-    cancelledDates: mergedCancelledDates,
-    cancellationAt,
-    bookingTotal,
-    scopeTotalOverride: datesToCancel?.length ? scope.scopeTotal : undefined,
-    policy: config,
-    serviceType: booking.service_type,
-    schoolHolidays,
-  })
+
+  let perDayAmounts: CancellationPerDayAmount[] = []
+  if (datesToCancel?.length) {
+    if (scope.priceSnapshot.perDay.length > 0) {
+      perDayAmounts = scope.priceSnapshot.perDay.map((row) => ({
+        date: row.date,
+        amount: row.dayTotal,
+      }))
+    } else if (scope.scopeTotal > 0) {
+      const share = Math.round((scope.scopeTotal / datesToCancel.length) * 100) / 100
+      let allocated = 0
+      perDayAmounts = datesToCancel.map((date, index) => {
+        const isLast = index === datesToCancel.length - 1
+        const amount = isLast
+          ? Math.round((scope.scopeTotal - allocated) * 100) / 100
+          : share
+        allocated += amount
+        return { date, amount }
+      })
+    }
+  }
+
+  const calculation =
+    datesToCancel?.length && perDayAmounts.length > 0
+      ? calculateCancellationAmountsForDates({
+          checkInDate,
+          bookingStartDate: booking.start_date,
+          bookingEndDate: booking.end_date,
+          selectedDates: booking.selected_dates,
+          cancelledDates: mergedCancelledDates,
+          cancellationAt,
+          bookingTotal,
+          policy: config,
+          serviceType: booking.service_type,
+          schoolHolidays,
+          perDayAmounts,
+        })
+      : calculateCancellationAmounts({
+          checkInDate,
+          bookingStartDate: booking.start_date,
+          bookingEndDate: booking.end_date,
+          selectedDates: booking.selected_dates,
+          cancelledDates: mergedCancelledDates,
+          cancellationAt,
+          bookingTotal,
+          scopeTotalOverride: datesToCancel?.length ? scope.scopeTotal : undefined,
+          policy: config,
+          serviceType: booking.service_type,
+          schoolHolidays,
+        })
 
   const waived = options?.waiveFees === true
   const charge = waived ? 0 : calculation.cancellationChargeAmount

@@ -286,6 +286,12 @@ export function BookingCancellationDialog({
               <span className="font-medium">Stornogebühr:</span>{' '}
               {formatEuro(preview.cancellationChargeAmount)} ({preview.chargePercent}%)
             </p>
+            {preview.cancellationChargeAmount === 0 && preview.chargePercent === 0 && (
+              <p className="text-xs text-sage-600">
+                Laut Staffel „{preview.tierLabel}“ entsteht für die gewählten Tage derzeit keine
+                Gebühr. Bei späterer Rechnungsstellung gelten weiterhin diese Stornobedingungen.
+              </p>
+            )}
             <p>
               <span className="font-medium">Erstattung:</span>{' '}
               {formatEuro(preview.cancellationRefundAmount)}

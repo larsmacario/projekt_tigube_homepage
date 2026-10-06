@@ -54,6 +54,24 @@ export async function PUT(request: NextRequest) {
 
     const { settings, vacationDates } = await request.json()
 
+    const autoOpenEnabled = Boolean(settings.auto_open_enabled)
+    const autoOpenDelayRaw = settings.auto_open_delay_seconds
+    const autoOpenDelaySeconds =
+      typeof autoOpenDelayRaw === 'number'
+        ? autoOpenDelayRaw
+        : parseInt(String(autoOpenDelayRaw ?? ''), 10)
+
+    if (
+      !Number.isFinite(autoOpenDelaySeconds) ||
+      autoOpenDelaySeconds < 0 ||
+      autoOpenDelaySeconds > 120
+    ) {
+      return NextResponse.json(
+        { error: 'Verzögerung muss eine ganze Zahl zwischen 0 und 120 Sekunden sein.' },
+        { status: 400 }
+      )
+    }
+
     const normalizedVacationDates = (vacationDates || []).map(
       (date: VacationDate) => normalizeVacationDate(date)
     )
@@ -93,6 +111,8 @@ export async function PUT(request: NextRequest) {
         dialog_description: settings.dialog_description,
         hint_text: settings.hint_text,
         is_active: settings.is_active,
+        auto_open_enabled: autoOpenEnabled,
+        auto_open_delay_seconds: autoOpenDelaySeconds,
       })
       .eq('id', settings.id)
       .select()

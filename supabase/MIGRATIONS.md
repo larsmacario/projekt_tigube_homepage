@@ -77,6 +77,7 @@ npx supabase migration list
 | `20260724220000_seed_kundenportal_cms.sql` | CMS-Seed für Kundenportal (Checkliste + Infos) |
 | `20260724230000_add_address_to_contacts.sql` | Anschrift (Straße, Hausnummer, PLZ, Ort) auf contacts |
 | `20260724260000_sevdesk_integration.sql` | SevDesk: Vault API-Key + `sevdesk_settings` + RPC |
+| `20261006100000_newsbar_auto_open_dialog.sql` | NewsBar: Auto-Popup für Betriebsferien-Dialog (aktiv + Verzögerung) |
 
 ## Migration Repair (wenn CLI-Zugriff verfügbar)
 

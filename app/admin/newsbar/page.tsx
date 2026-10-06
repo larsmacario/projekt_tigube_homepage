@@ -26,6 +26,8 @@ interface NewsBarSettings {
   dialog_description: string
   hint_text: string
   is_active: boolean
+  auto_open_enabled: boolean
+  auto_open_delay_seconds: number
 }
 
 export default function NewsBarPage() {
@@ -45,7 +47,11 @@ export default function NewsBarPage() {
       const data = await response.json()
       
       if (data.settings) {
-        setSettings(data.settings)
+        setSettings({
+          ...data.settings,
+          auto_open_enabled: data.settings.auto_open_enabled ?? true,
+          auto_open_delay_seconds: data.settings.auto_open_delay_seconds ?? 10,
+        })
       }
       if (data.vacationDates) {
         setVacationDates(
@@ -173,6 +179,42 @@ export default function NewsBarPage() {
               checked={settings.is_active}
               onCheckedChange={(checked) => setSettings({ ...settings, is_active: checked })}
             />
+          </div>
+
+          <div className="flex items-center justify-between">
+            <div>
+              <Label>Dialog automatisch öffnen</Label>
+              <p className="text-sm text-sage-600">
+                Betriebsferien-Popup einmal pro Besuch und Sitzung nach Verzögerung
+              </p>
+            </div>
+            <Switch
+              checked={settings.auto_open_enabled}
+              onCheckedChange={(checked) =>
+                setSettings({ ...settings, auto_open_enabled: checked })
+              }
+            />
+          </div>
+
+          <div className="max-w-xs">
+            <Label htmlFor="auto_open_delay_seconds">Verzögerung (Sekunden)</Label>
+            <Input
+              id="auto_open_delay_seconds"
+              type="number"
+              min={0}
+              max={120}
+              step={1}
+              disabled={!settings.auto_open_enabled}
+              value={settings.auto_open_delay_seconds}
+              onChange={(e) => {
+                const parsed = parseInt(e.target.value, 10)
+                setSettings({
+                  ...settings,
+                  auto_open_delay_seconds: Number.isFinite(parsed) ? parsed : 0,
+                })
+              }}
+            />
+            <p className="text-sm text-sage-600 mt-1">0–120 Sekunden (Standard: 10)</p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

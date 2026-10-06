@@ -283,8 +283,26 @@ export function isSurchargeUsage(usage: PriceUsage | undefined): boolean {
   return usage === 'surcharge'
 }
 
+export function coerceMoneyAmount(value: unknown): number | null {
+  if (value == null || value === '') return null
+  if (typeof value === 'number') return Number.isFinite(value) ? value : null
+  if (typeof value === 'string') {
+    const normalized = value.trim().replace(',', '.')
+    const parsed = Number.parseFloat(normalized)
+    return Number.isFinite(parsed) ? parsed : null
+  }
+  return null
+}
+
 export function formatEuro(amount: number): string {
   return `${amount.toFixed(2).replace('.', ',')}€`
+}
+
+/** DB/API liefert numerische Felder oft als String – sicher formatieren. */
+export function formatEuroAmount(value: unknown): string | null {
+  const amount = coerceMoneyAmount(value)
+  if (amount == null) return null
+  return formatEuro(amount)
 }
 
 export function formatDiscountLabel(

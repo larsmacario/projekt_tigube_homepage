@@ -1,4 +1,4 @@
-import { format, parseISO } from 'date-fns'
+import { format, isValid, parseISO } from 'date-fns'
 import { de } from 'date-fns/locale'
 import type { BookingRequest, ServiceType, DayCareMode, DayCareIntervalWeeks } from '@/lib/types'
 import { iterateIsoDateRange } from '@/lib/booking-availability'
@@ -50,11 +50,19 @@ export function minMaxIsoDates(dates: string[]): { start: string; end: string } 
   return { start: sorted[0], end: sorted[sorted.length - 1] }
 }
 
+function formatIsoDateDE(iso: string, pattern: string): string | null {
+  const normalized = iso?.trim().slice(0, 10)
+  if (!normalized || !/^\d{4}-\d{2}-\d{2}$/.test(normalized)) return null
+  const parsed = parseISO(normalized)
+  if (!isValid(parsed)) return null
+  return format(parsed, pattern, { locale: de })
+}
+
 export function formatSelectedDatesDE(dates: string[]): string {
   const sorted = sortIsoDates(dates)
   if (sorted.length === 0) return ''
   if (sorted.length === 1) {
-    return format(parseISO(sorted[0]), 'd. MMMM yyyy', { locale: de })
+    return formatIsoDateDE(sorted[0], 'd. MMMM yyyy') ?? sorted[0]
   }
 
   const sameMonth = sorted.every(
@@ -62,15 +70,21 @@ export function formatSelectedDatesDE(dates: string[]): string {
   )
 
   if (sameMonth) {
-    const parts = sorted.map((d) => format(parseISO(d), 'd.', { locale: de }))
-    const monthYear = format(parseISO(sorted[0]), 'MMMM yyyy', { locale: de })
-    if (parts.length === 2) {
-      return `${parts[0]} und ${parts[1]} ${monthYear}`
+    const parts = sorted
+      .map((d) => formatIsoDateDE(d, 'd.'))
+      .filter((d): d is string => Boolean(d))
+    const monthYear = formatIsoDateDE(sorted[0], 'MMMM yyyy')
+    if (parts.length >= 2 && monthYear) {
+      if (parts.length === 2) {
+        return `${parts[0]} und ${parts[1]} ${monthYear}`
+      }
+      return `${parts.slice(0, -1).join(', ')} und ${parts[parts.length - 1]} ${monthYear}`
     }
-    return `${parts.slice(0, -1).join(', ')} und ${parts[parts.length - 1]} ${monthYear}`
   }
 
-  return sorted.map((d) => format(parseISO(d), 'd. MMM yyyy', { locale: de })).join(', ')
+  return sorted
+    .map((d) => formatIsoDateDE(d, 'd. MMM yyyy') ?? d)
+    .join(', ')
 }
 
 export function formatDayCareBookingSummary(booking: Pick<
@@ -93,11 +107,14 @@ export function formatDayCareBookingSummary(booking: Pick<
 
   if (booking.day_care_mode === 'recurring') {
     const days = formatWeekdayList(booking.day_care_weekdays)
-    const start = format(parseISO(booking.start_date), 'd. MMMM yyyy', { locale: de })
+    const start = formatIsoDateDE(booking.start_date, 'd. MMMM yyyy')
+    if (!start) return days ? `Feste Tage: ${days}` : null
     const interval = dayCareIntervalLabel(booking.day_care_interval_weeks)
     if (booking.end_date) {
-      const end = format(parseISO(booking.end_date), 'd. MMMM yyyy', { locale: de })
-      return `Feste Tage: ${days} (${interval}) vom ${start} bis ${end}`
+      const end = formatIsoDateDE(booking.end_date, 'd. MMMM yyyy')
+      return end
+        ? `Feste Tage: ${days} (${interval}) vom ${start} bis ${end}`
+        : `Feste Tage: ${days} (${interval}) ab ${start}`
     }
     return `Feste Tage: ${days} (${interval}) ab ${start} (unbefristet)`
   }

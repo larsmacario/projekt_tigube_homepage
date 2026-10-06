@@ -2,10 +2,12 @@ import { describe, expect, it } from 'vitest'
 
 import {
   expandBookingOccupiedDates,
+  formatDayCareBookingSummary,
   formatSelectedDatesDE,
   minMaxIsoDates,
   validateDayCarePetPayload,
 } from '@/lib/day-care-booking'
+import { formatEuroAmount } from '@/lib/price-override'
 
 describe('day-care-booking', () => {
   it('computes min/max from selected dates', () => {
@@ -50,5 +52,23 @@ describe('day-care-booking', () => {
 
   it('formats selected dates in German', () => {
     expect(formatSelectedDatesDE(['2026-07-24', '2026-07-31'])).toContain('Juli')
+  })
+
+  it('formatDayCareBookingSummary wirft nicht bei ungültigem Startdatum', () => {
+    expect(
+      formatDayCareBookingSummary({
+        service_type: 'tagesbetreuung',
+        day_care_mode: 'recurring',
+        day_care_weekdays: [2],
+        day_care_interval_weeks: 1,
+        selected_dates: null,
+        start_date: '',
+        end_date: null,
+      })
+    ).toBe('Feste Tage: Di')
+  })
+
+  it('formatEuroAmount akzeptiert String-Beträge aus der DB', () => {
+    expect(formatEuroAmount('123.45')).toBe('123,45€')
   })
 })

@@ -14,7 +14,7 @@ import {
 } from '@/components/ui/sheet'
 import { BookingLineItemsPanel } from '@/components/admin/booking-line-items-panel'
 import { PetCarePlanSummary } from '@/components/portal/pet-care-plan-summary'
-import { formatEuro } from '@/lib/price-override'
+import { formatEuroAmount } from '@/lib/price-override'
 import { formatDayCareBookingSummary } from '@/lib/day-care-booking'
 import type { BookingRequest } from '@/lib/types'
 
@@ -210,14 +210,14 @@ export function BookingDetailSheet({
                 {booking.cancellation_tier_label && (
                   <p className="text-sm text-slate-800">Staffel: {booking.cancellation_tier_label}</p>
                 )}
-                {booking.cancellation_charge_amount != null && (
+                {formatEuroAmount(booking.cancellation_charge_amount) && (
                   <p className="text-sm text-slate-800">
-                    Stornogebühr: {formatEuro(booking.cancellation_charge_amount)}
+                    Stornogebühr: {formatEuroAmount(booking.cancellation_charge_amount)}
                   </p>
                 )}
-                {booking.cancellation_refund_amount != null && (
+                {formatEuroAmount(booking.cancellation_refund_amount) && (
                   <p className="text-sm text-slate-800">
-                    Erstattung: {formatEuro(booking.cancellation_refund_amount)}
+                    Erstattung: {formatEuroAmount(booking.cancellation_refund_amount)}
                   </p>
                 )}
                 <p className="text-sm text-slate-800">

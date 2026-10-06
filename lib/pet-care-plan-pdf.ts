@@ -304,7 +304,10 @@ export function renderPetCarePlanPdfPage(
   )
   y += 4
 
-  const plan = input.carePlan != null ? normalizeCarePlan(input.carePlan) : null
+  const plan =
+    input.carePlan != null
+      ? normalizeCarePlan(input.carePlan as import('@/lib/pet-care-plan').PetCarePlanInput)
+      : null
 
   if (!plan) {
     return renderLegacySection(doc, input, y, pageNumber)

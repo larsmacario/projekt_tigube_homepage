@@ -951,9 +951,16 @@ export default function CustomerDetailPage() {
                   {bookings
                     .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
                     .map((booking) => {
-                      const isPast = new Date(booking.end_date) < new Date()
-                      const isCurrent = new Date(booking.start_date) <= new Date() && new Date(booking.end_date) >= new Date()
-                      const isFuture = new Date(booking.start_date) > new Date()
+                      const endIso = booking.end_date ?? booking.start_date
+                      const isPast = endIso ? new Date(endIso) < new Date() : false
+                      const isCurrent =
+                        booking.start_date &&
+                        endIso &&
+                        new Date(booking.start_date) <= new Date() &&
+                        new Date(endIso) >= new Date()
+                      const isFuture = booking.start_date
+                        ? new Date(booking.start_date) > new Date()
+                        : false
 
                       let statusBadge = ''
                       if (booking.status === 'approved') {
@@ -988,7 +995,11 @@ export default function CustomerDetailPage() {
                                 )}
                               </div>
                               <p className="text-sm text-sage-600">
-                                {new Date(booking.start_date).toLocaleDateString('de-DE')} - {new Date(booking.end_date).toLocaleDateString('de-DE')}
+                                {booking.start_date
+                                  ? new Date(booking.start_date).toLocaleDateString('de-DE')
+                                  : '—'}{' '}
+                                -{' '}
+                                {endIso ? new Date(endIso).toLocaleDateString('de-DE') : '—'}
                               </p>
                               {booking.message && (
                                 <p className="text-sm text-sage-500 mt-1 line-clamp-1">

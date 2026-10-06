@@ -251,7 +251,12 @@ export default function AdminBookingsPage() {
         default_capacity: s.default_capacity,
       }))
 
-      const requiredTypes = [null, 'hundepension', 'katzenbetreuung', 'tagesbetreuung']
+      const requiredTypes: (ServiceType | null)[] = [
+        null,
+        'hundepension',
+        'katzenbetreuung',
+        'tagesbetreuung',
+      ]
       requiredTypes.forEach(type => {
         if (!settingsToSave.find(s => s.service_type === type)) {
           settingsToSave.push({
@@ -854,7 +859,6 @@ export default function AdminBookingsPage() {
                               mode="single"
                               selected={overrideForm.date}
                               onSelect={(date) => setOverrideForm({ ...overrideForm, date })}
-                              initialFocus
                             />
                           </PopoverContent>
                         </Popover>

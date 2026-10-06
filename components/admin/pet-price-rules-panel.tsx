@@ -11,7 +11,7 @@ import {
   ruleRowToForm,
   type PriceRuleFormState,
 } from '@/components/admin/price-rule-editor'
-import type { PriceRuleRow } from '@/lib/price-resolver'
+import type { PriceRuleRow, PriceUsage } from '@/lib/price-resolver'
 import { CollapsibleAdminCard } from '@/components/admin/collapsible-admin-card'
 
 interface CatalogPrice {
@@ -21,7 +21,7 @@ interface CatalogPrice {
   price: number | null
   price_type: 'fixed' | 'percentage' | 'per_unit' | 'text'
   unit: string | null
-  usage?: string
+  usage?: PriceUsage
 }
 
 interface PriceCategory {

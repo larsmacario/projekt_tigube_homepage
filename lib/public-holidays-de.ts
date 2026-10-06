@@ -4,7 +4,7 @@ import { iterateIsoDateRange } from '@/lib/booking-availability'
 
 export type PublicHolidayEntry = {
   date: string
-  name: string
+  name?: string
 }
 
 type NagerHoliday = {

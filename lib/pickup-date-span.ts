@@ -20,9 +20,13 @@ export function resolvePickupDateSpanFromPortalLines(
       : groupRange
 
   if (pensionEnvelope && petLines.some((l) => l.service_type === 'hundepension')) {
-    dateRange = {
-      from: parseIsoDate(pensionEnvelope.start_date),
-      to: parseIsoDate(pensionEnvelope.end_date),
+    const from = parseIsoDate(pensionEnvelope.start_date)
+    const to = parseIsoDate(pensionEnvelope.end_date)
+    if (from) {
+      dateRange = {
+        from,
+        to: to ?? from,
+      }
     }
   }
 
@@ -38,17 +42,21 @@ export function resolvePickupDateSpanFromPortalLines(
       line.day_care_mode === 'once' &&
       line.selected_dates?.length
     ) {
-      dayCareOnceDates[line.pet_id] = line.selected_dates.map((d) => parseIsoDate(d))
+      dayCareOnceDates[line.pet_id] = line.selected_dates
+        .map((d) => parseIsoDate(d))
+        .filter((d): d is Date => d != null)
     }
     if (
       line.service_type === 'tagesbetreuung' &&
       line.day_care_mode === 'recurring' &&
       line.start_date
     ) {
+      const startDate = parseIsoDate(line.start_date)
+      if (!startDate) continue
       dayCareRecurring[line.pet_id] = {
         weekdays: line.day_care_weekdays ?? [],
-        startDate: parseIsoDate(line.start_date),
-        endDate: line.end_date ? parseIsoDate(line.end_date) : undefined,
+        startDate,
+        endDate: line.end_date ? parseIsoDate(line.end_date) ?? undefined : undefined,
       }
     }
   }

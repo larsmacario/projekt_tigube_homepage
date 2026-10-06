@@ -32,7 +32,16 @@ export function mapCarePlanChangeRow(row: CarePlanChangeRow): PetCarePlanChange 
     care_plan_snapshot: row.care_plan_snapshot ?? null,
     archived_at: row.archived_at ?? null,
     pet: Array.isArray(pets) ? pets[0] ?? null : pets ?? null,
-    customer: Array.isArray(contacts) ? contacts[0] ?? null : contacts ?? null,
+    customer: (() => {
+      const contact = Array.isArray(contacts) ? contacts[0] ?? null : contacts ?? null
+      if (!contact) return null
+      return {
+        id: contact.id,
+        vorname: contact.vorname,
+        nachname: contact.nachname ?? '',
+        email: contact.email ?? '',
+      }
+    })(),
   }
 }
 

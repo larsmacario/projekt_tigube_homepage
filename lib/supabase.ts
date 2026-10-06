@@ -57,6 +57,8 @@ export const supabase = supabaseProxy
 
 import type { Testimonial } from './types'
 
+export type { Testimonial } from './types'
+
 // Functions for testimonials
 export const getPublishedTestimonials = async (): Promise<Testimonial[]> => {
   const { data, error } = await supabase

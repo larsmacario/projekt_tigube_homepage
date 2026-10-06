@@ -4,7 +4,11 @@ import {
   loadPriceRulesForScope,
   savePriceRulesForScope,
 } from '@/lib/price-catalog-loader'
-import { normalizeRulePayload, type PriceScopeType } from '@/lib/price-resolver'
+import {
+  normalizeRulePayload,
+  type PriceRuleRow,
+  type PriceScopeType,
+} from '@/lib/price-resolver'
 
 function parseScopeType(value: string | null): PriceScopeType | null {
   if (value === 'group' || value === 'customer' || value === 'pet') {
@@ -73,7 +77,7 @@ export async function PUT(request: NextRequest) {
           discount_value: rule.discount_value as string | number | null | undefined,
         })
       )
-      .filter(Boolean)
+      .filter((rule): rule is PriceRuleRow => rule != null)
 
     await savePriceRulesForScope(auth.client, scopeType, scopeId, rules)
     return NextResponse.json({ success: true })

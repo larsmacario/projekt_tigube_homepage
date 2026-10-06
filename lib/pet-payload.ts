@@ -1,4 +1,4 @@
-import { normalizeCarePlan, validateCarePlan } from '@/lib/pet-care-plan'
+import { normalizeCarePlan, validateCarePlan, type PetCarePlanInput } from '@/lib/pet-care-plan'
 import { applyCarePlanToPetUpdates } from '@/lib/pet-care-plan-change-log'
 import { isDog } from '@/lib/pet-vaccination'
 
@@ -36,7 +36,7 @@ export function normalizePetPayload<T extends Record<string, unknown>>(payload: 
   }
 
   if ('care_plan' in normalized) {
-    normalized.care_plan = normalizeCarePlan(normalized.care_plan)
+    normalized.care_plan = normalizeCarePlan(normalized.care_plan as PetCarePlanInput)
   }
 
   return normalized as T
@@ -78,7 +78,7 @@ export function validatePetPayload(payload: Record<string, unknown>): string | n
   }
 
   if (Object.prototype.hasOwnProperty.call(payload, 'care_plan') && payload.care_plan != null) {
-    const carePlanError = validateCarePlan(payload.care_plan)
+    const carePlanError = validateCarePlan(payload.care_plan as PetCarePlanInput)
     if (carePlanError) {
       return carePlanError
     }

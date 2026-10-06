@@ -30,7 +30,7 @@ export function PetCarePlanPrintView({
   onDownloadPdf,
   downloadingPdf = false,
 }: PetCarePlanPrintProps) {
-  const plan = normalizeCarePlan(carePlan)
+  const plan = normalizeCarePlan(carePlan as import('@/lib/pet-care-plan').PetCarePlanInput)
   if (!plan) {
     return <p className="p-8 text-center text-sage-600">Kein Pflegeplan vorhanden.</p>
   }

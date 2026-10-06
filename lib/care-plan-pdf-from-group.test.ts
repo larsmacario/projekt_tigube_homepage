@@ -7,7 +7,7 @@ function group(partial: Partial<PetCarePlanChangeGroup>): PetCarePlanChangeGroup
     pet_id: 'pet-1',
     customer_id: 'customer-1',
     pet: { id: 'pet-1', name: 'Baghira' },
-    customer: { id: 'customer-1', vorname: 'Simone', nachname: 'Günther', email: null },
+    customer: { id: 'customer-1', vorname: 'Simone', nachname: 'Günther', email: '' },
     changes: [],
     latest_at: '2026-09-10T14:00:00.000Z',
     has_unseen: true,

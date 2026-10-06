@@ -28,14 +28,17 @@ describe('booking-cancellation-email', () => {
         cancelled_by: 'u1',
         cancellation_charge_amount: 100,
         cancellation_refund_amount: 100,
-        cancellation_policy_snapshot: DEFAULT_CANCELLATION_POLICY_CONFIG,
+        cancellation_policy_snapshot: DEFAULT_CANCELLATION_POLICY_CONFIG as Record<
+          string,
+          unknown
+        >,
         cancellation_rule_set_id: 'standard',
         cancellation_tier_label: '14 - 7 Tage vor Check-In',
         cancellation_financial_status: 'pending',
         cancelled_dates: [],
         created_at: '2026-08-01T10:00:00.000Z',
         updated_at: '2026-08-20T10:00:00.000Z',
-        pet: { name: 'Bello' },
+        pet: { name: 'Bello' } as import('@/lib/types').BookingRequest['pet'],
       },
       preview: {
         ruleSetId: 'standard',

@@ -68,7 +68,7 @@ export async function GET(request: NextRequest) {
       throw error
     }
 
-    const pets = ((data || []) as PetWithCustomer[]).map((pet) => ({
+    const pets = ((data || []) as unknown as PetWithCustomer[]).map((pet) => ({
       ...pet,
       customerName: [pet.contacts?.vorname, pet.contacts?.nachname].filter(Boolean).join(' ').trim(),
       customerEmail: pet.contacts?.email ?? null,

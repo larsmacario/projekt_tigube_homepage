@@ -23,6 +23,7 @@ function booking(partial: Partial<BookingRequest> & Pick<BookingRequest, 'id' | 
     created_at: '',
     updated_at: '',
     status: 'approved',
+    cancelled_at: null,
     ...partial,
   }
 }

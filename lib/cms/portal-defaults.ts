@@ -141,7 +141,10 @@ function pickDocumentItems(
       const title = typeof row.title === 'string' ? row.title : ''
       const description = typeof row.description === 'string' ? row.description : undefined
       if (!title && !description) return null
-      return { title, description }
+      const documentItem: KundenportalDocumentItem = description
+        ? { title, description }
+        : { title }
+      return documentItem
     })
     .filter((item): item is KundenportalDocumentItem => item !== null)
   return items.length > 0 ? items : fallback

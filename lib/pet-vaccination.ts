@@ -169,6 +169,7 @@ export type PetDashboardCompletenessInput = Pick<
   | 'intervall_impfung'
   | 'letzte_impfung_zusatz'
   | 'letzte_stuhlprobe'
+  | 'naechste_stuhlprobe'
   | 'care_plan'
   | 'futtermenge'
   | 'medikamente'
@@ -285,12 +286,22 @@ export function formatPetSaveWarning(missing: string[]): string | null {
 export function getDogVaccinationIssues(
   pet: Pick<
     Pet,
-    'id' | 'tierart' | 'letzte_impfung' | 'intervall_impfung' | 'letzte_impfung_zusatz' | 'letzte_stuhlprobe'
-  >,
+    | 'id'
+    | 'tierart'
+    | 'letzte_impfung'
+    | 'intervall_impfung'
+    | 'letzte_impfung_zusatz'
+    | 'letzte_stuhlprobe'
+  > & {
+    naechste_stuhlprobe?: Pet['naechste_stuhlprobe']
+  },
   documents: Array<{ pet_id: string | null; document_type: string }>
 ): string[] {
   if (!isDog(pet.tierart)) return []
-  return getPetCompletenessIssues(pet, documents)
+  return getPetCompletenessIssues(
+    { ...pet, naechste_stuhlprobe: pet.naechste_stuhlprobe ?? null },
+    documents
+  )
 }
 
 export function getVaccinationTypeLabel(type: VaccinationType): string {

@@ -8,6 +8,7 @@ import type { BookingExtraCategory, BookingExtraPrice } from '@/lib/booking-extr
 import {
   BOOKING_ESTIMATE_COST_NOTICE,
   BOOKING_ESTIMATE_MANUAL_EXTRAS_NOTICE,
+  BOOKING_ESTIMATE_UNBEFRISTET_TOTAL_NOTICE,
   estimateBookingCosts,
   type BookingEstimateLine,
 } from '@/lib/booking-price-estimate'
@@ -175,6 +176,16 @@ export function PortalBookingWizardOverview({
   const combinedTotal =
     estimate.total != null ? Math.round((estimate.total + addonTotal) * 100) / 100 : null
 
+  const hasUnbefristetRecurringDayCare = useMemo(
+    () =>
+      dayCareRecurringLines.some((line) => {
+        const cfg = dayCareRecurring[line.pet_id]
+        if (!cfg?.weekdays.length) return false
+        return cfg.unbefristet !== false && !cfg.endDate
+      }),
+    [dayCareRecurringLines, dayCareRecurring]
+  )
+
   return (
     <div className="space-y-5">
       <div className="rounded-lg border border-sage-200 bg-sage-50/60 p-3 text-sm text-sage-800">
@@ -306,6 +317,9 @@ export function PortalBookingWizardOverview({
             {combinedTotal != null ? formatEuro(combinedTotal) : '—'}
           </span>
         </div>
+        {combinedTotal == null && hasUnbefristetRecurringDayCare && !pricesLoading && (
+          <p className="mt-1 text-sm text-sage-600">{BOOKING_ESTIMATE_UNBEFRISTET_TOTAL_NOTICE}</p>
+        )}
         <div
           className="mt-3 rounded-md border border-amber-200/80 bg-amber-50/80 px-3 py-2 text-xs leading-relaxed text-amber-950"
           role="note"

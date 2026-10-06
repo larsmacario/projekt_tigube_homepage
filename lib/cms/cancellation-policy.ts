@@ -109,7 +109,12 @@ function pickSections(value: unknown): CancellationSection[] {
       const policy = pickPolicyList(row.policy)
       const notes = pickStringArray(row.notes)
       if (!title && policy.length === 0 && notes.length === 0) return null
-      return { title, policy, notes }
+      const section: CancellationSection = {
+        ...(title ? { title } : {}),
+        policy,
+        ...(notes.length > 0 ? { notes } : {}),
+      }
+      return section
     })
     .filter((section): section is CancellationSection => section !== null)
 }

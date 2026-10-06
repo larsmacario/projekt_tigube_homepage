@@ -117,25 +117,29 @@ export function createServerClient(cookieHeader: string | null) {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 
-  return createClient(supabaseUrl, supabaseAnonKey, {
-    cookies: {
-      get(name: string) {
-        // Parse cookies from header
-        if (!cookieHeader) return undefined
-        const cookies = cookieHeader.split(';').reduce((acc, cookie) => {
-          const [key, value] = cookie.trim().split('=')
-          acc[key] = value
-          return acc
-        }, {} as Record<string, string>)
-        return cookies[name]
+  return createClient(
+    supabaseUrl,
+    supabaseAnonKey,
+    {
+      cookies: {
+        get(name: string) {
+          // Parse cookies from header
+          if (!cookieHeader) return undefined
+          const cookies = cookieHeader.split(';').reduce((acc, cookie) => {
+            const [key, value] = cookie.trim().split('=')
+            acc[key] = value
+            return acc
+          }, {} as Record<string, string>)
+          return cookies[name]
+        },
+        set() {
+          // Server-side cookies werden nicht gesetzt
+        },
+        remove() {
+          // Server-side cookies werden nicht entfernt
+        },
       },
-      set() {
-        // Server-side cookies werden nicht gesetzt
-      },
-      remove() {
-        // Server-side cookies werden nicht entfernt
-      },
-    },
-  })
+    } as Parameters<typeof createClient>[2]
+  )
 }
 

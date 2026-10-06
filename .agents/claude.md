@@ -10,7 +10,7 @@ Die Datenhaltung und Authentifizierung laufen über Supabase.
 ## Wichtige Befehle
 - Dev: `npm run dev`
 - Build: `npm run build`
-- Test: Kein separater Testbefehl konfiguriert
+- Test: `npm test` (Vitest), Typecheck: `npm run typecheck`, Lint: `npm run lint`
 
 ## Konventionen
 - Admin-API-Routen prüfen die Rolle `admin` serverseitig.

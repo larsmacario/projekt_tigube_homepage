@@ -29,6 +29,7 @@ function baseBooking(overrides: Partial<BookingRequest>): BookingRequest {
     request_group_id: 'g1',
     created_at: '',
     updated_at: '',
+    cancelled_at: null,
     pet: { id: 'p1', name: 'Bello' } as BookingRequest['pet'],
     request_group: {
       id: 'g1',

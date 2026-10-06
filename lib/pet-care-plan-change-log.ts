@@ -7,6 +7,7 @@ import {
   normalizeCarePlan,
   carePlanToLegacyFields,
   type PetCarePlan,
+  type PetCarePlanInput,
 } from '@/lib/pet-care-plan'
 
 export function applyCarePlanToPetUpdates(
@@ -17,7 +18,7 @@ export function applyCarePlanToPetUpdates(
     return updates
   }
 
-  const normalized = normalizeCarePlan(updates.care_plan)
+  const normalized = normalizeCarePlan(updates.care_plan as PetCarePlanInput)
   updates.care_plan = normalized && hasMeaningfulCarePlan(normalized) ? normalized : null
 
   if (normalized && hasMeaningfulCarePlan(normalized)) {
@@ -32,11 +33,11 @@ export function applyCarePlanToPetUpdates(
   if (
     normalized &&
     hasMeaningfulCarePlan(normalized) &&
-    hasCarePlanChanged(existingCarePlan, normalized) &&
+    hasCarePlanChanged(existingCarePlan as PetCarePlanInput, normalized) &&
     !Object.prototype.hasOwnProperty.call(updates, '_skipCarePlanChangeLog')
   ) {
     updates._carePlanChangeMeta = {
-      before: normalizeCarePlan(existingCarePlan),
+      before: normalizeCarePlan(existingCarePlan as PetCarePlanInput),
       after: normalized,
     }
   }

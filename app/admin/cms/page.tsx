@@ -21,6 +21,7 @@ import {
   normalizeCancellationPolicyConfig,
   type CancellationPolicyConfig,
 } from '@/lib/cancellation-policy-config'
+import type { CancellationSection } from '@/lib/cms/cancellation-policy'
 
 // Types matching page constants
 interface HomepageData {
@@ -197,7 +198,7 @@ function StringList({
   )
 }
 
-function StructuredList({
+function StructuredList<T extends Record<string, string | undefined>>({
   label,
   list,
   fields,
@@ -205,10 +206,10 @@ function StructuredList({
   defaultObj,
 }: {
   label: string
-  list: Record<string, string>[]
+  list: T[]
   fields: { key: string; label: string; type?: 'text' | 'textarea' }[]
-  onChange: (val: Record<string, string>[]) => void
-  defaultObj: Record<string, string>
+  onChange: (val: T[]) => void
+  defaultObj: T
 }) {
   const items = list || []
   return (
@@ -927,7 +928,7 @@ export default function CMSPage() {
                   fields={[
                     { key: 'title', label: 'Leistungstitel' }
                   ]}
-                  defaultObj={{ title: '' }}
+                  defaultObj={{ title: '', description: '' }}
                   onChange={(val) => updateData('katzenbetreuung', 'qualificationsList', val)}
                 />
               </div>
@@ -1064,7 +1065,11 @@ export default function CMSPage() {
                 </div>
                 <StructuredList
                   label="Pflichtunterlagen"
-                  list={kpData.documentsItems || []}
+                  list={
+                    (kpData.documentsItems || []) as unknown as Array<
+                      Record<string, string | undefined>
+                    >
+                  }
                   fields={[
                     { key: 'title', label: 'Titel (optional)' },
                     { key: 'description', label: 'Text', type: 'textarea' },

@@ -297,7 +297,6 @@ export function DataTable({
                   }
                 }}
                 locale={de}
-                initialFocus
               />
             </PopoverContent>
           </Popover>

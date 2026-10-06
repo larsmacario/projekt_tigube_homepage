@@ -98,7 +98,7 @@ export async function executeVaccinationReminders(
   const portalUrl =
     process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, '') || 'https://tierischgutbetreut.de'
 
-  for (const pet of (pets || []) as PetWithCustomer[]) {
+  for (const pet of (pets || []) as unknown as PetWithCustomer[]) {
     const customerEmail = pet.contacts?.email
     if (!customerEmail) {
       continue

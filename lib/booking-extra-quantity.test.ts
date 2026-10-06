@@ -20,6 +20,7 @@ function price(partial: Partial<BookingExtraPrice> & Pick<BookingExtraPrice, 'id
     unit: null,
     note: null,
     sort_order: 1,
+    usage: 'extra',
     final_price: 10,
     catalog_price: 10,
     ...partial,

@@ -453,7 +453,7 @@ export async function retrySevdeskArticleLink(input: {
   if (error) throw new Error(error.message)
   if (!data) throw new Error('Artikel nicht gefunden')
 
-  const row = data as PriceCatalogRow | AddonCatalogRow
+  const row = data as unknown as PriceCatalogRow | AddonCatalogRow
   if (row.sevdesk_article_id && row.sevdesk_sync_status === 'synced') {
     return { linked: true, reason: 'Bereits verknüpft', row }
   }

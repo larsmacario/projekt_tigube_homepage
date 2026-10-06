@@ -1,11 +1,5 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  eslint: {
-    ignoreDuringBuilds: true,
-  },
-  typescript: {
-    ignoreBuildErrors: true,
-  },
   images: {
     unoptimized: true,
     remotePatterns: [
@@ -24,7 +18,7 @@ const nextConfig = {
         destination: '/',
         permanent: true,
       },
-      // Hundepension / Katzenbetreuung / Kundenstimmen: siehe middleware.ts
+      // Hundepension / Katzenbetreuung / Kundenstimmen: siehe proxy.ts
       // (next.config-Redirects matchen auf Vercel case-insensitiv → 308-Schleife auf /hundepension etc.)
       {
         source: '/Unsere-Leistungen/:path*',

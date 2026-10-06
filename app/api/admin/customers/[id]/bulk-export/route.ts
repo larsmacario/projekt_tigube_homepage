@@ -7,10 +7,8 @@ import {
   generateZipBuffer,
 } from '@/lib/admin-bulk-export'
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function GET(request: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   try {
     const auth = await requireAdmin(request)
     if ('error' in auth) {
@@ -42,7 +40,7 @@ export async function GET(
       console.warn('Bulk export completed with document warnings:', result.documentErrors)
     }
 
-    return new NextResponse(buffer, {
+    return new NextResponse(new Uint8Array(buffer), {
       headers: {
         'Content-Type': 'application/zip',
         'Content-Disposition': `attachment; filename="${filename}"`,

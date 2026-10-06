@@ -4,7 +4,7 @@
 Website und Verwaltungsportal für einen Tierbetreuungsservice. Das CRM verwaltet Kontaktanfragen als Leads und konvertierte Kunden.
 
 ## Tech-Stack
-- Next.js 15, React 19 und TypeScript
+- Next.js 16, React 19 und TypeScript (Node 24)
 - Tailwind CSS, shadcn/ui und Lucide React
 - Supabase für PostgreSQL, Authentifizierung, Storage und CMS
 - Custom CMS über Supabase JSONB-Tabelle `cms_content` und Storage-Bucket `cms-assets`

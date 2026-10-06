@@ -27,10 +27,8 @@ async function checkAdminAuth(supabase: any, accessToken: string | undefined) {
   return null
 }
 
-export async function POST(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function POST(request: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   try {
     const leadId = params.id
     const { client: supabase, accessToken } = await getServerClient(request)

@@ -33,7 +33,7 @@ interface CatalogPrice {
   price: number | null
   price_type: 'fixed' | 'percentage' | 'per_unit' | 'text'
   unit: string | null
-  usage?: string
+  usage?: import('@/lib/price-resolver').PriceUsage
 }
 
 interface PriceCategory {

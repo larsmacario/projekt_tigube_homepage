@@ -1,7 +1,9 @@
 import { getAdminDbClient } from '@/lib/admin-auth'
 import type {
+  SevdeskArticleImportSummary,
   SevdeskContact,
   SevdeskContactDetail,
+  SevdeskCustomerImportSummary,
   SevdeskInvoiceDraftResult,
   SevdeskInvoicePosition,
   SevdeskPart,
@@ -617,7 +619,9 @@ export async function createSevdeskInvoiceDraft(input: {
   }
 }
 
-export async function updateSevdeskCustomerImportSummary(summary: Record<string, unknown>): Promise<void> {
+export async function updateSevdeskCustomerImportSummary(
+  summary: SevdeskCustomerImportSummary
+): Promise<void> {
   const db = getAdminDbClient()
   const { error } = await db
     .from('sevdesk_settings')
@@ -633,7 +637,9 @@ export async function updateSevdeskCustomerImportSummary(summary: Record<string,
   }
 }
 
-export async function updateSevdeskArticleImportSummary(summary: Record<string, unknown>): Promise<void> {
+export async function updateSevdeskArticleImportSummary(
+  summary: SevdeskArticleImportSummary
+): Promise<void> {
   const db = getAdminDbClient()
   const { error } = await db
     .from('sevdesk_settings')

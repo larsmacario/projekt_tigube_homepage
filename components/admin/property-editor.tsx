@@ -208,7 +208,6 @@ export function PropertyEditor({
                   }
                 }}
                 locale={de}
-                initialFocus
               />
             </PopoverContent>
           </Popover>

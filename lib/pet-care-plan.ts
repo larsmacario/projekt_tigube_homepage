@@ -56,7 +56,12 @@ export interface PetCarePlan {
   medication: CarePlanMedicationEntry[]
 }
 
-export type PetCarePlanInput = PetCarePlan | Record<string, unknown> | null | undefined
+export type PetCarePlanInput =
+  | PetCarePlan
+  | Record<string, unknown>
+  | null
+  | undefined
+  | object
 
 const EMPTY_FEEDING_SLOT = (): CarePlanFeedingSlot => ({
   enabled: false,

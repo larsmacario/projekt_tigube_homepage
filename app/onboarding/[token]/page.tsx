@@ -87,7 +87,7 @@ export default function OnboardingPage() {
       }
 
       setLead(data.lead)
-      setEmail(data.lead.email)
+      setEmail(data.lead.email ?? '')
       setStep('register')
     } catch (error: any) {
       console.error('Error verifying token:', error)

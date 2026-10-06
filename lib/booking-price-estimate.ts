@@ -57,6 +57,9 @@ export const BOOKING_ESTIMATE_COST_NOTICE =
 export const BOOKING_ESTIMATE_MANUAL_EXTRAS_NOTICE =
   'Futter, Medikamentengabe und ähnliche Leistungen werden erst nach deiner Anfrage individuell festgelegt und erscheinen daher nicht in der Summe.'
 
+export const BOOKING_ESTIMATE_UNBEFRISTET_TOTAL_NOTICE =
+  'Bei unbefristeter Buchung ist keine Gesamtsumme möglich.'
+
 export const HUND_GRUNDPREISE_TIER_NOTE =
   'Weitere Tarifstufen findest du unter „Preise“ im Kundenportal.'
 

@@ -33,6 +33,8 @@ describe('day-care-booking', () => {
       end_date: '2026-07-31',
       day_care_mode: 'once',
       selected_dates: ['2026-07-24', '2026-07-28'],
+      day_care_weekdays: null,
+      cancelled_dates: null,
     })
     expect(dates).toEqual(['2026-07-24', '2026-07-28'])
   })

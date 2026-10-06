@@ -42,9 +42,8 @@ type MailOptions = {
 }
 
 function getConfirmationMail(): MailOptions | undefined {
-  return mockSendMail.mock.calls
-    .map(([opts]) => opts as MailOptions)
-    .find((opts) => opts.to === baseLead.email)
+  const calls = mockSendMail.mock.calls as unknown as Array<[MailOptions]>
+  return calls.map(([opts]) => opts).find((opts) => opts.to === baseLead.email)
 }
 
 function expectBannerInMail(mail: MailOptions) {

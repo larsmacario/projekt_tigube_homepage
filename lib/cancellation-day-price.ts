@@ -31,7 +31,10 @@ function isSurchargeDay(date: string, holidayDates: Set<string>): boolean {
  * - einmalige Zusatzleistungen bleiben außen vor
  */
 export function resolveDayCareDayPrice(input: {
-  booking: Pick<BookingRequest, 'id' | 'service_type' | 'day_care_mode' | 'end_date'>
+  booking: Pick<
+    BookingRequest,
+    'id' | 'service_type' | 'day_care_mode' | 'end_date' | 'start_date'
+  >
   lineItems: BookingLineItem[]
   date: string
   holidayDates?: string[]
@@ -109,7 +112,12 @@ export function resolveDayCareDayPrice(input: {
 export function resolveScopeTotalForCancelledDates(input: {
   booking: Pick<
     BookingRequest,
-    'id' | 'service_type' | 'day_care_mode' | 'selected_dates' | 'end_date'
+    | 'id'
+    | 'service_type'
+    | 'day_care_mode'
+    | 'selected_dates'
+    | 'end_date'
+    | 'start_date'
   >
   lineItems: BookingLineItem[]
   datesToCancel: string[]

@@ -77,7 +77,7 @@ describe('booking-batch-create', () => {
     ] as const
 
     for (const { lines, blocks, range, valid } of cases) {
-      const result = validatePortalPetLines(lines, blocks, range)
+      const result = validatePortalPetLines([...lines], blocks, range)
       expect(result.valid).toBe(valid)
     }
   })

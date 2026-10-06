@@ -330,7 +330,12 @@ export async function syncInvoiceDrafts(
       .from('sevdesk_sync_runs')
       .update({
         finished_at: new Date().toISOString(),
-        summary: { synced: synced.length, failed: failed.length, synced, failed },
+        summary: {
+          syncedCount: synced.length,
+          failedCount: failed.length,
+          synced,
+          failed,
+        },
       })
       .eq('id', run.id)
   }

@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { CapacityIndicator } from '@/components/capacity-indicator'
 import { BookingWeekTimeGrid } from '@/components/booking-week-time-grid'
-import type { BookingRequest, CalendarDay } from '@/lib/types'
+import type { BookingRequest, CalendarDay, ServiceType } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { isDateInVacationPeriods } from '@/lib/booking-availability'
 import {
@@ -49,6 +49,7 @@ export function BookingCalendar({
 }: BookingCalendarProps) {
   const [currentDate, setCurrentDate] = useState(new Date())
   const [view, setView] = useState<'month' | 'week'>(initialView)
+  const calendarView = view
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -100,7 +101,7 @@ export function BookingCalendar({
         capacity: {
           current: capacity?.current || dayBookings.filter(b => b.status === 'approved').length,
           max: capacity?.max || 0,
-          serviceType: capacity?.serviceType,
+          serviceType: (capacity?.serviceType ?? null) as ServiceType | null | undefined,
         },
       })
       
@@ -132,7 +133,7 @@ export function BookingCalendar({
         capacity: {
           current: capacity?.current || dayBookings.filter((b) => b.status === 'approved').length,
           max: capacity?.max || 0,
-          serviceType: capacity?.serviceType,
+          serviceType: (capacity?.serviceType ?? null) as ServiceType | null | undefined,
         },
       })
     }
@@ -210,14 +211,14 @@ export function BookingCalendar({
           </div>
           <div className="flex gap-2">
             <Button
-              variant={view === 'month' ? 'default' : 'outline'}
+              variant={calendarView === 'month' ? 'default' : 'outline'}
               size="sm"
               onClick={() => setView('month')}
             >
               Monat
             </Button>
             <Button
-              variant={view === 'week' ? 'default' : 'outline'}
+              variant={calendarView === 'week' ? 'default' : 'outline'}
               size="sm"
               onClick={() => setView('week')}
             >
@@ -263,14 +264,14 @@ export function BookingCalendar({
         </div>
         <div className="flex gap-2">
           <Button
-            variant={view === 'month' ? 'default' : 'outline'}
+            variant={calendarView === 'month' ? 'default' : 'outline'}
             size="sm"
             onClick={() => setView('month')}
           >
             Monat
           </Button>
           <Button
-            variant={view === 'week' ? 'default' : 'outline'}
+            variant={calendarView === 'week' ? 'default' : 'outline'}
             size="sm"
             onClick={() => setView('week')}
           >

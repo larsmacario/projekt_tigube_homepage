@@ -100,12 +100,23 @@ export function buildSevdeskImportCreatePayload(
   }
 }
 
+export type SevdeskImportUpdatePayload = ReturnType<typeof buildStammdatenPayload> & {
+  service: string
+  status?: 'pending'
+  datenschutz?: boolean
+  onboarding_completed?: boolean
+  contract_signed?: boolean
+  onboarding_email_status?: null
+  onboarding_email_error?: null
+  onboarding_email_sent_at?: null
+}
+
 export function buildSevdeskImportUpdatePayload(
   mapped: MappedSevdeskCustomer,
   sevdeskContactId: string,
   sevdeskTags: string[],
   existing: { user_id?: string | null }
-) {
+): SevdeskImportUpdatePayload {
   const payload = {
     // Nach Abschluss des Onboardings ist das Portal die führende Quelle für die
     // bestätigte Kontakt- und Login-Adresse. Ein SevDesk-Import darf sie nicht

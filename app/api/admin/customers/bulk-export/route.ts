@@ -76,7 +76,7 @@ export async function POST(request: NextRequest) {
       console.warn('Bulk export completed with issues:', { failures, warnings })
     }
 
-    return new NextResponse(buffer, {
+    return new NextResponse(new Uint8Array(buffer), {
       headers: {
         'Content-Type': 'application/zip',
         'Content-Disposition': `attachment; filename="${filename}"`,

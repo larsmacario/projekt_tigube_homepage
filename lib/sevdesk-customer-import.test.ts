@@ -94,7 +94,7 @@ describe('sevdesk-customer-import payloads', () => {
   it('setzt beim Update ohne Portal-Login Onboarding und Vertrag zurück', () => {
     const payload = buildSevdeskImportUpdatePayload(mapped, 'sevdesk-99', ['cat'], {
       user_id: null,
-    })
+    }) as Record<string, unknown>
 
     expect(payload.sevdesk_tags).toEqual(['cat'])
 
@@ -111,7 +111,7 @@ describe('sevdesk-customer-import payloads', () => {
   it('lässt beim Update mit Portal-Login den Onboarding-Status und die bestätigte E-Mail unverändert', () => {
     const payload = buildSevdeskImportUpdatePayload(mapped, 'sevdesk-99', ['aktiv'], {
       user_id: 'user-1',
-    })
+    }) as Record<string, unknown>
 
     expect(payload.sevdesk_tags).toEqual(['aktiv'])
 

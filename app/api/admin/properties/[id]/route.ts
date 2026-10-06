@@ -25,10 +25,8 @@ async function checkAdminAuth(supabase: any, accessToken: string | undefined) {
   return null
 }
 
-export async function PUT(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function PUT(request: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   try {
     const { client: supabase, accessToken } = await getServerClient(request)
     const authError = await checkAdminAuth(supabase, accessToken)
@@ -99,10 +97,8 @@ export async function PUT(
   }
 }
 
-export async function DELETE(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function DELETE(request: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   try {
     const { client: supabase, accessToken } = await getServerClient(request)
     const authError = await checkAdminAuth(supabase, accessToken)

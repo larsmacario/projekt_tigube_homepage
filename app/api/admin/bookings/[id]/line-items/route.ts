@@ -117,14 +117,16 @@ export async function GET(
       }))
     )
 
-    const extra_catalog = ctx.booking!.customer_id
-      ? await loadBookingExtraCatalogForAdmin(
-          admin,
-          ctx.booking.customer_id,
-          ctx.customerGroupId,
-          serviceTypes
-        )
-      : { categories: [], prices: [] }
+    const booking = ctx.booking
+    const extra_catalog =
+      booking?.customer_id
+        ? await loadBookingExtraCatalogForAdmin(
+            admin,
+            booking.customer_id,
+            ctx.customerGroupId ?? null,
+            serviceTypes
+          )
+        : { categories: [], prices: [] }
 
     const addon_catalog = await loadBillableAddonServices(admin)
 

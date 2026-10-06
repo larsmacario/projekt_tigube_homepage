@@ -14,8 +14,11 @@ import {
   formatEuro,
   resolveCatalogPrice,
   type PriceRuleMode,
+  type CatalogPriceRow,
   type PriceRuleRow,
+  type PriceUsage,
 } from '@/lib/price-resolver'
+import type { PriceOverrideRow } from '@/lib/price-override'
 import {
   FIXED_PERCENTAGE_SURCHARGE_RATE,
   formatFixedPercentageLabel,
@@ -93,7 +96,7 @@ interface CatalogPriceLike {
   price_type: 'fixed' | 'percentage' | 'per_unit' | 'text'
   name: string
   unit: string | null
-  usage?: string
+  usage?: PriceUsage
 }
 
 function FixedPercentageInfo({ catalogPrice }: { catalogPrice: CatalogPriceLike }) {
@@ -129,7 +132,7 @@ export function PriceRuleEditorRow({
   }
 
   const customRule = formToRuleRow(catalogPrice.id, form)
-  const resolved = resolveCatalogPrice(catalogPrice, {
+  const resolved = resolveCatalogPrice(catalogPrice as CatalogPriceRow, {
     petRule: customRule,
   })
 
@@ -272,12 +275,12 @@ export const formToOverrideRow = formToRuleRow
 
 export function PriceOverrideEditorRow(
   props: Omit<PriceRuleEditorRowProps, 'allowPetModes' | 'inheritedFinalPrice'> & {
-    groupOverride?: PriceRuleRow | null
+    groupOverride?: PriceRuleRow | PriceOverrideRow | null
   }
 ) {
   const groupResolved = props.groupOverride
-    ? resolveCatalogPrice(props.catalogPrice, {
-        groupRule: props.groupOverride,
+    ? resolveCatalogPrice(props.catalogPrice as CatalogPriceRow, {
+        groupRule: props.groupOverride as PriceRuleRow,
       })
     : null
 
@@ -371,7 +374,7 @@ export function GroupPriceOverrideEditorRow({
   }
 
   const customRule = formToRuleRow(catalogPrice.id, form)
-  const resolved = resolveCatalogPrice(catalogPrice, {
+  const resolved = resolveCatalogPrice(catalogPrice as CatalogPriceRow, {
     groupRule: customRule,
   })
 

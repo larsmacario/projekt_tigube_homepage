@@ -1,14 +1,15 @@
 # Aktueller Stand
 
 ## Letzte Änderungen
-- **Buchungen anpassbar:** Portal + Admin „Zeitraum anpassen“ (`BookingModificationDialog`, APIs `/modification`). Domäne `lib/booking-modification.ts`, Storno-Vorschau extrahiert (`lib/cancellation-preview.ts`). Pending ohne Gebühr; approved entfernte Tage mit Stornopolitik; Admin optional `waiveCancellation`.
+- **Next.js 16 Upgrade:** `next@16.3.8`, ESLint CLI statt `next lint`, `proxy.ts` statt `middleware.ts`, async Route-`params`, Build ohne TS/ESLint-Ignores, CI unter `.github/workflows/ci.yml`, Node 24 via `.nvmrc`/`engines`.
 
 ## Fokus
-- Manuell: Anpassung pending/approved (Pension + Tagesbetreuung), Stornovorschau.
+- Branch `upgrade/next-16` bereit für Review/Preview-Deploy.
 
 ## Nächste Schritte
-- Optional: `appointment_plan` bei Datumsänderung synchronisieren.
-- Commit/Deploy wenn gewünscht.
+- Vercel Preview smoke-testen (ohne E-Mail/SevDesk/Cron-Schreibaktionen).
+- Merge und Production-Deploy nach Freigabe.
 
 ## Offene Punkte
 - E2E-Löschtest Konto weiterhin ausstehend.
+- ESLint: 104 Warnungen (v. a. ungenutzte Variablen); `no-explicit-any` bewusst deaktiviert für Legacy-Code.

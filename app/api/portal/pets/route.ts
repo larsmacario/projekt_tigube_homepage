@@ -1,7 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getServerClient } from '@/lib/admin-auth'
 import { PET_EDITABLE_FIELDS, pickAllowedFields } from '@/lib/contact-editable-fields'
-import { normalizePetsWithPhotos, normalizePetWithPhotoCount, PET_PHOTOS_SELECT } from '@/lib/pet-photos'
+import {
+  normalizePetsWithPhotos,
+  normalizePetWithPhotoCount,
+  PET_PHOTOS_SELECT,
+  type PetPhotoRow,
+} from '@/lib/pet-photos'
 import { normalizePetPayload, validatePetPayload } from '@/lib/pet-payload'
 import { getPortalCustomer } from '@/lib/portal-customer'
 import { afterPetCarePlanSaved, extractCarePlanChangeMeta, preparePetWritePayload } from '@/lib/pet-save'
@@ -71,7 +76,9 @@ export async function GET(request: NextRequest) {
       const pets = (data || []).map((pet) => ({
         ...normalizePetWithPhotoCount({
           ...(pet as Record<string, unknown>),
-          pet_photos: (pet as { pet_photos?: unknown }).pet_photos ?? [],
+          pet_photos: (Array.isArray((pet as { pet_photos?: unknown }).pet_photos)
+            ? (pet as { pet_photos: PetPhotoRow[] }).pet_photos
+            : []) as PetPhotoRow[],
         }),
         primary_photo_url: null as string | null,
       }))

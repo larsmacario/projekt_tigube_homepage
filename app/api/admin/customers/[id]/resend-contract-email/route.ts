@@ -2,10 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerClient, getAdminDbClient } from '@/lib/admin-auth'
 import { sendStoredContractEmail } from '@/lib/contract-email'
 
-export async function POST(
-  request: NextRequest,
-  { params }: { params: { id: string } }
-) {
+export async function POST(request: NextRequest, props: { params: Promise<{ id: string }> }) {
+  const params = await props.params;
   try {
     const { client: supabase, accessToken } = await getServerClient(request)
 

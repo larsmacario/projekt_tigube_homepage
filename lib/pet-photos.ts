@@ -21,7 +21,7 @@ const EXTENSION_TO_MIME: Record<string, string> = {
   webp: 'image/webp',
 }
 
-type PetPhotoRow = {
+export type PetPhotoRow = {
   count?: number
   file_path?: string
   sort_order?: number
@@ -153,7 +153,9 @@ export async function normalizePetsWithPhotos<T extends Record<string, unknown>>
   (Omit<T, 'pet_photos'> & { photo_count: number; primary_photo_url: string | null })[]
 > {
   const normalized = pets.map((pet) => normalizePetWithPhotos(pet))
-  return attachPrimaryPhotoUrls(supabase, normalized)
+  return attachPrimaryPhotoUrls(supabase, normalized) as unknown as Promise<
+    (Omit<T, 'pet_photos'> & { photo_count: number; primary_photo_url: string | null })[]
+  >
 }
 
 export function getPetsWithoutPhotos<T extends { photo_count?: number }>(pets: T[]): T[] {

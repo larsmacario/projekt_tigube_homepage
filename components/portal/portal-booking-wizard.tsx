@@ -199,9 +199,11 @@ export function PortalBookingWizard({
       availability: { closedDates: [], vacationPeriods: [] },
     })
     if (!envelope) return undefined
+    const from = parseIsoDate(envelope.start_date)
+    const to = parseIsoDate(envelope.end_date)
     return {
-      from: parseIsoDate(envelope.start_date),
-      to: parseIsoDate(envelope.end_date),
+      from: from ?? undefined,
+      to: to ?? undefined,
     }
   }, [resolvedPetLines, dateBlocks, dayCareOnceDates, dayCareRecurring])
 
@@ -328,7 +330,7 @@ export function PortalBookingWizard({
         if (line.service_type !== 'tagesbetreuung') {
           if (!line.day_care_mode) return line
           changed = true
-          return { ...line, day_care_mode: '' }
+          return { ...line, day_care_mode: '' as const }
         }
         const schedule = dayCareScheduleByPet[line.pet_id] ?? {
           repeat: 'none' as const,
@@ -337,7 +339,7 @@ export function PortalBookingWizard({
         const mode = dayCareModeFromSchedule(schedule.repeat)
         if (line.day_care_mode === mode) return line
         changed = true
-        return { ...line, day_care_mode: mode }
+        return { ...line, day_care_mode: mode as PetServiceLine['day_care_mode'] }
       })
       return changed ? next : prev
     })

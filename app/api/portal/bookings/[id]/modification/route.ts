@@ -71,9 +71,9 @@ async function loadBookingContext(bookingId: string, customerId: string) {
   return { booking: typedBooking, lineItems, userId: null as string | null }
 }
 
-export async function GET(request: NextRequest, context: RouteContext) {
+export async function GET(request: NextRequest, routeContext: RouteContext) {
   try {
-    const { id } = await context.params
+    const { id } = await routeContext.params
     const { client: supabase } = await getServerClient(request)
     const customerResult = await resolvePortalCustomer(supabase)
     if ('error' in customerResult) {

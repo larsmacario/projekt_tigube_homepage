@@ -127,7 +127,11 @@ function ProfileContent() {
   const [isPolling, setIsPolling] = useState(false)
   const [fotoVideoConsent, setFotoVideoConsent] = useState(false)
   const [dataConsent, setDataConsent] = useState(false)
-  const [contractLegal, setContractLegal] = useState<{ title: string; content: string } | null>(
+  const [contractLegal, setContractLegal] = useState<{
+    title: string
+    content: string
+    cancellationPolicyVersion?: number | string | null
+  } | null>(
     null
   )
   const [contractLegalLoading, setContractLegalLoading] = useState(false)

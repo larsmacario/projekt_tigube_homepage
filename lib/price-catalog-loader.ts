@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
+import type { SevdeskSyncStatus } from '@/lib/types'
 import { isMissingDbObject } from '@/lib/price-legacy-compat'
 import {
   isPriceArchived,

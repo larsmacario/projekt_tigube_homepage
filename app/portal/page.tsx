@@ -230,7 +230,13 @@ export default function PortalPage() {
                             {booking.pet?.name || 'Unbekannt'}
                           </p>
                           <p className="text-sage-600">
-                            {new Date(booking.start_date).toLocaleDateString('de-DE')} - {new Date(booking.end_date).toLocaleDateString('de-DE')}
+                            {booking.start_date
+                              ? new Date(booking.start_date).toLocaleDateString('de-DE')
+                              : '—'}{' '}
+                            -{' '}
+                            {booking.end_date
+                              ? new Date(booking.end_date).toLocaleDateString('de-DE')
+                              : '—'}
                           </p>
                         </div>
                       ))}

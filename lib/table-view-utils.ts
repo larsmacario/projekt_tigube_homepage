@@ -110,7 +110,7 @@ export function applyTableViewConfig(
         width: entry.width ?? column.width,
       }
     })
-    .filter((column): column is TableColumn => column !== null)
+    .filter((column): column is NonNullable<typeof column> => column !== null)
 }
 
 export function validateViewConfig(

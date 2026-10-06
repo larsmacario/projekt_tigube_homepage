@@ -81,6 +81,7 @@ describe('booking-extras', () => {
         sort_order: 2,
         final_price: null,
         catalog_price: null,
+        usage: 'info' as const,
       },
     ]
 
@@ -138,6 +139,7 @@ describe('booking-extras', () => {
         unit: null,
         note: null,
         sort_order: 1,
+        usage: 'extra' as const,
         final_price: 8,
         catalog_price: 10,
       },
@@ -157,6 +159,7 @@ describe('booking-extras', () => {
         unit: 'auf Tagespreis',
         note: null,
         sort_order: 1,
+        usage: 'extra' as const,
         final_price: 50,
         catalog_price: 50,
       },
@@ -177,6 +180,7 @@ describe('booking-extras', () => {
       unit: 'km',
       note: null,
       sort_order: 1,
+      usage: 'extra' as const,
       final_price: 12,
       catalog_price: 12,
     }

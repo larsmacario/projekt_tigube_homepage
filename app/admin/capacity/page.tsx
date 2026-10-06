@@ -14,7 +14,7 @@ import { useToast } from '@/hooks/use-toast'
 import { CalendarIcon, Trash2 } from 'lucide-react'
 import { format } from 'date-fns'
 import { de } from 'date-fns/locale'
-import type { CapacitySetting, CapacityOverride } from '@/lib/types'
+import type { CapacitySetting, CapacityOverride, ServiceType } from '@/lib/types'
 import { authenticatedFetch } from '@/lib/authenticated-fetch'
 
 export default function CapacityPage() {
@@ -76,7 +76,12 @@ export default function CapacityPage() {
       }))
 
       // Stelle sicher, dass alle benötigten Settings vorhanden sind
-      const requiredTypes = [null, 'hundepension', 'katzenbetreuung', 'tagesbetreuung']
+      const requiredTypes: (ServiceType | null)[] = [
+        null,
+        'hundepension',
+        'katzenbetreuung',
+        'tagesbetreuung',
+      ]
       requiredTypes.forEach(type => {
         if (!settingsToSave.find(s => s.service_type === type)) {
           settingsToSave.push({
@@ -371,7 +376,6 @@ export default function CapacityPage() {
                           mode="single"
                           selected={overrideForm.date}
                           onSelect={(date) => setOverrideForm({ ...overrideForm, date })}
-                          initialFocus
                         />
                       </PopoverContent>
                     </Popover>

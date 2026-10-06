@@ -8,7 +8,10 @@ const booking = {
   service_type: 'tagesbetreuung',
   day_care_mode: 'recurring',
   selected_dates: null,
-} as Pick<BookingRequest, 'id' | 'service_type' | 'day_care_mode' | 'selected_dates'>
+} as Pick<
+  BookingRequest,
+  'id' | 'service_type' | 'day_care_mode' | 'selected_dates' | 'end_date' | 'start_date'
+>
 
 const lineItems: BookingLineItem[] = [
   {

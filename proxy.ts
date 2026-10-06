@@ -12,7 +12,7 @@ const legacyExact: Record<string, string> = {
   '/Kundenstimmen': '/kundenstimmen',
 }
 
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const path = request.nextUrl.pathname
 
   if (legacyExact[path]) {
